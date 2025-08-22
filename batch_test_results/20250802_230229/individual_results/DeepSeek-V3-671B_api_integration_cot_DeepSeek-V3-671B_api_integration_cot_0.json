@@ -1,0 +1,25 @@
+{
+  "model_name": "DeepSeek-V3-671B",
+  "task_type": "api_integration",
+  "prompt_type": "cot",
+  "test_id": "DeepSeek-V3-671B_api_integration_cot_0",
+  "success": true,
+  "execution_time": 12.656792163848877,
+  "tool_calls": [
+    "network_fetcher(url=\"https://api.example.com/data\", method=\"GET\")",
+    "network_validator(response=\"network_fetcher_response\", expected_status=\"200\")",
+    "data_processing_parser(data=\"network_fetcher_response\", format=\"json\")",
+    "data_processing_transformer(data=\"data_processing_parser_output\", mapping=\"field_mapping.json\")",
+    "data_processing_validator(data=\"data_processing_transformer_output\", schema=\"output_schema.json\")",
+    "integration_authenticator(credentials=\"api_credentials.json\", provider=\"target_api\")",
+    "integration_mapper(source_data=\"data_processing_transformer_output\", mapping=\"api_field_mapping.json\")",
+    "network_poster(url=\"https://api.target.com/endpoint\", data=\"integration_mapper_output\", method=\"POST\")"
+  ],
+  "error_message": null,
+  "adherence_scores": {},
+  "metrics": {
+    "tool_count": 8,
+    "response_length": 2072
+  },
+  "timestamp": "2025-08-02T23:03:34.822793"
+}

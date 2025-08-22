@@ -1,0 +1,3230 @@
+{
+  "test_id": "task_1_qwen2.5-3b-instruct_flawed_redundant_operations",
+  "task_type": "simple_task",
+  "prompt_type": "flawed",
+  "timestamp": "2025-08-03T23:44:23.806706",
+  "task_instance": {
+    "instance_id": "task_17c78b04",
+    "task_type": "simple_task",
+    "description": "Process the unknown input through three steps: validate its structure, transform formats, and filter data, resulting in an unspecified output.",
+    "inputs": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "age": {
+            "type": "integer"
+          }
+        }
+      },
+      "data": [
+        {
+          "name": "Alice",
+          "age": 30
+        },
+        {
+          "name": "Bob",
+          "age": "not a number"
+        },
+        {
+          "name": "Charlie",
+          "age": 25
+        }
+      ],
+      "options": {}
+    },
+    "expected_outputs": {
+      "success": true,
+      "metadata": {
+        "count": 1,
+        "filtered_names": [
+          "Alice",
+          "Charlie"
+        ]
+      }
+    },
+    "required_tools": [
+      "data_processing_validator",
+      "data_processing_transformer",
+      "data_processing_filter"
+    ],
+    "constraints": {
+      "timeout": 300,
+      "max_retries": 3
+    },
+    "complexity": "easy",
+    "metadata": {
+      "template": "simple_task",
+      "generated_at": "2025-07-10T04:27:40.046998",
+      "timeout": 300,
+      "semantic_generation": true,
+      "llm_generated": true,
+      "inputs_generated_from": "llm"
+    },
+    "original_description": "This task validates a dataset against a defined schema, transforms the validated data into a different format, and filters the transformed data based on specified criteria.",
+    "difficulty_level": "easy",
+    "enhanced": true,
+    "enhancement_timestamp": "2025-07-10 04:34:54"
+  },
+  "workflow": {
+    "task_type": "simple_task",
+    "optimal_sequence": [
+      "data_processing_parser",
+      "data_processing_parser",
+      "data_processing_validator",
+      "data_processing_validator",
+      "data_processing_parser",
+      "data_processing_parser"
+    ],
+    "smart_workflow": {
+      "task_type": "simple_task",
+      "steps": [
+        {
+          "step_id": 0,
+          "action_type": "INVOKE_TOOL",
+          "tool_name": "data_processing_validator",
+          "conditions": {},
+          "on_success": 2,
+          "on_failure": 1,
+          "max_retries": 1,
+          "metadata": {}
+        },
+        {
+          "step_id": 2,
+          "action_type": "INVOKE_TOOL",
+          "tool_name": "data_processing_transformer",
+          "conditions": {},
+          "on_success": 4,
+          "on_failure": 3,
+          "max_retries": 1,
+          "metadata": {}
+        },
+        {
+          "step_id": 4,
+          "action_type": "INVOKE_TOOL",
+          "tool_name": "data_processing_filter",
+          "conditions": {},
+          "on_success": null,
+          "on_failure": 5,
+          "max_retries": 1,
+          "metadata": {}
+        }
+      ],
+      "entry_point": 0,
+      "success_criteria": {}
+    },
+    "execution_plan": "1. Execute data_processing_validator (retry up to 1 times if failed)\n2. Execute data_processing_transformer (retry up to 1 times if failed)\n3. Execute data_processing_filter (retry up to 1 times if failed)",
+    "error_handling": "No automatic retries configured If a non-critical tool fails, log the error and continue If all critical tools fail after retries, report the issue and stop",
+    "success_probability": 0.7,
+    "workflow_quality": {
+      "length_score": 1.0,
+      "diversity_score": 1.0,
+      "dependency_score": 0.6400000000000001,
+      "flexibility_score": 0.6666666666666666,
+      "critical_coverage": 1.0,
+      "overall_quality": 0.16840000000000002
+    },
+    "critical_tools": [
+      "data_processing_filter",
+      "data_processing_transformer"
+    ],
+    "algorithm": "ppo",
+    "generated_at": "2025-08-03T23:41:25.015518",
+    "required_tools": [
+      "data_processing_validator",
+      "data_processing_transformer",
+      "data_processing_filter"
+    ],
+    "instance_id": "unknown",
+    "reasoning_steps": [
+      "Step 1: Use data_processing_validator (transformation tool) for 'transform' (requires: data_processing_parser)",
+      "Step 2: Use data_processing_transformer (transformation tool) to validate, transform (requires: data_processing_parser)",
+      "Step 3: Use data_processing_filter (transformation tool) to validate, transform"
+    ],
+    "extracted_operations": [
+      "transform"
+    ],
+    "used_embeddings": true,
+    "alternative_sequences": [
+      [
+        "file_operations_reader",
+        "data_processing_transformer",
+        "data_processing_filter"
+      ],
+      [
+        "data_processing_validator",
+        "file_operations_reader",
+        "data_processing_filter"
+      ]
+    ],
+    "rag_context": {
+      "full_description": [
+        {
+          "tool_name": "data_processing_transformer",
+          "score": 0.5390394330024719,
+          "mcp_protocol": {
+            "name": "data_processing_transformer",
+            "description": "This tool is designed to transform data from one format to another while applying specific modifications.",
+            "parameters": [
+              {
+                "name": "input_format",
+                "type": "string",
+                "description": "Input data format",
+                "required": true,
+                "default": null,
+                "constraints": {}
+              },
+              {
+                "name": "output_format",
+                "type": "string",
+                "description": "Desired output format",
+                "required": true,
+                "default": null,
+                "constraints": {}
+              },
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "transformed_data",
+                "type": "object",
+                "description": "Transformed data"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              }
+            ],
+            "dependencies": [
+              "data_processing_parser"
+            ],
+            "dependency_metadata": {
+              "level": 1,
+              "execution_order": 21,
+              "category": "data_processing"
+            },
+            "metadata": {
+              "category": "data_processing",
+              "operation": "transformer",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.057416",
+              "dependency_level": 1,
+              "execution_order": 21
+            },
+            "canonical_name": "data_processing_transformer",
+            "aliases": [],
+            "differentiation": {
+              "unique_purpose": "This tool is designed to transform data from one format to another while applying specific modifications.",
+              "key_differentiators": [
+                "Supports conversion between different data formats (e.g., JSON to XML)",
+                "Allows specification of both input and output formats",
+                "Includes options for data manipulation during the transformation process"
+              ],
+              "usage_keywords": [
+                "transform",
+                "convert",
+                "modify",
+                "data format"
+              ],
+              "avoid_keywords": [
+                "parse",
+                "extract",
+                "structure"
+              ],
+              "example_scenario": "When you have JSON data that needs to be converted into XML format while also changing certain field names and values."
+            },
+            "original_description": "Transformer for data processing",
+            "differentiation_enhanced": true
+          },
+          "category": "data_processing",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "data_processing_parser",
+          "score": 0.4944196939468384,
+          "mcp_protocol": {
+            "name": "data_processing_parser",
+            "description": "This tool is specifically designed to parse raw data from various sources into a structured format.",
+            "parameters": [
+              {
+                "name": "source",
+                "type": "string",
+                "description": "Source location or identifier",
+                "required": true,
+                "default": null,
+                "constraints": {}
+              },
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "data",
+                "type": "object",
+                "description": "Retrieved or parsed data"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              }
+            ],
+            "dependencies": [],
+            "dependency_metadata": {
+              "level": 0,
+              "execution_order": 5,
+              "category": "data_processing"
+            },
+            "metadata": {
+              "category": "data_processing",
+              "operation": "parser",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.057407",
+              "dependency_level": 0,
+              "execution_order": 5
+            },
+            "canonical_name": "data_processing_parser",
+            "aliases": [],
+            "differentiation": {
+              "unique_purpose": "This tool is specifically designed to parse raw data from various sources into a structured format.",
+              "key_differentiators": [
+                "Handles multiple data source types (e.g., CSV, JSON, XML)",
+                "Focuses on extracting and structuring data rather than transforming it",
+                "Provides options for error handling during parsing"
+              ],
+              "usage_keywords": [
+                "parse",
+                "extract",
+                "structure",
+                "data source"
+              ],
+              "avoid_keywords": [
+                "transform",
+                "format",
+                "output"
+              ],
+              "example_scenario": "When you have a CSV file containing user data and need to extract and structure that data into a JSON format for further analysis."
+            },
+            "original_description": "Parser for data processing",
+            "differentiation_enhanced": true
+          },
+          "category": "data_processing",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "data_processing_filter",
+          "score": 0.4940319061279297,
+          "mcp_protocol": {
+            "name": "data_processing_filter",
+            "description": "This tool is designed to selectively filter data based on specified criteria.",
+            "parameters": [
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              }
+            ],
+            "dependencies": [],
+            "dependency_metadata": {
+              "level": 0,
+              "execution_order": 6,
+              "category": "data_processing"
+            },
+            "metadata": {
+              "category": "data_processing",
+              "operation": "filter",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.057932",
+              "dependency_level": 0,
+              "execution_order": 6
+            },
+            "canonical_name": "data_processing_filter",
+            "aliases": [],
+            "differentiation": {
+              "unique_purpose": "This tool is designed to selectively filter data based on specified criteria.",
+              "key_differentiators": [
+                "Applies transformations to data based on filtering options.",
+                "Can handle large datasets efficiently by reducing the amount of data processed.",
+                "Focuses on outputting a refined dataset rather than validating data integrity."
+              ],
+              "usage_keywords": [
+                "filter data",
+                "data transformation",
+                "selective extraction"
+              ],
+              "avoid_keywords": [
+                "validate",
+                "schema",
+                "data integrity"
+              ],
+              "example_scenario": "You have a large dataset of customer transactions and want to filter out only those transactions that exceed a certain amount for further analysis."
+            },
+            "original_description": "Filter for data processing",
+            "differentiation_enhanced": true
+          },
+          "category": "data_processing",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "data_processing_validator",
+          "score": 0.47248852252960205,
+          "mcp_protocol": {
+            "name": "data_processing_validator",
+            "description": "This tool is used to validate data against a defined schema to ensure its correctness and integrity.",
+            "parameters": [
+              {
+                "name": "schema",
+                "type": "object",
+                "description": "Validation schema",
+                "required": true,
+                "default": null,
+                "constraints": {}
+              },
+              {
+                "name": "data",
+                "type": "object",
+                "description": "Data to validate",
+                "required": true,
+                "default": null,
+                "constraints": {}
+              },
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "valid",
+                "type": "boolean",
+                "description": "Whether data is valid"
+              },
+              {
+                "name": "errors",
+                "type": "array",
+                "description": "Validation errors if any"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              }
+            ],
+            "dependencies": [
+              "data_processing_parser"
+            ],
+            "dependency_metadata": {
+              "level": 1,
+              "execution_order": 22,
+              "category": "data_processing"
+            },
+            "metadata": {
+              "category": "data_processing",
+              "operation": "validator",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.057423",
+              "dependency_level": 1,
+              "execution_order": 22
+            },
+            "canonical_name": "data_processing_validator",
+            "aliases": [
+              "data_processing_validator_2"
+            ],
+            "differentiation": {
+              "unique_purpose": "This tool is used to validate data against a defined schema to ensure its correctness and integrity.",
+              "key_differentiators": [
+                "Checks data against a predefined schema for compliance.",
+                "Returns a validity status indicating whether the data meets the schema requirements.",
+                "Focuses on data quality assurance rather than data manipulation."
+              ],
+              "usage_keywords": [
+                "validate data",
+                "schema compliance",
+                "data integrity check"
+              ],
+              "avoid_keywords": [
+                "filter",
+                "transformation",
+                "selective extraction"
+              ],
+              "example_scenario": "You have a JSON dataset of user profiles and need to ensure that all entries conform to a specified schema before processing them further."
+            },
+            "original_description": "Validator for data processing",
+            "differentiation_enhanced": true
+          },
+          "category": "data_processing",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "data_processing_aggregator",
+          "score": 0.3860560357570648,
+          "mcp_protocol": {
+            "name": "data_processing_aggregator",
+            "description": "Aggregator for data processing",
+            "parameters": [
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              }
+            ],
+            "dependencies": [
+              "data_processing_parser"
+            ],
+            "dependency_metadata": {
+              "level": 1,
+              "execution_order": 23,
+              "category": "data_processing"
+            },
+            "metadata": {
+              "category": "data_processing",
+              "operation": "aggregator",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.057940",
+              "dependency_level": 1,
+              "execution_order": 23
+            },
+            "canonical_name": "data_processing_aggregator",
+            "aliases": [],
+            "differentiation": {
+              "unique_purpose": "Aggregator for data processing",
+              "key_differentiators": [
+                "general specific aggregator capability"
+              ],
+              "usage_keywords": [
+                "aggregator",
+                "general"
+              ],
+              "avoid_keywords": [],
+              "example_scenario": "Use data_processing_aggregator for general-related aggregator tasks"
+            },
+            "differentiation_enhanced": false
+          },
+          "category": "data_processing",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "integration_mapper",
+          "score": 0.36074334383010864,
+          "mcp_protocol": {
+            "name": "integration_mapper",
+            "description": "Mapper for integration",
+            "parameters": [
+              {
+                "name": "input_format",
+                "type": "string",
+                "description": "Input data format",
+                "required": true,
+                "default": null,
+                "constraints": {}
+              },
+              {
+                "name": "output_format",
+                "type": "string",
+                "description": "Desired output format",
+                "required": true,
+                "default": null,
+                "constraints": {}
+              },
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              }
+            ],
+            "dependencies": [],
+            "dependency_metadata": {
+              "level": 0,
+              "execution_order": 14,
+              "category": "integration"
+            },
+            "metadata": {
+              "category": "integration",
+              "operation": "mapper",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.058022",
+              "dependency_level": 0,
+              "execution_order": 14
+            },
+            "canonical_name": "integration_mapper",
+            "aliases": [
+              "integration_mapper_3",
+              "integration_mapper_15"
+            ],
+            "differentiation": {
+              "unique_purpose": "Mapper for integration",
+              "key_differentiators": [
+                "general specific mapper capability"
+              ],
+              "usage_keywords": [
+                "mapper",
+                "general"
+              ],
+              "avoid_keywords": [],
+              "example_scenario": "Use integration_mapper for general-related mapper tasks"
+            },
+            "differentiation_enhanced": false
+          },
+          "category": "integration",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "file_operations_converter",
+          "score": 0.30786430835723877,
+          "mcp_protocol": {
+            "name": "file_operations_converter",
+            "description": "Converter for file operations",
+            "parameters": [
+              {
+                "name": "input_format",
+                "type": "string",
+                "description": "Input data format",
+                "required": true,
+                "default": null,
+                "constraints": {}
+              },
+              {
+                "name": "output_format",
+                "type": "string",
+                "description": "Desired output format",
+                "required": true,
+                "default": null,
+                "constraints": {}
+              },
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "transformed_data",
+                "type": "object",
+                "description": "Transformed data"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              },
+              {
+                "code": "FILE_NOT_FOUND",
+                "description": "Specified file not found"
+              },
+              {
+                "code": "PERMISSION_DENIED",
+                "description": "Insufficient permissions"
+              }
+            ],
+            "dependencies": [],
+            "dependency_metadata": {
+              "level": 0,
+              "execution_order": 7,
+              "category": "file_operations"
+            },
+            "metadata": {
+              "category": "file_operations",
+              "operation": "converter",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.057952",
+              "dependency_level": 0,
+              "execution_order": 7
+            },
+            "canonical_name": "file_operations_converter",
+            "aliases": [],
+            "differentiation": {
+              "unique_purpose": "Converter for file operations",
+              "key_differentiators": [
+                "general specific converter capability"
+              ],
+              "usage_keywords": [
+                "converter",
+                "general"
+              ],
+              "avoid_keywords": [],
+              "example_scenario": "Use file_operations_converter for general-related converter tasks"
+            },
+            "differentiation_enhanced": false
+          },
+          "category": "file_operations",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "network_validator",
+          "score": 0.286525696516037,
+          "mcp_protocol": {
+            "name": "network_validator",
+            "description": "Validator for network",
+            "parameters": [
+              {
+                "name": "schema",
+                "type": "object",
+                "description": "Validation schema",
+                "required": true,
+                "default": null,
+                "constraints": {}
+              },
+              {
+                "name": "data",
+                "type": "object",
+                "description": "Data to validate",
+                "required": true,
+                "default": null,
+                "constraints": {}
+              },
+              {
+                "name": "timeout",
+                "type": "number",
+                "description": "Operation timeout in seconds",
+                "required": false,
+                "default": 30,
+                "constraints": {}
+              },
+              {
+                "name": "retry_count",
+                "type": "number",
+                "description": "Number of retries",
+                "required": false,
+                "default": 3,
+                "constraints": {}
+              },
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "valid",
+                "type": "boolean",
+                "description": "Whether data is valid"
+              },
+              {
+                "name": "errors",
+                "type": "array",
+                "description": "Validation errors if any"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              },
+              {
+                "code": "NETWORK_ERROR",
+                "description": "Network connection failed"
+              },
+              {
+                "code": "INVALID_RESPONSE",
+                "description": "Invalid response from server"
+              }
+            ],
+            "dependencies": [
+              "data_processing_parser",
+              "data_processing_transformer"
+            ],
+            "dependency_metadata": {
+              "level": 2,
+              "execution_order": 24,
+              "category": "network"
+            },
+            "metadata": {
+              "category": "network",
+              "operation": "validator",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.057873",
+              "dependency_level": 2,
+              "execution_order": 24
+            },
+            "canonical_name": "network_validator",
+            "aliases": [
+              "network_validator_10",
+              "network_validator_20"
+            ],
+            "differentiation": {
+              "unique_purpose": "Validator for network",
+              "key_differentiators": [
+                "general specific validator capability"
+              ],
+              "usage_keywords": [
+                "validator",
+                "general"
+              ],
+              "avoid_keywords": [],
+              "example_scenario": "Use network_validator for general-related validator tasks"
+            },
+            "differentiation_enhanced": false
+          },
+          "category": "network",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "file_operations_reader",
+          "score": 0.2841470241546631,
+          "mcp_protocol": {
+            "name": "file_operations_reader",
+            "description": "This tool is specifically designed to read and retrieve data from files.",
+            "parameters": [
+              {
+                "name": "source",
+                "type": "string",
+                "description": "Source location or identifier",
+                "required": true,
+                "default": null,
+                "constraints": {}
+              },
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "data",
+                "type": "object",
+                "description": "Retrieved or parsed data"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              },
+              {
+                "code": "FILE_NOT_FOUND",
+                "description": "Specified file not found"
+              },
+              {
+                "code": "PERMISSION_DENIED",
+                "description": "Insufficient permissions"
+              }
+            ],
+            "dependencies": [],
+            "dependency_metadata": {
+              "level": 0,
+              "execution_order": 0,
+              "category": "file_operations"
+            },
+            "metadata": {
+              "category": "file_operations",
+              "operation": "reader",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.057340",
+              "dependency_level": 0,
+              "execution_order": 0
+            },
+            "canonical_name": "file_operations_reader",
+            "aliases": [
+              "file_operations_reader_8"
+            ],
+            "differentiation": {
+              "unique_purpose": "This tool is specifically designed to read and retrieve data from files.",
+              "key_differentiators": [
+                "Supports various file formats for reading, such as CSV, JSON, and XML.",
+                "Includes error handling for file read operations, providing detailed feedback on read failures.",
+                "Allows for data transformation during the read process, such as filtering or mapping."
+              ],
+              "usage_keywords": [
+                "read data",
+                "retrieve information",
+                "file content",
+                "data extraction"
+              ],
+              "avoid_keywords": [
+                "scan",
+                "analyze",
+                "detect"
+              ],
+              "example_scenario": "A user needs to extract specific data from a CSV file for analysis, ensuring that only relevant rows are read into the application."
+            },
+            "original_description": "Reader for file operations",
+            "differentiation_enhanced": true
+          },
+          "category": "file_operations",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "computation_analyzer",
+          "score": 0.27912938594818115,
+          "mcp_protocol": {
+            "name": "computation_analyzer",
+            "description": "This tool is intended for analyzing and interpreting computation results.",
+            "parameters": [
+              {
+                "name": "precision",
+                "type": "number",
+                "description": "Calculation precision",
+                "required": false,
+                "default": 2,
+                "constraints": {}
+              },
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "result",
+                "type": "object",
+                "description": "Calculation or analysis result"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              },
+              {
+                "code": "CALCULATION_ERROR",
+                "description": "Calculation failed"
+              },
+              {
+                "code": "OVERFLOW",
+                "description": "Numerical overflow"
+              }
+            ],
+            "dependencies": [
+              "data_processing_parser",
+              "data_processing_aggregator"
+            ],
+            "dependency_metadata": {
+              "level": 2,
+              "execution_order": 26,
+              "category": "computation"
+            },
+            "metadata": {
+              "category": "computation",
+              "operation": "analyzer",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.058005",
+              "dependency_level": 2,
+              "execution_order": 26
+            },
+            "canonical_name": "computation_analyzer",
+            "aliases": [],
+            "differentiation": {
+              "unique_purpose": "This tool is intended for analyzing and interpreting computation results.",
+              "key_differentiators": [
+                "Generates statistical insights from computation results",
+                "Provides trend analysis over multiple computations",
+                "Offers visualization options for data interpretation"
+              ],
+              "usage_keywords": [
+                "analyze",
+                "interpret",
+                "evaluation",
+                "statistical insights"
+              ],
+              "avoid_keywords": [
+                "calculate",
+                "compute",
+                "arithmetic"
+              ],
+              "example_scenario": "Analyzing the results of a series of calculations to identify trends and patterns."
+            },
+            "original_description": "Analyzer for computation",
+            "differentiation_enhanced": true
+          },
+          "category": "computation",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "integration_connector",
+          "score": 0.26904726028442383,
+          "mcp_protocol": {
+            "name": "integration_connector",
+            "description": "Connector for integration",
+            "parameters": [
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              }
+            ],
+            "dependencies": [],
+            "dependency_metadata": {
+              "level": 0,
+              "execution_order": 17,
+              "category": "integration"
+            },
+            "metadata": {
+              "category": "integration",
+              "operation": "connector",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.058033",
+              "dependency_level": 0,
+              "execution_order": 17
+            },
+            "canonical_name": "integration_connector",
+            "aliases": [],
+            "differentiation": {
+              "unique_purpose": "Connector for integration",
+              "key_differentiators": [
+                "general specific connector capability"
+              ],
+              "usage_keywords": [
+                "connector",
+                "general"
+              ],
+              "avoid_keywords": [],
+              "example_scenario": "Use integration_connector for general-related connector tasks"
+            },
+            "differentiation_enhanced": false
+          },
+          "category": "integration",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "utility_helper",
+          "score": 0.2613925337791443,
+          "mcp_protocol": {
+            "name": "utility_helper",
+            "description": "Helper for utility",
+            "parameters": [
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              }
+            ],
+            "dependencies": [],
+            "dependency_metadata": {
+              "level": 0,
+              "execution_order": 20,
+              "category": "utility"
+            },
+            "metadata": {
+              "category": "utility",
+              "operation": "helper",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.058051",
+              "dependency_level": 0,
+              "execution_order": 20
+            },
+            "canonical_name": "utility_helper",
+            "aliases": [
+              "utility_helper_13"
+            ],
+            "differentiation": {
+              "unique_purpose": "Helper for utility",
+              "key_differentiators": [
+                "general specific helper capability"
+              ],
+              "usage_keywords": [
+                "helper",
+                "general"
+              ],
+              "avoid_keywords": [],
+              "example_scenario": "Use utility_helper for general-related helper tasks"
+            },
+            "differentiation_enhanced": false
+          },
+          "category": "utility",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "file_operations_scanner",
+          "score": 0.2486693114042282,
+          "mcp_protocol": {
+            "name": "file_operations_scanner",
+            "description": "This tool is designed to scan files for specific patterns or anomalies.",
+            "parameters": [
+              {
+                "name": "source",
+                "type": "string",
+                "description": "Source location or identifier",
+                "required": true,
+                "default": null,
+                "constraints": {}
+              },
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "data",
+                "type": "object",
+                "description": "Retrieved or parsed data"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              },
+              {
+                "code": "FILE_NOT_FOUND",
+                "description": "Specified file not found"
+              },
+              {
+                "code": "PERMISSION_DENIED",
+                "description": "Insufficient permissions"
+              }
+            ],
+            "dependencies": [],
+            "dependency_metadata": {
+              "level": 0,
+              "execution_order": 1,
+              "category": "file_operations"
+            },
+            "metadata": {
+              "category": "file_operations",
+              "operation": "scanner",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.057357",
+              "dependency_level": 0,
+              "execution_order": 1
+            },
+            "canonical_name": "file_operations_scanner",
+            "aliases": [],
+            "differentiation": {
+              "unique_purpose": "This tool is designed to scan files for specific patterns or anomalies.",
+              "key_differentiators": [
+                "Utilizes pattern recognition algorithms to identify data anomalies or specific content within files.",
+                "Can generate reports on the findings of the scan, including statistics on detected patterns.",
+                "Offers real-time scanning capabilities for monitoring file changes or updates."
+              ],
+              "usage_keywords": [
+                "scan for patterns",
+                "detect anomalies",
+                "file analysis",
+                "content verification"
+              ],
+              "avoid_keywords": [
+                "read data",
+                "retrieve information",
+                "data extraction"
+              ],
+              "example_scenario": "A security analyst needs to scan log files for unusual access patterns or potential security breaches, generating a report of findings."
+            },
+            "original_description": "Scanner for file operations",
+            "differentiation_enhanced": true
+          },
+          "category": "file_operations",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "integration_queue",
+          "score": 0.23015332221984863,
+          "mcp_protocol": {
+            "name": "integration_queue",
+            "description": "Queue for integration",
+            "parameters": [
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              }
+            ],
+            "dependencies": [],
+            "dependency_metadata": {
+              "level": 0,
+              "execution_order": 15,
+              "category": "integration"
+            },
+            "metadata": {
+              "category": "integration",
+              "operation": "queue",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.058026",
+              "dependency_level": 0,
+              "execution_order": 15
+            },
+            "canonical_name": "integration_queue",
+            "aliases": [],
+            "differentiation": {
+              "unique_purpose": "Queue for integration",
+              "key_differentiators": [
+                "general specific queue capability"
+              ],
+              "usage_keywords": [
+                "queue",
+                "general"
+              ],
+              "avoid_keywords": [],
+              "example_scenario": "Use integration_queue for general-related queue tasks"
+            },
+            "differentiation_enhanced": false
+          },
+          "category": "integration",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "integration_authenticator",
+          "score": 0.23009659349918365,
+          "mcp_protocol": {
+            "name": "integration_authenticator",
+            "description": "Authenticator for integration",
+            "parameters": [
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              }
+            ],
+            "dependencies": [],
+            "dependency_metadata": {
+              "level": 0,
+              "execution_order": 3,
+              "category": "integration"
+            },
+            "metadata": {
+              "category": "integration",
+              "operation": "authenticator",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.057375",
+              "dependency_level": 0,
+              "execution_order": 3
+            },
+            "canonical_name": "integration_authenticator",
+            "aliases": [
+              "integration_authenticator_9"
+            ],
+            "differentiation": {
+              "unique_purpose": "Authenticator for integration",
+              "key_differentiators": [
+                "general specific authenticator capability"
+              ],
+              "usage_keywords": [
+                "authenticator",
+                "general"
+              ],
+              "avoid_keywords": [],
+              "example_scenario": "Use integration_authenticator for general-related authenticator tasks"
+            },
+            "differentiation_enhanced": false
+          },
+          "category": "integration",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "file_operations_writer",
+          "score": 0.2206115424633026,
+          "mcp_protocol": {
+            "name": "file_operations_writer",
+            "description": "Writer for file operations",
+            "parameters": [
+              {
+                "name": "destination",
+                "type": "string",
+                "description": "Destination location or identifier",
+                "required": true,
+                "default": null,
+                "constraints": {}
+              },
+              {
+                "name": "data",
+                "type": "object",
+                "description": "Data to send",
+                "required": true,
+                "default": null,
+                "constraints": {}
+              },
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              },
+              {
+                "code": "FILE_NOT_FOUND",
+                "description": "Specified file not found"
+              },
+              {
+                "code": "PERMISSION_DENIED",
+                "description": "Insufficient permissions"
+              }
+            ],
+            "dependencies": [
+              "data_processing_transformer",
+              "network_validator"
+            ],
+            "dependency_metadata": {
+              "level": 3,
+              "execution_order": 28,
+              "category": "file_operations"
+            },
+            "metadata": {
+              "category": "file_operations",
+              "operation": "writer",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.057965",
+              "dependency_level": 3,
+              "execution_order": 28
+            },
+            "canonical_name": "file_operations_writer",
+            "aliases": [
+              "file_operations_writer_19"
+            ],
+            "differentiation": {
+              "unique_purpose": "Writer for file operations",
+              "key_differentiators": [
+                "general specific writer capability"
+              ],
+              "usage_keywords": [
+                "writer",
+                "general"
+              ],
+              "avoid_keywords": [],
+              "example_scenario": "Use file_operations_writer for general-related writer tasks"
+            },
+            "differentiation_enhanced": false
+          },
+          "category": "file_operations",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "integration_scheduler",
+          "score": 0.21856532990932465,
+          "mcp_protocol": {
+            "name": "integration_scheduler",
+            "description": "Scheduler for integration",
+            "parameters": [
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              }
+            ],
+            "dependencies": [],
+            "dependency_metadata": {
+              "level": 0,
+              "execution_order": 16,
+              "category": "integration"
+            },
+            "metadata": {
+              "category": "integration",
+              "operation": "scheduler",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.058029",
+              "dependency_level": 0,
+              "execution_order": 16
+            },
+            "canonical_name": "integration_scheduler",
+            "aliases": [
+              "integration_scheduler_4",
+              "integration_scheduler_11",
+              "integration_scheduler_18"
+            ],
+            "differentiation": {
+              "unique_purpose": "Scheduler for integration",
+              "key_differentiators": [
+                "general specific scheduler capability"
+              ],
+              "usage_keywords": [
+                "scheduler",
+                "general"
+              ],
+              "avoid_keywords": [],
+              "example_scenario": "Use integration_scheduler for general-related scheduler tasks"
+            },
+            "differentiation_enhanced": false
+          },
+          "category": "integration",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "computation_predictor",
+          "score": 0.21348907053470612,
+          "mcp_protocol": {
+            "name": "computation_predictor",
+            "description": "Predictor for computation",
+            "parameters": [
+              {
+                "name": "precision",
+                "type": "number",
+                "description": "Calculation precision",
+                "required": false,
+                "default": 2,
+                "constraints": {}
+              },
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "result",
+                "type": "object",
+                "description": "Calculation or analysis result"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              },
+              {
+                "code": "CALCULATION_ERROR",
+                "description": "Calculation failed"
+              },
+              {
+                "code": "OVERFLOW",
+                "description": "Numerical overflow"
+              }
+            ],
+            "dependencies": [],
+            "dependency_metadata": {
+              "level": 0,
+              "execution_order": 11,
+              "category": "computation"
+            },
+            "metadata": {
+              "category": "computation",
+              "operation": "predictor",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.057997",
+              "dependency_level": 0,
+              "execution_order": 11
+            },
+            "canonical_name": "computation_predictor",
+            "aliases": [],
+            "differentiation": {
+              "unique_purpose": "Predictor for computation",
+              "key_differentiators": [
+                "general specific predictor capability"
+              ],
+              "usage_keywords": [
+                "predictor",
+                "general"
+              ],
+              "avoid_keywords": [],
+              "example_scenario": "Use computation_predictor for general-related predictor tasks"
+            },
+            "differentiation_enhanced": false
+          },
+          "category": "computation",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "computation_calculator",
+          "score": 0.21347567439079285,
+          "mcp_protocol": {
+            "name": "computation_calculator",
+            "description": "This tool is designed for performing precise mathematical calculations.",
+            "parameters": [
+              {
+                "name": "precision",
+                "type": "number",
+                "description": "Calculation precision",
+                "required": false,
+                "default": 2,
+                "constraints": {}
+              },
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "result",
+                "type": "object",
+                "description": "Calculation or analysis result"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              },
+              {
+                "code": "CALCULATION_ERROR",
+                "description": "Calculation failed"
+              },
+              {
+                "code": "OVERFLOW",
+                "description": "Numerical overflow"
+              }
+            ],
+            "dependencies": [
+              "data_processing_parser",
+              "network_validator"
+            ],
+            "dependency_metadata": {
+              "level": 3,
+              "execution_order": 27,
+              "category": "computation"
+            },
+            "metadata": {
+              "category": "computation",
+              "operation": "calculator",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.057881",
+              "dependency_level": 3,
+              "execution_order": 27
+            },
+            "canonical_name": "computation_calculator",
+            "aliases": [],
+            "differentiation": {
+              "unique_purpose": "This tool is designed for performing precise mathematical calculations.",
+              "key_differentiators": [
+                "Supports complex arithmetic operations",
+                "Allows for custom precision settings",
+                "Provides real-time calculation feedback"
+              ],
+              "usage_keywords": [
+                "calculate",
+                "compute",
+                "mathematical operations",
+                "arithmetic"
+              ],
+              "avoid_keywords": [
+                "analyze",
+                "assessment",
+                "evaluation"
+              ],
+              "example_scenario": "Calculating the square root of a number with a specific precision requirement."
+            },
+            "original_description": "Calculator for computation",
+            "differentiation_enhanced": true
+          },
+          "category": "computation",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "network_poster",
+          "score": 0.20086076855659485,
+          "mcp_protocol": {
+            "name": "network_poster",
+            "description": "To send data to a specified destination over the network.",
+            "parameters": [
+              {
+                "name": "destination",
+                "type": "string",
+                "description": "Destination location or identifier",
+                "required": true,
+                "default": null,
+                "constraints": {}
+              },
+              {
+                "name": "data",
+                "type": "object",
+                "description": "Data to send",
+                "required": true,
+                "default": null,
+                "constraints": {}
+              },
+              {
+                "name": "timeout",
+                "type": "number",
+                "description": "Operation timeout in seconds",
+                "required": false,
+                "default": 30,
+                "constraints": {}
+              },
+              {
+                "name": "retry_count",
+                "type": "number",
+                "description": "Number of retries",
+                "required": false,
+                "default": 3,
+                "constraints": {}
+              },
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              },
+              {
+                "code": "NETWORK_ERROR",
+                "description": "Network connection failed"
+              },
+              {
+                "code": "INVALID_RESPONSE",
+                "description": "Invalid response from server"
+              }
+            ],
+            "dependencies": [
+              "data_processing_transformer",
+              "integration_authenticator"
+            ],
+            "dependency_metadata": {
+              "level": 2,
+              "execution_order": 25,
+              "category": "network"
+            },
+            "metadata": {
+              "category": "network",
+              "operation": "poster",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.057978",
+              "dependency_level": 2,
+              "execution_order": 25
+            },
+            "canonical_name": "network_poster",
+            "aliases": [],
+            "differentiation": {
+              "unique_purpose": "To send data to a specified destination over the network.",
+              "key_differentiators": [
+                "Focus on data posting",
+                "Handles destination specification",
+                "Returns metadata about the posting process"
+              ],
+              "usage_keywords": [
+                "post data",
+                "send to destination",
+                "data submission"
+              ],
+              "avoid_keywords": [
+                "fetch data",
+                "retrieve from source",
+                "monitor network"
+              ],
+              "example_scenario": "When you need to submit a form with user details to a web service."
+            },
+            "original_description": "Poster for network",
+            "differentiation_enhanced": true
+          },
+          "category": "network",
+          "reason": "general similarity"
+        }
+      ],
+      "transform": [
+        {
+          "tool_name": "utility_helper",
+          "score": 0.3520348072052002,
+          "mcp_protocol": {
+            "name": "utility_helper",
+            "description": "Helper for utility",
+            "parameters": [
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              }
+            ],
+            "dependencies": [],
+            "dependency_metadata": {
+              "level": 0,
+              "execution_order": 20,
+              "category": "utility"
+            },
+            "metadata": {
+              "category": "utility",
+              "operation": "helper",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.058051",
+              "dependency_level": 0,
+              "execution_order": 20
+            },
+            "canonical_name": "utility_helper",
+            "aliases": [
+              "utility_helper_13"
+            ],
+            "differentiation": {
+              "unique_purpose": "Helper for utility",
+              "key_differentiators": [
+                "general specific helper capability"
+              ],
+              "usage_keywords": [
+                "helper",
+                "general"
+              ],
+              "avoid_keywords": [],
+              "example_scenario": "Use utility_helper for general-related helper tasks"
+            },
+            "differentiation_enhanced": false
+          },
+          "category": "utility",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "integration_scheduler",
+          "score": 0.3420891761779785,
+          "mcp_protocol": {
+            "name": "integration_scheduler",
+            "description": "Scheduler for integration",
+            "parameters": [
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              }
+            ],
+            "dependencies": [],
+            "dependency_metadata": {
+              "level": 0,
+              "execution_order": 16,
+              "category": "integration"
+            },
+            "metadata": {
+              "category": "integration",
+              "operation": "scheduler",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.058029",
+              "dependency_level": 0,
+              "execution_order": 16
+            },
+            "canonical_name": "integration_scheduler",
+            "aliases": [
+              "integration_scheduler_4",
+              "integration_scheduler_11",
+              "integration_scheduler_18"
+            ],
+            "differentiation": {
+              "unique_purpose": "Scheduler for integration",
+              "key_differentiators": [
+                "general specific scheduler capability"
+              ],
+              "usage_keywords": [
+                "scheduler",
+                "general"
+              ],
+              "avoid_keywords": [],
+              "example_scenario": "Use integration_scheduler for general-related scheduler tasks"
+            },
+            "differentiation_enhanced": false
+          },
+          "category": "integration",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "utility_tracker",
+          "score": 0.33804982900619507,
+          "mcp_protocol": {
+            "name": "utility_tracker",
+            "description": "Tracker for utility",
+            "parameters": [
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              }
+            ],
+            "dependencies": [],
+            "dependency_metadata": {
+              "level": 0,
+              "execution_order": 19,
+              "category": "utility"
+            },
+            "metadata": {
+              "category": "utility",
+              "operation": "tracker",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.058047",
+              "dependency_level": 0,
+              "execution_order": 19
+            },
+            "canonical_name": "utility_tracker",
+            "aliases": [
+              "utility_tracker_5",
+              "utility_tracker_12"
+            ],
+            "differentiation": {
+              "unique_purpose": "Tracker for utility",
+              "key_differentiators": [
+                "general specific tracker capability"
+              ],
+              "usage_keywords": [
+                "tracker",
+                "general"
+              ],
+              "avoid_keywords": [],
+              "example_scenario": "Use utility_tracker for general-related tracker tasks"
+            },
+            "differentiation_enhanced": false
+          },
+          "category": "utility",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "integration_queue",
+          "score": 0.3338780403137207,
+          "mcp_protocol": {
+            "name": "integration_queue",
+            "description": "Queue for integration",
+            "parameters": [
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              }
+            ],
+            "dependencies": [],
+            "dependency_metadata": {
+              "level": 0,
+              "execution_order": 15,
+              "category": "integration"
+            },
+            "metadata": {
+              "category": "integration",
+              "operation": "queue",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.058026",
+              "dependency_level": 0,
+              "execution_order": 15
+            },
+            "canonical_name": "integration_queue",
+            "aliases": [],
+            "differentiation": {
+              "unique_purpose": "Queue for integration",
+              "key_differentiators": [
+                "general specific queue capability"
+              ],
+              "usage_keywords": [
+                "queue",
+                "general"
+              ],
+              "avoid_keywords": [],
+              "example_scenario": "Use integration_queue for general-related queue tasks"
+            },
+            "differentiation_enhanced": false
+          },
+          "category": "integration",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "integration_mapper",
+          "score": 0.32079583406448364,
+          "mcp_protocol": {
+            "name": "integration_mapper",
+            "description": "Mapper for integration",
+            "parameters": [
+              {
+                "name": "input_format",
+                "type": "string",
+                "description": "Input data format",
+                "required": true,
+                "default": null,
+                "constraints": {}
+              },
+              {
+                "name": "output_format",
+                "type": "string",
+                "description": "Desired output format",
+                "required": true,
+                "default": null,
+                "constraints": {}
+              },
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              }
+            ],
+            "dependencies": [],
+            "dependency_metadata": {
+              "level": 0,
+              "execution_order": 14,
+              "category": "integration"
+            },
+            "metadata": {
+              "category": "integration",
+              "operation": "mapper",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.058022",
+              "dependency_level": 0,
+              "execution_order": 14
+            },
+            "canonical_name": "integration_mapper",
+            "aliases": [
+              "integration_mapper_3",
+              "integration_mapper_15"
+            ],
+            "differentiation": {
+              "unique_purpose": "Mapper for integration",
+              "key_differentiators": [
+                "general specific mapper capability"
+              ],
+              "usage_keywords": [
+                "mapper",
+                "general"
+              ],
+              "avoid_keywords": [],
+              "example_scenario": "Use integration_mapper for general-related mapper tasks"
+            },
+            "differentiation_enhanced": false
+          },
+          "category": "integration",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "utility_cache",
+          "score": 0.3070352375507355,
+          "mcp_protocol": {
+            "name": "utility_cache",
+            "description": "Cache for utility",
+            "parameters": [
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              }
+            ],
+            "dependencies": [],
+            "dependency_metadata": {
+              "level": 0,
+              "execution_order": 18,
+              "category": "utility"
+            },
+            "metadata": {
+              "category": "utility",
+              "operation": "cache",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.058042",
+              "dependency_level": 0,
+              "execution_order": 18
+            },
+            "canonical_name": "utility_cache",
+            "aliases": [
+              "utility_cache_6",
+              "utility_cache_7"
+            ],
+            "differentiation": {
+              "unique_purpose": "Cache for utility",
+              "key_differentiators": [
+                "general specific cache capability"
+              ],
+              "usage_keywords": [
+                "cache",
+                "general"
+              ],
+              "avoid_keywords": [],
+              "example_scenario": "Use utility_cache for general-related cache tasks"
+            },
+            "differentiation_enhanced": false
+          },
+          "category": "utility",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "data_processing_aggregator",
+          "score": 0.30412954092025757,
+          "mcp_protocol": {
+            "name": "data_processing_aggregator",
+            "description": "Aggregator for data processing",
+            "parameters": [
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              }
+            ],
+            "dependencies": [
+              "data_processing_parser"
+            ],
+            "dependency_metadata": {
+              "level": 1,
+              "execution_order": 23,
+              "category": "data_processing"
+            },
+            "metadata": {
+              "category": "data_processing",
+              "operation": "aggregator",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.057940",
+              "dependency_level": 1,
+              "execution_order": 23
+            },
+            "canonical_name": "data_processing_aggregator",
+            "aliases": [],
+            "differentiation": {
+              "unique_purpose": "Aggregator for data processing",
+              "key_differentiators": [
+                "general specific aggregator capability"
+              ],
+              "usage_keywords": [
+                "aggregator",
+                "general"
+              ],
+              "avoid_keywords": [],
+              "example_scenario": "Use data_processing_aggregator for general-related aggregator tasks"
+            },
+            "differentiation_enhanced": false
+          },
+          "category": "data_processing",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "utility_logger",
+          "score": 0.29110339283943176,
+          "mcp_protocol": {
+            "name": "utility_logger",
+            "description": "Logger for utility",
+            "parameters": [
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              }
+            ],
+            "dependencies": [],
+            "dependency_metadata": {
+              "level": 0,
+              "execution_order": 4,
+              "category": "utility"
+            },
+            "metadata": {
+              "category": "utility",
+              "operation": "logger",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.057382",
+              "dependency_level": 0,
+              "execution_order": 4
+            },
+            "canonical_name": "utility_logger",
+            "aliases": [],
+            "differentiation": {
+              "unique_purpose": "Logger for utility",
+              "key_differentiators": [
+                "general specific logger capability"
+              ],
+              "usage_keywords": [
+                "logger",
+                "general"
+              ],
+              "avoid_keywords": [],
+              "example_scenario": "Use utility_logger for general-related logger tasks"
+            },
+            "differentiation_enhanced": false
+          },
+          "category": "utility",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "data_processing_transformer",
+          "score": 0.2822622060775757,
+          "mcp_protocol": {
+            "name": "data_processing_transformer",
+            "description": "This tool is designed to transform data from one format to another while applying specific modifications.",
+            "parameters": [
+              {
+                "name": "input_format",
+                "type": "string",
+                "description": "Input data format",
+                "required": true,
+                "default": null,
+                "constraints": {}
+              },
+              {
+                "name": "output_format",
+                "type": "string",
+                "description": "Desired output format",
+                "required": true,
+                "default": null,
+                "constraints": {}
+              },
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "transformed_data",
+                "type": "object",
+                "description": "Transformed data"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              }
+            ],
+            "dependencies": [
+              "data_processing_parser"
+            ],
+            "dependency_metadata": {
+              "level": 1,
+              "execution_order": 21,
+              "category": "data_processing"
+            },
+            "metadata": {
+              "category": "data_processing",
+              "operation": "transformer",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.057416",
+              "dependency_level": 1,
+              "execution_order": 21
+            },
+            "canonical_name": "data_processing_transformer",
+            "aliases": [],
+            "differentiation": {
+              "unique_purpose": "This tool is designed to transform data from one format to another while applying specific modifications.",
+              "key_differentiators": [
+                "Supports conversion between different data formats (e.g., JSON to XML)",
+                "Allows specification of both input and output formats",
+                "Includes options for data manipulation during the transformation process"
+              ],
+              "usage_keywords": [
+                "transform",
+                "convert",
+                "modify",
+                "data format"
+              ],
+              "avoid_keywords": [
+                "parse",
+                "extract",
+                "structure"
+              ],
+              "example_scenario": "When you have JSON data that needs to be converted into XML format while also changing certain field names and values."
+            },
+            "original_description": "Transformer for data processing",
+            "differentiation_enhanced": true
+          },
+          "category": "data_processing",
+          "reason": "general similarity"
+        },
+        {
+          "tool_name": "integration_connector",
+          "score": 0.27765217423439026,
+          "mcp_protocol": {
+            "name": "integration_connector",
+            "description": "Connector for integration",
+            "parameters": [
+              {
+                "name": "options",
+                "type": "object",
+                "description": "Additional options",
+                "required": false,
+                "default": {},
+                "constraints": {}
+              }
+            ],
+            "returns": [
+              {
+                "name": "success",
+                "type": "boolean",
+                "description": "Whether operation succeeded"
+              },
+              {
+                "name": "metadata",
+                "type": "object",
+                "description": "Operation metadata"
+              }
+            ],
+            "errors": [
+              {
+                "code": "INVALID_INPUT",
+                "description": "Input validation failed"
+              },
+              {
+                "code": "OPERATION_FAILED",
+                "description": "Operation could not be completed"
+              },
+              {
+                "code": "TIMEOUT",
+                "description": "Operation timed out"
+              }
+            ],
+            "dependencies": [],
+            "dependency_metadata": {
+              "level": 0,
+              "execution_order": 17,
+              "category": "integration"
+            },
+            "metadata": {
+              "category": "integration",
+              "operation": "connector",
+              "version": "1.0.0",
+              "created_at": "2025-06-27T17:38:31.058033",
+              "dependency_level": 0,
+              "execution_order": 17
+            },
+            "canonical_name": "integration_connector",
+            "aliases": [],
+            "differentiation": {
+              "unique_purpose": "Connector for integration",
+              "key_differentiators": [
+                "general specific connector capability"
+              ],
+              "usage_keywords": [
+                "connector",
+                "general"
+              ],
+              "avoid_keywords": [],
+              "example_scenario": "Use integration_connector for general-related connector tasks"
+            },
+            "differentiation_enhanced": false
+          },
+          "category": "integration",
+          "reason": "general similarity"
+        }
+      ]
+    },
+    "smart_actions": [
+      {
+        "tool_name": "data_processing_parser",
+        "step": 1,
+        "search_source": "unknown",
+        "semantic_score": 0.0,
+        "confidence": 0.5,
+        "alternatives": [],
+        "reasoning": "",
+        "dependencies": [],
+        "expected_outcome": {},
+        "mcp_protocol": {}
+      },
+      {
+        "tool_name": "data_processing_parser",
+        "step": 2,
+        "search_source": "unknown",
+        "semantic_score": 0.0,
+        "confidence": 0.5,
+        "alternatives": [],
+        "reasoning": "",
+        "dependencies": [],
+        "expected_outcome": {},
+        "mcp_protocol": {}
+      },
+      {
+        "tool_name": "data_processing_validator",
+        "step": 3,
+        "search_source": "embedding_search",
+        "semantic_score": 0.47248852252960205,
+        "confidence": 0.95,
+        "alternatives": [],
+        "reasoning": "Semantic match for 'full_description' operation",
+        "dependencies": [
+          "data_processing_parser"
+        ],
+        "expected_outcome": {},
+        "mcp_protocol": {
+          "description": "This tool is used to validate data against a defined schema to ensure its correctness and integrity.",
+          "parameters": [
+            {
+              "name": "schema",
+              "type": "object",
+              "description": "Validation schema",
+              "required": true,
+              "default": null,
+              "constraints": {}
+            },
+            {
+              "name": "data",
+              "type": "object",
+              "description": "Data to validate",
+              "required": true,
+              "default": null,
+              "constraints": {}
+            },
+            {
+              "name": "options",
+              "type": "object",
+              "description": "Additional options",
+              "required": false,
+              "default": {},
+              "constraints": {}
+            }
+          ],
+          "returns": [
+            {
+              "name": "success",
+              "type": "boolean",
+              "description": "Whether operation succeeded"
+            },
+            {
+              "name": "valid",
+              "type": "boolean",
+              "description": "Whether data is valid"
+            },
+            {
+              "name": "errors",
+              "type": "array",
+              "description": "Validation errors if any"
+            },
+            {
+              "name": "metadata",
+              "type": "object",
+              "description": "Operation metadata"
+            }
+          ],
+          "errors": [
+            {
+              "code": "INVALID_INPUT",
+              "description": "Input validation failed"
+            },
+            {
+              "code": "OPERATION_FAILED",
+              "description": "Operation could not be completed"
+            },
+            {
+              "code": "TIMEOUT",
+              "description": "Operation timed out"
+            }
+          ],
+          "dependencies": [
+            "data_processing_parser"
+          ],
+          "metadata": {
+            "category": "data_processing",
+            "operation": "validator",
+            "version": "1.0.0",
+            "created_at": "2025-06-27T17:38:31.057423",
+            "dependency_level": 1,
+            "execution_order": 22
+          }
+        }
+      },
+      {
+        "tool_name": "data_processing_validator",
+        "step": 4,
+        "search_source": "embedding_search",
+        "semantic_score": 0.47248852252960205,
+        "confidence": 0.95,
+        "alternatives": [],
+        "reasoning": "Semantic match for 'full_description' operation",
+        "dependencies": [
+          "data_processing_parser"
+        ],
+        "expected_outcome": {},
+        "mcp_protocol": {
+          "description": "This tool is used to validate data against a defined schema to ensure its correctness and integrity.",
+          "parameters": [
+            {
+              "name": "schema",
+              "type": "object",
+              "description": "Validation schema",
+              "required": true,
+              "default": null,
+              "constraints": {}
+            },
+            {
+              "name": "data",
+              "type": "object",
+              "description": "Data to validate",
+              "required": true,
+              "default": null,
+              "constraints": {}
+            },
+            {
+              "name": "options",
+              "type": "object",
+              "description": "Additional options",
+              "required": false,
+              "default": {},
+              "constraints": {}
+            }
+          ],
+          "returns": [
+            {
+              "name": "success",
+              "type": "boolean",
+              "description": "Whether operation succeeded"
+            },
+            {
+              "name": "valid",
+              "type": "boolean",
+              "description": "Whether data is valid"
+            },
+            {
+              "name": "errors",
+              "type": "array",
+              "description": "Validation errors if any"
+            },
+            {
+              "name": "metadata",
+              "type": "object",
+              "description": "Operation metadata"
+            }
+          ],
+          "errors": [
+            {
+              "code": "INVALID_INPUT",
+              "description": "Input validation failed"
+            },
+            {
+              "code": "OPERATION_FAILED",
+              "description": "Operation could not be completed"
+            },
+            {
+              "code": "TIMEOUT",
+              "description": "Operation timed out"
+            }
+          ],
+          "dependencies": [
+            "data_processing_parser"
+          ],
+          "metadata": {
+            "category": "data_processing",
+            "operation": "validator",
+            "version": "1.0.0",
+            "created_at": "2025-06-27T17:38:31.057423",
+            "dependency_level": 1,
+            "execution_order": 22
+          }
+        }
+      },
+      {
+        "tool_name": "data_processing_parser",
+        "step": 5,
+        "search_source": "unknown",
+        "semantic_score": 0.0,
+        "confidence": 0.5,
+        "alternatives": [],
+        "reasoning": "",
+        "dependencies": [],
+        "expected_outcome": {},
+        "mcp_protocol": {}
+      },
+      {
+        "tool_name": "data_processing_parser",
+        "step": 6,
+        "search_source": "unknown",
+        "semantic_score": 0.0,
+        "confidence": 0.5,
+        "alternatives": [],
+        "reasoning": "",
+        "dependencies": [],
+        "expected_outcome": {},
+        "mcp_protocol": {}
+      }
+    ],
+    "rag_enhanced": true,
+    "flaw_type": "redundancy_duplicate",
+    "flaw_severity": "severe",
+    "injected_flaw_type": "redundant_operations"
+  },
+  "execution_mode": "interactive",
+  "flaw_type": "redundant_operations",
+  "flaw_severity": "severe",
+  "prompt": "Execute a simple task task.\n\n    Task: Process the unknown input through three steps: validate its structure, transform formats, and filter data, resulting in an unspecified output.\n\n    Tool Search Available:\n    You have access to a comprehensive tool library with specialized tools for various operations.\n    To find relevant tools, use the search command: <tool_search>your search query</tool_search>\n\n    Examples of tool searches:\n    - <tool_search>file reader writer</tool_search>\n    - <tool_search>data validation parser</tool_search>\n    - <tool_search>network api fetch</tool_search>\n\n    After finding the tools you need, execute them using: <tool_call>tool_name</tool_call>\n\n    IMPORTANT - DEFAULT PARAMETERS:\n    Since this is an automated test environment, use these default values when executing tools:\n    - For 'source' or file paths: use \"data/input.json\"\n    - For 'destination' or output paths: use \"data/output.json\"\n    - For 'format': use \"json\"\n    - For 'url' or API endpoints: use \"https://api.example.com/data\"\n    - For any other parameters: use reasonable defaults based on the context\n\n    DO NOT ask for any clarification or additional information. Proceed with the task using the defaults above.\n\n    EXECUTION MODE:\n    - Execute ONE tool at a time\n    - Wait for feedback after each tool execution\n    - Based on the feedback, decide what to do next\n    - Do NOT list multiple tools to execute - just execute the next one\n\n    Instructions:\n    1. Analyze the task requirements\n    2. Search for appropriate tools based on what you need to do\n    3. Execute the FIRST tool in your workflow\n    4. Wait for feedback\n    5. Based on the result, execute the NEXT tool\n    6. Continue until the task is complete\n    7. Indicate when finished\n\n    \n\n    ## Workflow Execution Plan\n\n    1. Execute data_processing_parser\n   - Confidence: Medium (50.0%)\n2. Execute data_processing_parser\n   - Confidence: Medium (50.0%)\n3. Execute data_processing_validator (Semantic match: 47%)\n   - Reason: Semantic match for 'full_description' operation\n   - Requires: data_processing_parser\n   - Confidence: High (95.0%)\n4. Execute data_processing_validator (Semantic match: 47%)\n   - Reason: Semantic match for 'full_description' operation\n   - Requires: data_processing_parser\n   - Confidence: High (95.0%)\n5. Execute data_processing_parser\n   - Confidence: Medium (50.0%)\n6. Execute data_processing_parser\n   - Confidence: Medium (50.0%)\n\n### Execution Summary:\n- Semantic Search Usage: 2/6 tools\n- Average Semantic Score: 47.2%\n- Critical Steps: 2\n\n    ### Analysis Results:\n    - Tools selected using: Semantic search\n    - Critical tools identified: data_processing_filter, data_processing_transformer\n\n    ### Execution Strategy:\n    1. Follow the recommended sequence for optimal results\n    2. Use alternatives if primary tools fail\n    3. Pay special attention to critical tools\n    4. ALWAYS use default parameters - never ask for user input\n    5. Execute ONE tool at a time and wait for feedback\n\n    IMPORTANT: Execute tools one by one. After each tool execution, wait for feedback before proceeding.\n\n    REMINDER: This is an automated test. Use the default parameters specified earlier for all tool executions.\n    \n\nBegin by searching for the first tool you need.",
+  "conversation_history": [
+    {
+      "role": "assistant",
+      "content": "<tool_search>data processing parser</tool_search>",
+      "turn": 1,
+      "action": "search"
+    },
+    {
+      "role": "user",
+      "content": "Tool Search Results:\n\nQuery: 'data processing parser'\nFound tools:\n\n1. data_processing_parser\n   Category: data_processing\n   Description: This tool is specifically designed to parse raw data from various sources into a structured format.\n   Relevance: 0.74\n   Parameters:\n      - source (string): Source location or identifier [REQUIRED]\n      - options (object): Additional options [OPTIONAL] default={}\n   Returns:\n      - success (boolean): Whether operation succeeded\n      - data (object): Retrieved or parsed data\n      - metadata (object): Operation metadata\n   Possible Errors:\n      - INVALID_INPUT: Input validation failed\n      - OPERATION_FAILED: Operation could not be completed\n      - TIMEOUT: Operation timed out\n\n2. data_processing_aggregator\n   Category: data_processing\n   Description: Aggregator for data processing\n   Relevance: 0.55\n   Parameters:\n      - options (object): Additional options [OPTIONAL] default={}\n   Returns:\n      - success (boolean): Whether operation succeeded\n      - metadata (object): Operation metadata\n   Possible Errors:\n      - INVALID_INPUT: Input validation failed\n      - OPERATION_FAILED: Operation could not be completed\n      - TIMEOUT: Operation timed out\n   Dependencies: data_processing_parser\n\n3. data_processing_transformer\n   Category: data_processing\n   Description: This tool is designed to transform data from one format to another while applying specific modifications.\n   Relevance: 0.55\n   Parameters:\n      - input_format (string): Input data format [REQUIRED]\n      - output_format (string): Desired output format [REQUIRED]\n      - options (object): Additional options [OPTIONAL] default={}\n   Returns:\n      - success (boolean): Whether operation succeeded\n      - transformed_data (object): Transformed data\n      - metadata (object): Operation metadata\n   Possible Errors:\n      - INVALID_INPUT: Input validation failed\n      - OPERATION_FAILED: Operation could not be completed\n      - TIMEOUT: Operation timed out\n   Dependencies: data_processing_parser\n\n4. data_processing_filter\n   Category: data_processing\n   Description: This tool is designed to selectively filter data based on specified criteria.\n   Relevance: 0.51\n   Parameters:\n      - options (object): Additional options [OPTIONAL] default={}\n   Returns:\n      - success (boolean): Whether operation succeeded\n      - metadata (object): Operation metadata\n   Possible Errors:\n      - INVALID_INPUT: Input validation failed\n      - OPERATION_FAILED: Operation could not be completed\n      - TIMEOUT: Operation timed out\n\n5. data_processing_validator\n   Category: data_processing\n   Description: This tool is used to validate data against a defined schema to ensure its correctness and integrity.\n   Relevance: 0.48\n   Parameters:\n      - schema (object): Validation schema [REQUIRED]\n      - data (object): Data to validate [REQUIRED]\n      - options (object): Additional options [OPTIONAL] default={}\n   Returns:\n      - success (boolean): Whether operation succeeded\n      - valid (boolean): Whether data is valid\n      - errors (array): Validation errors if any\n      - metadata (object): Operation metadata\n   Possible Errors:\n      - INVALID_INPUT: Input validation failed\n      - OPERATION_FAILED: Operation could not be completed\n      - TIMEOUT: Operation timed out\n   Dependencies: data_processing_parser\n\nYou can now use these tools with <tool_call>tool_name</tool_call>",
+      "turn": 1
+    },
+    {
+      "role": "assistant",
+      "content": "<tool_info>data_processing_parser</tool_info>",
+      "turn": 2,
+      "action": "tool_info"
+    },
+    {
+      "role": "user",
+      "content": "Tool Information:\n\n=== data_processing_parser ===\nDescription: This tool is specifically designed to parse raw data from various sources into a structured format.\nCategory: data_processing\n\nParameters:\n  - source (string): Source location or identifier [REQUIRED]\n  - options (object): Additional options [OPTIONAL] default={}\n\nReturns:\n  - success (boolean): Whether operation succeeded\n  - data (object): Retrieved or parsed data\n  - metadata (object): Operation metadata\n\nPossible Errors:\n  - INVALID_INPUT: Input validation failed\n  - OPERATION_FAILED: Operation could not be completed\n  - TIMEOUT: Operation timed out\n\nUse <tool_call>tool_name</tool_call> to execute a tool",
+      "turn": 2
+    },
+    {
+      "role": "assistant",
+      "content": "<tool_info>data_processing_validator</tool_info>",
+      "turn": 3,
+      "action": "tool_info"
+    },
+    {
+      "role": "user",
+      "content": "Tool Information:\n\n=== data_processing_validator ===\nDescription: This tool is used to validate data against a defined schema to ensure its correctness and integrity.\nCategory: data_processing\n\nParameters:\n  - schema (object): Validation schema [REQUIRED]\n  - data (object): Data to validate [REQUIRED]\n  - options (object): Additional options [OPTIONAL] default={}\n\nReturns:\n  - success (boolean): Whether operation succeeded\n  - valid (boolean): Whether data is valid\n  - errors (array): Validation errors if any\n  - metadata (object): Operation metadata\n\nPossible Errors:\n  - INVALID_INPUT: Input validation failed\n  - OPERATION_FAILED: Operation could not be completed\n  - TIMEOUT: Operation timed out\n\nDependencies: data_processing_parser\n  Note: These tools should be executed before this one\n\nUse <tool_call>tool_name</tool_call> to execute a tool",
+      "turn": 3
+    },
+    {
+      "role": "assistant",
+      "content": "<tool_info>data_processing_parser</tool_info>",
+      "turn": 4,
+      "action": "tool_info"
+    },
+    {
+      "role": "user",
+      "content": "Tool Information:\n\n=== data_processing_parser ===\nDescription: This tool is specifically designed to parse raw data from various sources into a structured format.\nCategory: data_processing\n\nParameters:\n  - source (string): Source location or identifier [REQUIRED]\n  - options (object): Additional options [OPTIONAL] default={}\n\nReturns:\n  - success (boolean): Whether operation succeeded\n  - data (object): Retrieved or parsed data\n  - metadata (object): Operation metadata\n\nPossible Errors:\n  - INVALID_INPUT: Input validation failed\n  - OPERATION_FAILED: Operation could not be completed\n  - TIMEOUT: Operation timed out\n\nUse <tool_call>tool_name</tool_call> to execute a tool",
+      "turn": 4
+    },
+    {
+      "role": "assistant",
+      "content": "<tool>data_processing_parser</tool>",
+      "turn": 5
+    }
+  ],
+  "execution_history": [],
+  "execution_summary": "{\n  \"total_tools_executed\": 0,\n  \"unique_tools\": 0,\n  \"successful_executions\": 0,\n  \"failed_executions\": 0,\n  \"final_status\": \"completed\",\n  \"required_tools_coverage\": {\n    \"required_tools\": 3,\n    \"executed\": 0,\n    \"coverage\": 0.0,\n    \"missing\": [\n      \"data_processing_validator\",\n      \"data_processing_transformer\",\n      \"data_processing_filter\"\n    ]\n  }\n}",
+  "llm_response": "{\n  \"conversation\": [\n    {\n      \"role\": \"assistant\",\n      \"content\": \"<tool_search>data processing parser</tool_search>\",\n      \"turn\": 1,\n      \"action\": \"search\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Tool Search Results:\\n\\nQuery: 'data processing parser'\\nFound tools:\\n\\n1. data_processing_parser\\n   Category: data_processing\\n   Description: This tool is specifically designed to parse raw data from various sources into a structured format.\\n   Relevance: 0.74\\n   Parameters:\\n      - source (string): Source location or identifier [REQUIRED]\\n      - options (object): Additional options [OPTIONAL] default={}\\n   Returns:\\n      - success (boolean): Whether operation succeeded\\n      - data (object): Retrieved or parsed data\\n      - metadata (object): Operation metadata\\n   Possible Errors:\\n      - INVALID_INPUT: Input validation failed\\n      - OPERATION_FAILED: Operation could not be completed\\n      - TIMEOUT: Operation timed out\\n\\n2. data_processing_aggregator\\n   Category: data_processing\\n   Description: Aggregator for data processing\\n   Relevance: 0.55\\n   Parameters:\\n      - options (object): Additional options [OPTIONAL] default={}\\n   Returns:\\n      - success (boolean): Whether operation succeeded\\n      - metadata (object): Operation metadata\\n   Possible Errors:\\n      - INVALID_INPUT: Input validation failed\\n      - OPERATION_FAILED: Operation could not be completed\\n      - TIMEOUT: Operation timed out\\n   Dependencies: data_processing_parser\\n\\n3. data_processing_transformer\\n   Category: data_processing\\n   Description: This tool is designed to transform data from one format to another while applying specific modifications.\\n   Relevance: 0.55\\n   Parameters:\\n      - input_format (string): Input data format [REQUIRED]\\n      - output_format (string): Desired output format [REQUIRED]\\n      - options (object): Additional options [OPTIONAL] default={}\\n   Returns:\\n      - success (boolean): Whether operation succeeded\\n      - transformed_data (object): Transformed data\\n      - metadata (object): Operation metadata\\n   Possible Errors:\\n      - INVALID_INPUT: Input validation failed\\n      - OPERATION_FAILED: Operation could not be completed\\n      - TIMEOUT: Operation timed out\\n   Dependencies: data_processing_parser\\n\\n4. data_processing_filter\\n   Category: data_processing\\n   Description: This tool is designed to selectively filter data based on specified criteria.\\n   Relevance: 0.51\\n   Parameters:\\n      - options (object): Additional options [OPTIONAL] default={}\\n   Returns:\\n      - success (boolean): Whether operation succeeded\\n      - metadata (object): Operation metadata\\n   Possible Errors:\\n      - INVALID_INPUT: Input validation failed\\n      - OPERATION_FAILED: Operation could not be completed\\n      - TIMEOUT: Operation timed out\\n\\n5. data_processing_validator\\n   Category: data_processing\\n   Description: This tool is used to validate data against a defined schema to ensure its correctness and integrity.\\n   Relevance: 0.48\\n   Parameters:\\n      - schema (object): Validation schema [REQUIRED]\\n      - data (object): Data to validate [REQUIRED]\\n      - options (object): Additional options [OPTIONAL] default={}\\n   Returns:\\n      - success (boolean): Whether operation succeeded\\n      - valid (boolean): Whether data is valid\\n      - errors (array): Validation errors if any\\n      - metadata (object): Operation metadata\\n   Possible Errors:\\n      - INVALID_INPUT: Input validation failed\\n      - OPERATION_FAILED: Operation could not be completed\\n      - TIMEOUT: Operation timed out\\n   Dependencies: data_processing_parser\\n\\nYou can now use these tools with <tool_call>tool_name</tool_call>\",\n      \"turn\": 1\n    },\n    {\n      \"role\": \"assistant\",\n      \"content\": \"<tool_info>data_processing_parser</tool_info>\",\n      \"turn\": 2,\n      \"action\": \"tool_info\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Tool Information:\\n\\n=== data_processing_parser ===\\nDescription: This tool is specifically designed to parse raw data from various sources into a structured format.\\nCategory: data_processing\\n\\nParameters:\\n  - source (string): Source location or identifier [REQUIRED]\\n  - options (object): Additional options [OPTIONAL] default={}\\n\\nReturns:\\n  - success (boolean): Whether operation succeeded\\n  - data (object): Retrieved or parsed data\\n  - metadata (object): Operation metadata\\n\\nPossible Errors:\\n  - INVALID_INPUT: Input validation failed\\n  - OPERATION_FAILED: Operation could not be completed\\n  - TIMEOUT: Operation timed out\\n\\nUse <tool_call>tool_name</tool_call> to execute a tool\",\n      \"turn\": 2\n    },\n    {\n      \"role\": \"assistant\",\n      \"content\": \"<tool_info>data_processing_validator</tool_info>\",\n      \"turn\": 3,\n      \"action\": \"tool_info\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Tool Information:\\n\\n=== data_processing_validator ===\\nDescription: This tool is used to validate data against a defined schema to ensure its correctness and integrity.\\nCategory: data_processing\\n\\nParameters:\\n  - schema (object): Validation schema [REQUIRED]\\n  - data (object): Data to validate [REQUIRED]\\n  - options (object): Additional options [OPTIONAL] default={}\\n\\nReturns:\\n  - success (boolean): Whether operation succeeded\\n  - valid (boolean): Whether data is valid\\n  - errors (array): Validation errors if any\\n  - metadata (object): Operation metadata\\n\\nPossible Errors:\\n  - INVALID_INPUT: Input validation failed\\n  - OPERATION_FAILED: Operation could not be completed\\n  - TIMEOUT: Operation timed out\\n\\nDependencies: data_processing_parser\\n  Note: These tools should be executed before this one\\n\\nUse <tool_call>tool_name</tool_call> to execute a tool\",\n      \"turn\": 3\n    },\n    {\n      \"role\": \"assistant\",\n      \"content\": \"<tool_info>data_processing_parser</tool_info>\",\n      \"turn\": 4,\n      \"action\": \"tool_info\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Tool Information:\\n\\n=== data_processing_parser ===\\nDescription: This tool is specifically designed to parse raw data from various sources into a structured format.\\nCategory: data_processing\\n\\nParameters:\\n  - source (string): Source location or identifier [REQUIRED]\\n  - options (object): Additional options [OPTIONAL] default={}\\n\\nReturns:\\n  - success (boolean): Whether operation succeeded\\n  - data (object): Retrieved or parsed data\\n  - metadata (object): Operation metadata\\n\\nPossible Errors:\\n  - INVALID_INPUT: Input validation failed\\n  - OPERATION_FAILED: Operation could not be completed\\n  - TIMEOUT: Operation timed out\\n\\nUse <tool_call>tool_name</tool_call> to execute a tool\",\n      \"turn\": 4\n    },\n    {\n      \"role\": \"assistant\",\n      \"content\": \"<tool>data_processing_parser</tool>\",\n      \"turn\": 5\n    }\n  ],\n  \"final_state\": {\n    \"task_completed\": true,\n    \"tools_executed\": [],\n    \"total_turns\": 5\n  }\n}",
+  "extracted_tool_calls": [],
+  "result": {
+    "success": false,
+    "final_score": 0.025,
+    "execution_time": 7.422177076339722,
+    "workflow_score": 0.0,
+    "adherence_scores": {},
+    "tool_calls": [],
+    "error": null,
+    "phase2_score": 0.025,
+    "quality_score": 0.05,
+    "metrics": null
+  }
+}

@@ -1,0 +1,143 @@
+"""
+扩展的ExecutionResult，包含综合实验评估计划所需的所有指标
+"""
+
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Any
+from workflow_quality_test_flawed import ExecutionResult
+
+@dataclass
+class ExtendedExecutionResult(ExecutionResult):
+    """扩展的执行结果，包含所有评估计划需要的指标"""
+    
+    # 基础字段（继承自ExecutionResult）
+    # test_id: str
+    # task_type: str
+    # prompt_type: str
+    # success: bool
+    # workflow_score: float
+    # adherence_scores: Dict[str, float]
+    # tool_calls: List[str]
+    # execution_time: float
+    # phase2_score: float = 0.0
+    # quality_score: float = 0.0
+    # final_score: float = 0.0
+    # error: Optional[str] = None
+    # success_level: str = "failure"
+    # flaw_severity: Optional[str] = None
+    # flaw_type: Optional[str] = None
+    
+    # 新增字段：模型信息
+    model: str = ""
+    
+    # 新增字段：详细的工具使用指标
+    tool_selection_accuracy: float = 0.0  # 工具选择准确率
+    sequence_correctness_rate: float = 0.0  # 序列正确率
+    unique_tools_used: int = 0  # 使用的独特工具数
+    tool_repetition_rate: float = 0.0  # 工具重复率
+    
+    # 新增字段：错误分析
+    error_type: Optional[str] = None  # 错误类型分类
+    error_category: Optional[str] = None  # tool_selection/param_config/sequence_order/dependency
+    
+    # 新增字段：执行历史详情
+    execution_history: List[Dict[str, Any]] = field(default_factory=list)
+    failed_tool_calls: List[str] = field(default_factory=list)
+    successful_tool_calls: List[str] = field(default_factory=list)
+    
+    # 新增字段：任务难度（根据task_type映射）
+    task_difficulty: str = "medium"  # simple/medium/hard
+    
+    # 新增字段：提示敏感性相关
+    prompt_effectiveness_score: float = 0.0  # 该提示类型的有效性得分
+    
+    def calculate_derived_metrics(self):
+        """计算派生指标"""
+        # 计算工具选择准确率（如果有required_tools）
+        if hasattr(self, 'task_instance') and self.task_instance:
+            required_tools = set(self.task_instance.get('required_tools', []))
+            if required_tools and self.tool_calls:
+                used_required = set(self.tool_calls) & required_tools
+                self.tool_selection_accuracy = len(used_required) / len(required_tools)
+        
+        # 计算序列正确率（基于Phase2评分）
+        if self.phase2_score > 0:
+            self.sequence_correctness_rate = self.phase2_score
+        
+        # 计算工具使用统计
+        if self.tool_calls:
+            self.unique_tools_used = len(set(self.tool_calls))
+            self.tool_repetition_rate = 1 - (self.unique_tools_used / len(self.tool_calls))
+        
+        # 映射任务难度
+        difficulty_map = {
+            'simple_task': 'simple',
+            'basic_task': 'simple',
+            'data_pipeline': 'medium',
+            'api_integration': 'medium',
+            'multi_stage_pipeline': 'hard',
+            'file_processing': 'hard'
+        }
+        self.task_difficulty = difficulty_map.get(self.task_type, 'medium')
+        
+        # 分析错误类型
+        if self.error:
+            error_lower = self.error.lower()
+            if 'tool' in error_lower or 'not found' in error_lower:
+                self.error_category = 'tool_selection'
+            elif 'param' in error_lower or 'argument' in error_lower:
+                self.error_category = 'param_config'
+            elif 'sequence' in error_lower or 'order' in error_lower:
+                self.error_category = 'sequence_order'
+            elif 'dependency' in error_lower or 'depend' in error_lower:
+                self.error_category = 'dependency'
+            else:
+                self.error_category = 'other'
+    
+    @property
+    def weighted_success_score(self) -> float:
+        """计算加权成功分数"""
+        if self.success_level == "full_success":
+            return 1.0
+        elif self.success_level == "partial_success":
+            return 0.5
+        else:
+            return 0.0
+    
+    @property
+    def execution_steps(self) -> int:
+        """执行步数（工具调用次数）"""
+        return len(self.tool_calls) if self.tool_calls else 0
+
+
+def convert_to_extended_result(result: ExecutionResult, 
+                              model: str = "",
+                              task_instance: Optional[Dict] = None) -> ExtendedExecutionResult:
+    """将标准ExecutionResult转换为扩展版本"""
+    extended = ExtendedExecutionResult(
+        test_id=result.test_id,
+        task_type=result.task_type,
+        prompt_type=result.prompt_type,
+        success=result.success,
+        workflow_score=result.workflow_score,
+        adherence_scores=result.adherence_scores,
+        tool_calls=result.tool_calls,
+        execution_time=result.execution_time,
+        phase2_score=result.phase2_score,
+        quality_score=result.quality_score,
+        final_score=result.final_score,
+        error=result.error,
+        success_level=result.success_level,
+        flaw_severity=result.flaw_severity,
+        flaw_type=result.flaw_type,
+        model=model
+    )
+    
+    # 如果有task_instance，保存它
+    if task_instance:
+        extended.task_instance = task_instance
+    
+    # 计算派生指标
+    extended.calculate_derived_metrics()
+    
+    return extended

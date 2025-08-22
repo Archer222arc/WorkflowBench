@@ -1,0 +1,350 @@
+#!/usr/bin/env python3
+"""
+ultra_parallel_runner.py 的调试版本
+支持分层日志捕获：每个子进程的输出被保存到独立的日志文件
+"""
+
+import subprocess
+import sys
+import os
+import time
+from pathlib import Path
+from datetime import datetime
+from typing import List, Optional, Tuple
+import json
+import logging
+
+# 设置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+class DebugUltraParallelRunner:
+    def __init__(self, debug_log_dir: str = None):
+        """初始化调试版本的UltraParallelRunner
+        
+        Args:
+            debug_log_dir: 调试日志目录
+        """
+        # 导入原始的UltraParallelRunner
+        sys.path.insert(0, str(Path(__file__).parent))
+        from ultra_parallel_runner import UltraParallelRunner
+        
+        # 创建原始runner实例
+        self.runner = UltraParallelRunner()
+        
+        # 设置调试日志目录
+        if debug_log_dir:
+            self.debug_log_dir = Path(debug_log_dir)
+        else:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            self.debug_log_dir = Path(f"logs/debug_ultra_{timestamp}")
+        self.debug_log_dir.mkdir(parents=True, exist_ok=True)
+        
+        logger.info(f"调试日志目录: {self.debug_log_dir}")
+        
+        # 保存原始的execute_shard_async方法
+        self.original_execute_shard_async = self.runner.execute_shard_async
+        
+        # 替换为调试版本
+        self.runner.execute_shard_async = self._debug_execute_shard_async
+        
+        self.shard_counter = 0
+        
+    def _debug_execute_shard_async(self, shard, rate_mode: str = "adaptive", result_suffix: str = "", silent: bool = False, max_workers: int = None, shard_index: int = 0):
+        """调试版本的execute_shard_async方法，捕获子进程输出"""
+        logger.info(f"[DEBUG] 启动分片 {shard.shard_id}，包含模型: {shard.model}")
+        
+        # 构建命令（从原始execute_shard_async复制的逻辑）
+        prompt_count = len(shard.prompt_types.split(','))
+        
+        # 根据模型类型和配置调整参数（简化版）
+        if max_workers is None:
+            if rate_mode == "fixed":
+                max_workers = 30
+            else:
+                max_workers = 50
+        
+        # 多个prompt时调整workers
+        if prompt_count > 1:
+            max_workers = max_workers * prompt_count
+        
+        # 构建命令
+        cmd = [
+            "python", "-u",  # 添加-u强制无缓冲输出
+            "smart_batch_runner.py",
+            "--model", shard.model,
+            "--deployment", shard.instance_name,
+            "--prompt-types", shard.prompt_types,
+            "--difficulty", shard.difficulty,
+            "--task-types", shard.task_types,
+            "--num-instances", str(shard.num_instances),
+            "--max-workers", str(max_workers),
+            "--tool-success-rate", str(shard.tool_success_rate),
+            "--batch-commit",
+            "--checkpoint-interval", "20",
+            "--ai-classification"
+            # 移除 --no-save-logs 以获得更多输出
+        ]
+        
+        # 调试模式下不使用静默
+        # if silent:
+        #     cmd.append("--silent")
+        
+        # 根据rate_mode添加参数
+        if rate_mode == "fixed":
+            cmd.extend(["--no-adaptive", "--qps", "50"])
+        else:
+            cmd.append("--adaptive")
+        
+        # 有多个prompt时添加prompt-parallel
+        if prompt_count > 1:
+            cmd.append("--prompt-parallel")
+        
+        # 添加结果文件后缀
+        if result_suffix:
+            cmd.extend(["--result-suffix", result_suffix])
+        
+        # 设置环境变量
+        env = os.environ.copy()
+        
+        # 确保传递STORAGE_FORMAT
+        if 'STORAGE_FORMAT' not in env:
+            storage_format = os.environ.get('STORAGE_FORMAT', 'json')
+            env['STORAGE_FORMAT'] = storage_format
+            logger.info(f"   设置STORAGE_FORMAT={storage_format}给子进程")
+        else:
+            logger.info(f"   传递STORAGE_FORMAT={env['STORAGE_FORMAT']}给子进程")
+        
+        # 添加调试环境变量
+        env['PYTHONFAULTHANDLER'] = '1'
+        env['PYTHONUNBUFFERED'] = '1'
+        
+        # 将STORAGE_FORMAT添加到命令行环境前缀
+        cmd_with_env = ['env', f'STORAGE_FORMAT={env["STORAGE_FORMAT"]}'] + cmd
+        
+        # 创建分片日志文件 - 使用唯一的文件名避免覆盖
+        self.shard_counter += 1
+        # 将模型名和shard_id中的特殊字符替换为下划线
+        model_safe = shard.model.replace('/', '_').replace('\\', '_').replace('.', '_').replace('-', '_')
+        shard_id_safe = shard.shard_id.replace('/', '_').replace('\\', '_').replace('.', '_').replace('-', '_')
+        
+        # 使用时间戳和计数器确保唯一性
+        import time
+        timestamp_suffix = f"{int(time.time() * 1000) % 1000000:06d}"  # 微秒级时间戳后6位
+        shard_log_file = self.debug_log_dir / f"{model_safe}_{shard_id_safe}_{timestamp_suffix}.log"
+        
+        # 如果文件已存在，添加额外的计数器
+        counter = 1
+        while shard_log_file.exists():
+            shard_log_file = self.debug_log_dir / f"{model_safe}_{shard_id_safe}_{timestamp_suffix}_{counter:02d}.log"
+            counter += 1
+        
+        logger.info(f"[DEBUG] 分片 {shard.shard_id} 日志: {shard_log_file}")
+        logger.info(f"[DEBUG] 运行命令: {' '.join(cmd)}")
+        
+        # 写入初始分片信息
+        log_file = open(shard_log_file, 'w')
+        log_file.write(f"===== 分片 {shard.shard_id} =====\n")
+        log_file.write(f"时间: {datetime.now().isoformat()}\n")
+        log_file.write(f"模型: {shard.model}\n")
+        log_file.write(f"实例: {shard.instance_name}\n")
+        log_file.write(f"命令: {' '.join(cmd)}\n")
+        log_file.write(f"环境变量:\n")
+        log_file.write(f"  STORAGE_FORMAT={env.get('STORAGE_FORMAT', 'json')}\n")
+        log_file.write(f"  PYTHONFAULTHANDLER={env.get('PYTHONFAULTHANDLER', '0')}\n")
+        log_file.write(f"  PYTHONUNBUFFERED={env.get('PYTHONUNBUFFERED', '0')}\n")
+        log_file.write("="*50 + "\n\n")
+        log_file.flush()
+        
+        # 启动子进程，捕获所有输出
+        process = subprocess.Popen(
+            cmd_with_env,
+            stdout=subprocess.PIPE,   # 捕获标准输出
+            stderr=subprocess.STDOUT, # 将错误输出重定向到标准输出
+            text=True,
+            env=env,
+            bufsize=1  # 行缓冲
+        )
+        
+        # 创建一个线程来读取和记录输出
+        import threading
+        
+        def log_output():
+            try:
+                start_time = time.time()
+                line_count = 0
+                last_activity = time.time()
+                
+                while True:
+                    line = process.stdout.readline()
+                    if not line:
+                        # 检查进程是否结束
+                        if process.poll() is not None:
+                            break
+                        # 如果10秒没有输出，记录一次
+                        if time.time() - last_activity > 10:
+                            log_file.write(f"\n[{datetime.now().isoformat()}] 等待输出中...\n")
+                            log_file.flush()
+                            last_activity = time.time()
+                        time.sleep(0.1)
+                        continue
+                    
+                    # 记录输出
+                    line_count += 1
+                    timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+                    log_file.write(f"[{timestamp}] {line}")
+                    log_file.flush()
+                    
+                    # 同时输出到控制台（关键信息）
+                    if any(keyword in line for keyword in ['ERROR', 'WARNING', '失败', '成功', 'API', 'timeout', 'CLOSE_WAIT']):
+                        print(f"[分片{shard.shard_id}] {line.strip()}")
+                    
+                    last_activity = time.time()
+                    
+                    # 每100行输出一次进度
+                    if line_count % 100 == 0:
+                        elapsed = time.time() - start_time
+                        logger.info(f"[DEBUG] 分片 {shard.shard_id}: {line_count} 行输出，运行 {elapsed:.1f}秒")
+                
+                # 进程结束后记录结束信息
+                return_code = process.poll()
+                elapsed = time.time() - start_time
+                log_file.write(f"\n{'='*50}\n")
+                log_file.write(f"分片 {shard.shard_id} 完成\n")
+                log_file.write(f"退出码: {return_code}\n")
+                log_file.write(f"总行数: {line_count}\n")
+                log_file.write(f"运行时间: {elapsed:.1f}秒\n")
+                log_file.write(f"时间: {datetime.now().isoformat()}\n")
+                
+                logger.info(f"[DEBUG] 分片 {shard.shard_id} 完成，退出码={return_code}，{line_count}行输出，{elapsed:.1f}秒")
+            finally:
+                # 确保文件被关闭
+                log_file.close()
+        
+        # 启动日志线程
+        log_thread = threading.Thread(target=log_output, daemon=True)
+        log_thread.start()
+            
+        # 将进程添加到runner的活动任务中
+        self.runner.active_tasks.add(shard.shard_id)
+        
+        # 返回process对象（保持与原始方法的兼容性）
+        return process
+    
+    def run(self, *args, **kwargs):
+        """运行测试（转发到原始runner）"""
+        logger.info(f"[DEBUG] 开始调试模式运行")
+        logger.info(f"[DEBUG] 参数: args={args}, kwargs={kwargs}")
+        
+        # 调用原始runner的方法
+        if hasattr(self.runner, 'run_ultra_parallel_test'):
+            result = self.runner.run_ultra_parallel_test(*args, **kwargs)
+        else:
+            # 如果是从命令行调用
+            result = self.runner.run(*args, **kwargs)
+        
+        logger.info(f"[DEBUG] 运行完成")
+        
+        # 生成调试报告
+        self._generate_debug_report()
+        
+        return result
+    
+    def _generate_debug_report(self):
+        """生成调试报告"""
+        report_file = self.debug_log_dir / "debug_report.md"
+        
+        with open(report_file, 'w') as f:
+            f.write("# Ultra Parallel Runner 调试报告\n\n")
+            f.write(f"生成时间: {datetime.now().isoformat()}\n\n")
+            
+            f.write("## 分片日志文件\n\n")
+            
+            # 列出所有分片日志 (支持多种命名格式)
+            shard_logs = list(self.debug_log_dir.glob("*.log"))
+            # 排除debug_report.md等非分片日志
+            shard_logs = [f for f in shard_logs if not f.name.startswith('debug_report')]
+            shard_logs = sorted(shard_logs)
+            for log_file in shard_logs:
+                size = log_file.stat().st_size / 1024  # KB
+                f.write(f"- `{log_file.name}` ({size:.1f} KB)\n")
+                
+                # 统计关键信息
+                with open(log_file, 'r') as lf:
+                    content = lf.read()
+                    error_count = content.count('ERROR')
+                    warning_count = content.count('WARNING')
+                    api_count = content.count('API')
+                    timeout_count = content.count('timeout')
+                    
+                    f.write(f"  - 错误: {error_count}, 警告: {warning_count}\n")
+                    f.write(f"  - API调用: {api_count}, 超时: {timeout_count}\n")
+            
+            f.write("\n## 数据保存检查\n\n")
+            
+            # 检查数据保存情况
+            json_path = Path('pilot_bench_cumulative_results/master_database.json')
+            if json_path.exists():
+                with open(json_path, 'r') as jf:
+                    db = json.load(jf)
+                    f.write(f"- JSON数据库: {db['summary']['total_tests']} 个测试\n")
+            
+            parquet_path = Path('pilot_bench_parquet_data/test_results.parquet')
+            if parquet_path.exists():
+                try:
+                    import pandas as pd
+                    df = pd.read_parquet(parquet_path)
+                    f.write(f"- Parquet数据: {len(df)} 条记录\n")
+                except:
+                    f.write("- Parquet数据: 无法读取\n")
+            
+            f.write("\n## 建议\n\n")
+            f.write("1. 检查各分片日志中的ERROR和WARNING\n")
+            f.write("2. 查看是否有timeout或API调用问题\n")
+            f.write("3. 验证数据是否正确保存\n")
+        
+        logger.info(f"[DEBUG] 调试报告已生成: {report_file}")
+
+
+def main():
+    """主函数"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Ultra Parallel Runner 调试版本')
+    parser.add_argument('--model', type=str, required=True, help='模型名称')
+    parser.add_argument('--prompt-types', type=str, default='baseline', help='提示类型')
+    parser.add_argument('--difficulty', type=str, default='easy', help='难度')
+    parser.add_argument('--task-types', type=str, default='all', help='任务类型')
+    parser.add_argument('--num-instances', type=int, default=20, help='实例数量')
+    parser.add_argument('--max-workers', type=int, default=5, help='最大工作进程数')
+    parser.add_argument('--tool-success-rate', type=float, default=0.8, help='工具成功率')
+    parser.add_argument('--rate-mode', type=str, default='adaptive', help='速率模式')
+    parser.add_argument('--silent', action='store_true', help='静默模式')
+    parser.add_argument('--debug-log-dir', type=str, help='调试日志目录')
+    
+    args = parser.parse_args()
+    
+    # 创建调试runner
+    runner = DebugUltraParallelRunner(debug_log_dir=args.debug_log_dir)
+    
+    # 运行测试
+    success = runner.run(
+        model=args.model,
+        prompt_types=args.prompt_types,
+        difficulty=args.difficulty,
+        task_types=args.task_types,
+        num_instances=args.num_instances,
+        max_workers=args.max_workers,
+        tool_success_rate=args.tool_success_rate,
+        rate_mode=args.rate_mode,
+        silent=args.silent
+    )
+    
+    sys.exit(0 if success else 1)
+
+
+if __name__ == '__main__':
+    main()

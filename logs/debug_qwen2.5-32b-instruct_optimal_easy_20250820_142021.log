@@ -1,0 +1,31 @@
+2025-08-20 14:20:21,345 - INFO - 初始化实例池: 18个实例 (2个Azure + 7个IdealLab)
+2025-08-20 14:20:21,345 - INFO - 调试日志目录: logs/debug_ultra_20250820_142021
+2025-08-20 14:20:21,345 - INFO - [DEBUG] 开始调试模式运行
+2025-08-20 14:20:21,345 - INFO - [DEBUG] 参数: args=(), kwargs={'model': 'qwen2.5-32b-instruct', 'prompt_types': 'optimal', 'difficulty': 'easy', 'task_types': 'all', 'num_instances': 20, 'max_workers': 5, 'tool_success_rate': 0.8, 'rate_mode': 'fixed', 'silent': False}
+2025-08-20 14:20:21,345 - INFO - 
+🔥 启动超高并行测试
+2025-08-20 14:20:21,345 - INFO -    模型: qwen2.5-32b-instruct
+2025-08-20 14:20:21,345 - INFO -    Prompt类型: optimal
+2025-08-20 14:20:21,345 - INFO -    难度: easy
+2025-08-20 14:20:21,345 - INFO -    实例数: 20
+2025-08-20 14:20:21,345 - INFO -    速率模式: fixed
+2025-08-20 14:20:21,345 - INFO - 🎯 使用qwen智能分片策略: qwen2.5-32b-instruct
+2025-08-20 14:20:21,345 - INFO - Qwen统一优化: 任务均匀分配到3个keys，每key约6个实例
+2025-08-20 14:20:21,345 - INFO - 📊 创建了 3 个并行分片
+2025-08-20 14:20:21,345 - INFO - [DEBUG] 启动分片 qwen2.5-32b-instruct_easy_key0，包含模型: qwen2.5-32b-instruct
+Traceback (most recent call last):
+  File "/Users/ruichengao/WorkflowBench/scale_up/scale_up/ultra_parallel_runner_debug.py", line 370, in <module>
+    main()
+  File "/Users/ruichengao/WorkflowBench/scale_up/scale_up/ultra_parallel_runner_debug.py", line 354, in main
+    success = runner.run(
+              ^^^^^^^^^^^
+  File "/Users/ruichengao/WorkflowBench/scale_up/scale_up/ultra_parallel_runner_debug.py", line 264, in run
+    result = self.runner.run_ultra_parallel_test(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/ruichengao/WorkflowBench/scale_up/scale_up/ultra_parallel_runner.py", line 531, in run_ultra_parallel_test
+    process = self.execute_shard_async(shard, rate_mode=rate_mode, result_suffix=result_suffix, silent=silent, max_workers=max_workers, shard_index=i+1)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/ruichengao/WorkflowBench/scale_up/scale_up/ultra_parallel_runner_debug.py", line 111, in _debug_execute_shard_async
+    env = os.environ.copy()
+          ^^
+UnboundLocalError: cannot access local variable 'os' where it is not associated with a value

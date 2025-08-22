@@ -1,0 +1,102 @@
+{
+  "id": "workflow_20250801_235610",
+  "name": "Data Pipeline - Medium",
+  "task_type": "data_pipeline",
+  "difficulty": "medium",
+  "steps": [
+    {
+      "id": "step_1",
+      "name": "Data Validator",
+      "tool": "data_validator",
+      "action_index": 1,
+      "action_prob": 0.1193617731332779,
+      "parameters": {
+        "timeout": 30,
+        "retry_on_failure": true,
+        "log_execution": true,
+        "format": "json",
+        "encoding": "utf-8",
+        "chunk_size": 1000
+      },
+      "timeout": 40,
+      "retry_count": 0,
+      "max_retries": 3
+    },
+    {
+      "id": "step_2",
+      "name": "Data Processor",
+      "tool": "data_processor",
+      "action_index": 13,
+      "action_prob": 0.10833248496055603,
+      "parameters": {
+        "timeout": 30,
+        "retry_on_failure": true,
+        "log_execution": true,
+        "format": "json",
+        "encoding": "utf-8",
+        "chunk_size": 1000
+      },
+      "timeout": 40,
+      "retry_count": 0,
+      "max_retries": 3
+    },
+    {
+      "id": "step_3",
+      "name": "Workflow Finalizer",
+      "tool": "workflow_finalizer",
+      "action_index": 33,
+      "action_prob": 0.09724368155002594,
+      "parameters": {
+        "timeout": 30,
+        "retry_on_failure": true,
+        "log_execution": true
+      },
+      "timeout": 40,
+      "retry_count": 0,
+      "max_retries": 3
+    },
+    {
+      "id": "step_4",
+      "name": "Data Loader",
+      "tool": "data_loader",
+      "action_index": 0,
+      "action_prob": 0.07917328178882599,
+      "parameters": {
+        "timeout": 30,
+        "retry_on_failure": true,
+        "log_execution": true,
+        "format": "json",
+        "encoding": "utf-8",
+        "chunk_size": 1000
+      },
+      "timeout": 40,
+      "retry_count": 0,
+      "max_retries": 3
+    }
+  ],
+  "dependencies": {
+    "step_3": [
+      "step_2"
+    ],
+    "step_4": [
+      "step_3",
+      "step_2"
+    ]
+  },
+  "context": {
+    "batch_size": 1000,
+    "parallel": true
+  },
+  "created_at": "2025-08-01T23:56:10.087729",
+  "metadata": {
+    "generated_by": "gpu_trained_best_model",
+    "model_path": "checkpoints/best_model.pt",
+    "success_rate": 0.7,
+    "device": "mps",
+    "algorithm": "ppo",
+    "episode": 19050,
+    "timestamp": "2025-08-01T23:56:10.087739",
+    "state_dim": 385,
+    "action_dim": 34
+  }
+}

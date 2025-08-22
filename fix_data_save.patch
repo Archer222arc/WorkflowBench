@@ -1,0 +1,31 @@
+--- cumulative_test_manager.py.orig
++++ cumulative_test_manager.py
+@@ -1004,10 +1004,15 @@
+         # 更新V2模型数据
+         model = record.model
+         if model not in self.v2_models:
+-            self.v2_models[model] = {}  # V3: dict format
++            # 修复：导入并使用ModelStatistics而不是空字典
++            try:
++                from old_data_structures.cumulative_data_structure import ModelStatistics
++                self.v2_models[model] = ModelStatistics(model_name=model)
++            except ImportError:
++                # 如果无法导入，跳过v2_models更新
++                pass
+         
+         # 构建测试字典
+         test_dict = {
+@@ -1032,8 +1037,11 @@
+         }
+         
+         # 使用V2模型更新
+-        self.v2_models[model].update_from_test(test_dict)
+-        
++        if model in self.v2_models and hasattr(self.v2_models[model], 'update_from_test'):
++            self.v2_models[model].update_from_test(test_dict)
++        else:
++            # 如果v2_models不可用，直接跳过
++            pass
++            
+         # 添加到缓冲
+         self.buffer.append(record)

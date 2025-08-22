@@ -1,0 +1,359 @@
+#!/usr/bin/env python3
+"""
+Provider-Aware Parallel Batch Runner
+=====================================
+基于API提供商级别速率限制的并行批测试运行器
+根据测试发现，速率限制是提供商级别而非模型级别
+"""
+
+import json
+import sys
+import time
+from pathlib import Path
+from typing import List, Dict, Optional, Tuple
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from collections import defaultdict
+from datetime import datetime
+import threading
+
+sys.path.insert(0, str(Path(__file__).parent))
+
+from batch_test_runner import BatchTestRunner, TestTask
+from enhanced_cumulative_manager import EnhancedCumulativeManager
+from cumulative_test_manager import TestRecord
+from api_client_manager import APIClientManager, MODEL_PROVIDER_MAP
+
+
+class ProviderParallelRunner:
+    """基于提供商的并行测试运行器"""
+    
+    def __init__(self, debug: bool = False, silent: bool = False, 
+                 save_logs: bool = True, use_ai_classification: bool = False):
+        """
+        初始化运行器
+        
+        Args:
+            debug: 调试模式
+            silent: 静默模式
+            save_logs: 是否保存日志
+            use_ai_classification: 是否使用AI分类
+        """
+        self.debug = debug
+        self.silent = silent
+        self.save_logs = save_logs
+        self.use_ai_classification = use_ai_classification
+        
+        # 提供商配置
+        self.provider_configs = {
+            'azure': {
+                'models': ['gpt-4o-mini'],
+                'max_parallel': 50,  # Azure支持高并发
+                'initial_qps': 100.0,
+                'description': 'Azure OpenAI (高性能)'
+            },
+            'user_azure': {
+                'models': ['gpt-5-nano', 'DeepSeek-R1-0528', 'DeepSeek-V3-0324',
+                          'gpt-5-mini', 'gpt-oss-120b', 'grok-3', 'Llama-3.3-70B-Instruct'],
+                'max_parallel': 30,  # 用户Azure端点
+                'initial_qps': 50.0,
+                'description': '用户Azure端点'
+            },
+            'idealab': {
+                'models': [],  # 将从MODEL_PROVIDER_MAP动态填充
+                'max_parallel': 5,  # IdealLab限制更严格
+                'initial_qps': 10.0,
+                'description': 'IdealLab API (共享速率限制)'
+            }
+        }
+        
+        # 动态填充IdealLab模型列表
+        for model, provider in MODEL_PROVIDER_MAP.items():
+            if provider == 'idealab' and model not in self.provider_configs['idealab']['models']:
+                self.provider_configs['idealab']['models'].append(model)
+        
+        # 统计信息
+        self.stats = {
+            'total_tests': 0,
+            'total_success': 0,
+            'total_failed': 0,
+            'provider_stats': defaultdict(lambda: {'tests': 0, 'success': 0, 'failed': 0, 'time': 0})
+        }
+        
+        # 锁用于线程安全
+        self.stats_lock = threading.Lock()
+    
+    def group_tasks_by_provider(self, tasks: List[TestTask]) -> Dict[str, List[TestTask]]:
+        """
+        将任务按提供商分组
+        
+        Args:
+            tasks: 测试任务列表
+            
+        Returns:
+            按提供商分组的任务字典
+        """
+        provider_tasks = defaultdict(list)
+        
+        for task in tasks:
+            model = task.model
+            provider = MODEL_PROVIDER_MAP.get(model, 'idealab')
+            provider_tasks[provider].append(task)
+        
+        return dict(provider_tasks)
+    
+    def run_provider_batch(self, provider: str, tasks: List[TestTask], 
+                           max_workers: int = None, qps: float = None) -> List[Dict]:
+        """
+        运行单个提供商的批量测试
+        
+        Args:
+            provider: 提供商名称
+            tasks: 该提供商的任务列表
+            max_workers: 最大并发数
+            qps: QPS限制
+            
+        Returns:
+            测试结果列表
+        """
+        config = self.provider_configs.get(provider, {})
+        max_workers = max_workers or config.get('max_parallel', 10)
+        qps = qps or config.get('initial_qps', 20.0)
+        
+        print(f"\n{'='*60}")
+        print(f"🚀 开始 {provider} 提供商测试")
+        print(f"   模型: {', '.join(set(t.model for t in tasks))}")
+        print(f"   任务数: {len(tasks)}")
+        print(f"   并发: {max_workers}, QPS: {qps}")
+        print(f"{'='*60}")
+        
+        start_time = time.time()
+        
+        # 创建BatchTestRunner实例
+        runner = BatchTestRunner(
+            debug=self.debug,
+            silent=self.silent,
+            save_logs=self.save_logs,
+            use_adaptive=True,  # 使用自适应模式
+            enable_database_updates=False,  # 批量模式，稍后统一更新
+            use_ai_classification=self.use_ai_classification
+        )
+        
+        # 运行测试
+        try:
+            results = runner.run_adaptive_concurrent_batch(
+                tasks,
+                initial_workers=max_workers,
+                initial_qps=qps
+            )
+        except Exception as e:
+            print(f"❌ {provider} 提供商测试失败: {e}")
+            results = []
+        
+        elapsed = time.time() - start_time
+        success_count = sum(1 for r in results if r and r.get('success', False))
+        
+        # 更新统计
+        with self.stats_lock:
+            self.stats['provider_stats'][provider]['tests'] += len(tasks)
+            self.stats['provider_stats'][provider]['success'] += success_count
+            self.stats['provider_stats'][provider]['failed'] += len(tasks) - success_count
+            self.stats['provider_stats'][provider]['time'] += elapsed
+        
+        print(f"\n✅ {provider} 完成: {success_count}/{len(tasks)} 成功 (耗时 {elapsed:.1f}秒)")
+        
+        return results
+    
+    def run_parallel_by_provider(self, tasks: List[TestTask]) -> Tuple[List[Dict], Dict]:
+        """
+        按提供商并行运行批量测试
+        
+        Args:
+            tasks: 所有测试任务
+            
+        Returns:
+            (所有结果, 统计信息)
+        """
+        print(f"\n{'='*70}")
+        print(f"🎯 基于提供商的并行批测试")
+        print(f"   总任务数: {len(tasks)}")
+        print(f"{'='*70}")
+        
+        # 按提供商分组任务
+        provider_tasks = self.group_tasks_by_provider(tasks)
+        
+        print(f"\n📊 任务分布:")
+        for provider, ptasks in provider_tasks.items():
+            config = self.provider_configs.get(provider, {})
+            print(f"   {provider}: {len(ptasks)} 个任务 ({config.get('description', '')})")
+        
+        # 并行运行不同提供商
+        all_results = []
+        start_time = time.time()
+        
+        with ThreadPoolExecutor(max_workers=len(provider_tasks)) as executor:
+            future_to_provider = {}
+            
+            for provider, ptasks in provider_tasks.items():
+                if ptasks:  # 只运行有任务的提供商
+                    config = self.provider_configs.get(provider, {})
+                    future = executor.submit(
+                        self.run_provider_batch,
+                        provider,
+                        ptasks,
+                        config.get('max_parallel'),
+                        config.get('initial_qps')
+                    )
+                    future_to_provider[future] = provider
+            
+            # 收集结果
+            for future in as_completed(future_to_provider):
+                provider = future_to_provider[future]
+                try:
+                    results = future.result()
+                    all_results.extend(results)
+                except Exception as e:
+                    print(f"❌ {provider} 提供商执行失败: {e}")
+        
+        total_time = time.time() - start_time
+        
+        # 计算总统计
+        with self.stats_lock:
+            self.stats['total_tests'] = len(tasks)
+            self.stats['total_success'] = sum(
+                s['success'] for s in self.stats['provider_stats'].values()
+            )
+            self.stats['total_failed'] = sum(
+                s['failed'] for s in self.stats['provider_stats'].values()
+            )
+            self.stats['total_time'] = total_time
+        
+        # 打印最终统计
+        self._print_final_stats()
+        
+        return all_results, self.stats
+    
+    def _print_final_stats(self):
+        """打印最终统计信息"""
+        print(f"\n{'='*70}")
+        print(f"📈 最终统计")
+        print(f"{'='*70}")
+        
+        print(f"\n总体:")
+        print(f"  总测试: {self.stats['total_tests']}")
+        print(f"  成功: {self.stats['total_success']} ({self.stats['total_success']/max(1, self.stats['total_tests'])*100:.1f}%)")
+        print(f"  失败: {self.stats['total_failed']}")
+        print(f"  总耗时: {self.stats['total_time']:.1f}秒")
+        
+        if self.stats['total_time'] > 0:
+            qps = self.stats['total_tests'] / self.stats['total_time']
+            print(f"  平均QPS: {qps:.2f}")
+        
+        print(f"\n按提供商:")
+        for provider, pstats in self.stats['provider_stats'].items():
+            if pstats['tests'] > 0:
+                success_rate = pstats['success'] / pstats['tests'] * 100
+                avg_time = pstats['time'] / pstats['tests']
+                print(f"\n  {provider}:")
+                print(f"    测试: {pstats['tests']}")
+                print(f"    成功: {pstats['success']} ({success_rate:.1f}%)")
+                print(f"    失败: {pstats['failed']}")
+                print(f"    耗时: {pstats['time']:.1f}秒")
+                print(f"    平均: {avg_time:.2f}秒/测试")
+                if pstats['time'] > 0:
+                    provider_qps = pstats['tests'] / pstats['time']
+                    print(f"    QPS: {provider_qps:.2f}")
+    
+    def save_results_to_database(self, results: List[Dict], model: str, difficulty: str):
+        """
+        保存结果到数据库
+        
+        Args:
+            results: 测试结果列表
+            model: 模型名称
+            difficulty: 难度级别
+        """
+        if not results:
+            return
+        
+        manager = EnhancedCumulativeManager(use_ai_classification=self.use_ai_classification)
+        success_count = 0
+        
+        for result in results:
+            if result and not result.get('_saved', False):
+                record = TestRecord(
+                    model=model,
+                    task_type=result.get("task_type", "unknown"),
+                    prompt_type=result.get("prompt_type", "baseline"),
+                    difficulty=result.get("difficulty", difficulty)
+                )
+                
+                # 设置其他字段
+                for field in ['timestamp', 'success', 'success_level', 'execution_time', 'turns', 
+                            'tool_calls', 'workflow_score', 'phase2_score', 'quality_score', 
+                            'final_score', 'error_type', 'tool_success_rate', 'is_flawed', 
+                            'flaw_type', 'format_error_count', 'api_issues', 'executed_tools', 
+                            'required_tools', 'tool_coverage_rate', 'task_instance', 'execution_history']:
+                    if field in result:
+                        setattr(record, field, result[field])
+                
+                try:
+                    manager.add_test_result_with_classification(record)
+                    result['_saved'] = True
+                    success_count += 1
+                except Exception as e:
+                    print(f"⚠️ 保存失败: {e}")
+        
+        # 强制刷新
+        if hasattr(manager, '_flush_buffer'):
+            manager._flush_buffer()
+        
+        if success_count > 0:
+            print(f"✅ 已保存 {success_count} 个测试结果到数据库")
+
+
+def test_provider_parallel():
+    """测试函数"""
+    print("Provider-Aware Parallel Runner Test")
+    print("="*70)
+    
+    # 创建测试任务
+    test_tasks = []
+    
+    # Azure任务
+    for i in range(3):
+        test_tasks.append(TestTask(
+            model='gpt-4o-mini',
+            task_type='simple_task',
+            prompt_type='baseline',
+            difficulty='easy',
+            tool_success_rate=0.8
+        ))
+    
+    # IdealLab任务
+    for model in ['qwen2.5-3b-instruct', 'DeepSeek-V3-671B']:
+        for i in range(2):
+            test_tasks.append(TestTask(
+                model=model,
+                task_type='simple_task',
+                prompt_type='baseline',
+                difficulty='easy',
+                tool_success_rate=0.8
+            ))
+    
+    # 运行测试
+    runner = ProviderParallelRunner(debug=False, silent=False)
+    results, stats = runner.run_parallel_by_provider(test_tasks)
+    
+    print(f"\n测试完成!")
+    print(f"总结果数: {len(results)}")
+    
+    # 保存结果
+    print("\n保存结果到数据库...")
+    for model in set(t.model for t in test_tasks):
+        model_results = [r for r in results if r.get('model') == model]
+        if model_results:
+            runner.save_results_to_database(model_results, model, 'easy')
+
+
+if __name__ == "__main__":
+    test_provider_parallel()

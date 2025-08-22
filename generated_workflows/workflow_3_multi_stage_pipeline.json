@@ -1,0 +1,176 @@
+{
+  "id": "workflow_20250801_235610",
+  "name": "Multi Stage Pipeline - Hard",
+  "task_type": "multi_stage_pipeline",
+  "difficulty": "hard",
+  "steps": [
+    {
+      "id": "step_1",
+      "name": "Data Processor",
+      "tool": "data_processor",
+      "action_index": 13,
+      "action_prob": 0.09579209983348846,
+      "parameters": {
+        "timeout": 30,
+        "retry_on_failure": true,
+        "log_execution": true,
+        "format": "json",
+        "encoding": "utf-8",
+        "chunk_size": 1000
+      },
+      "timeout": 50,
+      "retry_count": 0,
+      "max_retries": 4
+    },
+    {
+      "id": "step_2",
+      "name": "Data Loader",
+      "tool": "data_loader",
+      "action_index": 0,
+      "action_prob": 0.09407752007246017,
+      "parameters": {
+        "timeout": 30,
+        "retry_on_failure": true,
+        "log_execution": true,
+        "format": "json",
+        "encoding": "utf-8",
+        "chunk_size": 1000
+      },
+      "timeout": 50,
+      "retry_count": 0,
+      "max_retries": 4
+    },
+    {
+      "id": "step_3",
+      "name": "Performance Monitor",
+      "tool": "performance_monitor",
+      "action_index": 24,
+      "action_prob": 0.09140606969594955,
+      "parameters": {
+        "timeout": 30,
+        "retry_on_failure": true,
+        "log_execution": true
+      },
+      "timeout": 50,
+      "retry_count": 0,
+      "max_retries": 4
+    },
+    {
+      "id": "step_4",
+      "name": "Db Connector",
+      "tool": "db_connector",
+      "action_index": 12,
+      "action_prob": 0.09068629145622253,
+      "parameters": {
+        "timeout": 30,
+        "retry_on_failure": true,
+        "log_execution": true
+      },
+      "timeout": 50,
+      "retry_count": 0,
+      "max_retries": 4
+    },
+    {
+      "id": "step_5",
+      "name": "Data Transformer",
+      "tool": "data_transformer",
+      "action_index": 2,
+      "action_prob": 0.08833176642656326,
+      "parameters": {
+        "timeout": 30,
+        "retry_on_failure": true,
+        "log_execution": true,
+        "format": "json",
+        "encoding": "utf-8",
+        "chunk_size": 1000
+      },
+      "timeout": 50,
+      "retry_count": 0,
+      "max_retries": 4
+    },
+    {
+      "id": "step_6",
+      "name": "Checkpoint Saver",
+      "tool": "checkpoint_saver",
+      "action_index": 17,
+      "action_prob": 0.08217452466487885,
+      "parameters": {
+        "timeout": 30,
+        "retry_on_failure": true,
+        "log_execution": true
+      },
+      "timeout": 50,
+      "retry_count": 0,
+      "max_retries": 4
+    },
+    {
+      "id": "step_7",
+      "name": "Workflow Finalizer",
+      "tool": "workflow_finalizer",
+      "action_index": 33,
+      "action_prob": 0.08112705498933792,
+      "parameters": {
+        "timeout": 30,
+        "retry_on_failure": true,
+        "log_execution": true
+      },
+      "timeout": 50,
+      "retry_count": 0,
+      "max_retries": 4
+    },
+    {
+      "id": "step_8",
+      "name": "Dependency Checker",
+      "tool": "dependency_checker",
+      "action_index": 19,
+      "action_prob": 0.07077156752347946,
+      "parameters": {
+        "timeout": 30,
+        "retry_on_failure": true,
+        "log_execution": true
+      },
+      "timeout": 50,
+      "retry_count": 0,
+      "max_retries": 4
+    }
+  ],
+  "dependencies": {
+    "step_2": [
+      "step_1"
+    ],
+    "step_3": [
+      "step_2",
+      "step_1"
+    ],
+    "step_4": [
+      "step_3",
+      "step_1"
+    ],
+    "step_5": [
+      "step_4",
+      "step_1"
+    ],
+    "step_6": [
+      "step_5"
+    ],
+    "step_7": [
+      "step_6"
+    ]
+  },
+  "context": {
+    "stages": 5,
+    "checkpoints": true
+  },
+  "created_at": "2025-08-01T23:56:10.097785",
+  "metadata": {
+    "generated_by": "gpu_trained_best_model",
+    "model_path": "checkpoints/best_model.pt",
+    "success_rate": 0.7,
+    "device": "mps",
+    "algorithm": "ppo",
+    "episode": 19050,
+    "timestamp": "2025-08-01T23:56:10.097794",
+    "state_dim": 385,
+    "action_dim": 34
+  }
+}

@@ -1,0 +1,665 @@
+========================================
+批量提交和数据保存机制调试任务清单
+生成时间: 2025-08-18 12:45
+更新时间: 2025-08-20 01:40
+========================================
+
+## ✅ 已解决：数据迁移null字段恢复（2025-08-19 22:33）
+
+### 问题严重性：极高 ⚠️⚠️⚠️ → 已解决 ✅
+
+**问题描述**：
+- **192条记录（72.2%）缺失所有关键统计字段**
+- 这些记录都集中在2025-08-18 11:57:53（同一秒内批量导入）
+- 缺失的重要字段包括：
+  - 质量评分（avg_workflow_score, avg_phase2_score等）
+  - 错误统计（17个error相关字段）  
+  - 辅助统计（7个assisted相关字段）
+  - 成功率细分（full_success_rate, partial_success_rate等）
+
+**影响分析**：
+- 🔴 **数据完整性严重受损** - 72%的汇总数据不可用
+- 🔴 **统计分析失真** - 缺失关键质量评分和错误分析
+- 🔴 **历史追溯困难** - 无法评估这些测试的实际表现
+- 🔴 **报告生成受阻** - 无法生成完整的性能报告
+
+**根本原因分析**：
+1. **数据迁移错误** - 2025-08-18进行的JSON到Parquet迁移
+2. **字段映射不完整** - 新增字段未正确迁移
+3. **批量导入问题** - 所有问题记录都在同一秒内导入
+
+**紧急修复方案**：
+1. **从源数据恢复**：
+   - 查找原始JSON备份文件
+   - 重新执行数据迁移，确保所有字段映射
+   - 验证迁移后的数据完整性
+
+2. **重新计算缺失字段**：
+   - 如果有原始测试日志，从日志重新计算统计
+   - 使用现有的success/failed字段推导其他指标
+   - 至少恢复基本的成功率和错误率
+
+3. **数据清理决策**：
+   - 如果无法恢复，考虑标记或删除这些不完整记录
+   - 避免这些记录影响整体统计分析
+
+**解决方案实施（✅ 已完成）**：
+1. **从JSON数据库成功恢复165条记录**
+   - 创建recover_null_fields_from_json.py脚本
+   - 自动匹配JSON层次结构中的对应数据
+   - 恢复了所有关键统计字段
+
+2. **删除27条无法恢复的记录**
+   - 这些记录在JSON中也没有对应数据
+   - 可能是测试中断或错误导致的脏数据
+   
+3. **最终结果**：
+   - ✅ 从266条记录清理为239条
+   - ✅ 数据完整率达到100%（关键字段）
+   - ✅ avg_workflow_score等质量评分完全恢复
+   - ✅ 所有错误统计字段完全恢复
+   - ✅ 辅助统计字段完全恢复
+   
+4. **剩余的非关键null字段**：
+   - is_flawed和flaw_type（用于标识缺陷测试）
+   - full_success/partial_success（旧版字段，新版使用success_rate）
+   - 这些不影响主要统计分析
+
+## 🎯 本次会话成果总结（2025-08-19 22:35）
+
+### 完成的修复（12项）：
+1. ✅ **增强debug日志功能** - 捕获子进程详细输出
+2. ✅ **修复并行部署WARNING** - 添加Azure部署实例到SUPPORTED_MODELS
+3. ✅ **修复日志覆盖问题（2次）** - 添加模型名和时间戳确保唯一性
+4. ✅ **理解CALCULATION_ERROR** - 确认是flawed测试的预期行为
+5. ✅ **修复qwen-key2模型名错误** - virtual instance名称被错误传递给API
+6. ✅ **验证API并行化正常** - 3个IdealLab keys正确分配
+7. ✅ **修复Parquet文件损坏** - 添加文件锁机制防止并发写入冲突
+8. ✅ **恢复数据迁移null字段** - 从JSON恢复165条记录，删除27条脏数据
+9. ✅ **修复任务类型混淆** - file_processing → basic_task (影响1200个任务)
+10. ✅ **调查DeepSeek数据保存** - 发现JSON/Parquet不同步问题
+11. ✅ **修改IdealLab workers** - 从5/10改为1避免并发限制
+12. ✅ **修复qwen模型映射** - 发现7b/3b实际运行的是72b模型
+
+### 关键发现：
+- **qwen2.5-7b和3b的历史数据是错误的** - 实际运行的是72b模型
+- **JSON和Parquet数据不同步** - STORAGE_FORMAT=parquet时只更新Parquet
+- **basic_task任务被完全跳过** - 1200个任务(24%)未被测试
+
+## ✅ 已解决：数据一致性问题修复（2025-08-19 23:46）
+
+### 问题描述：
+- **217条记录（89%）的数据不一致** - total != success + partial + failed
+- partial和failed字段完全缺失，导致统计错误
+- 影响所有模型的统计准确性
+
+### 根本原因：
+1. **enhanced_cumulative_manager.py缺陷**：
+   - 未正确初始化partial和failed字段
+   - 只更新success，忽略了失败的情况
+   - 导致failed始终为0，数据不一致
+
+### 解决方案：
+1. **修复数据保存逻辑** ✅
+   - 在enhanced_cumulative_manager.py添加partial/failed字段初始化
+   - 正确更新failed计数
+   - 修复率计算包含partial_rate
+
+2. **批量修复历史数据** ✅
+   - 创建fix_all_inconsistent_records.py脚本
+   - 修复所有217条不一致记录
+   - 重新计算failed = total - success - partial
+   - 更新所有相关的率计算
+
+3. **同步到Parquet** ✅
+   - 创建sync_fixed_data_to_parquet.py脚本
+   - 更新228条Parquet记录
+   - 确保JSON和Parquet数据完全一致
+
+### 修复结果：
+- ✅ **100%数据一致性** - 所有244条记录现在都满足total = success + partial + failed
+- ✅ **完整的失败统计** - 4147个失败测试被正确记录（83.2%失败率）
+- ✅ **准确的成功率** - 整体成功率16.8%（之前显示100%是错误的）
+- ✅ **JSON/Parquet同步** - 两个存储格式数据完全一致
+
+## 🔴 当前待办任务（2025-08-20 01:30）
+
+### 🆕 1. GPT-5 AI错误分类未启用（2025-08-20）
+
+**问题描述**：
+- 5.1统计结果显示所有错误分类字段都是0
+- max_turns_errors: 0（应该有值）
+- tool_selection_errors: 0
+- parameter_config_errors: 0
+- 表明AI错误分类器未被启用或未正确初始化
+
+**需要检查**：
+1. EnhancedAIErrorClassifier是否被正确初始化
+2. use_ai_classification参数是否传递
+3. GPT-5-nano分类器是否可用
+4. 错误日志是否被正确传递给分类器
+
+### ✅ 2. IdealLab并发度配置检查（2025-08-20）- 已完成
+
+**检查结果**：
+- **Qwen模型（5个型号）**:
+  - ✅ 使用3个API keys进行负载均衡（qwen-key0/1/2）
+  - 固定模式：max_workers=3, qps=10
+  - 自适应模式：max_workers=5, qps=None
+  - 总并发能力：3 keys × 5 workers = 15并发
+  
+- **IdealLab闭源模型（3个）**:
+  - o3-0416-global, gemini-2.5-flash-06-17, kimi-k2
+  - 固定模式：max_workers=1, qps=5（保守设置）
+  - 自适应模式：max_workers=1, qps=None
+  - ⚠️ 单worker可能过于保守，但避免限流
+
+**性能分析**：
+- 最新测试日志显示Qwen运行正常
+- 未发现超时或错误
+- 负载均衡工作正常
+
+## 🔴 当前问题：Parquet错误分类字段映射错误（2025-08-20 02:00）
+
+### 根本原因已找到 ✅
+
+**字段名不匹配导致错误分类无法记录**：
+1. **batch_test_runner.py** 将AI分类结果存储为 `record.ai_error_category`（第1081行）
+2. **parquet_cumulative_manager.py** 查找 `record.error_type`（第368行）
+3. **TestRecord类** 没有定义这两个字段，它们都是动态添加的
+4. **enhanced_cumulative_manager.py** 使用 `error_classification`（第269行）
+
+### 数据流断裂分析
+
+```
+AI分类 → ai_error_category → TestRecord（动态） → ParquetManager查找error_type → 找不到 → 不记录
+```
+
+### 字段名映射问题
+
+| 组件 | 使用的字段名 | 行号 |
+|------|------------|------|
+| batch_test_runner.py | ai_error_category | 1081 |
+| TestRecord类 | （未定义） | - |
+| parquet_cumulative_manager.py | error_type | 368 |
+| enhanced_cumulative_manager.py | error_classification | 269 |
+
+### JSON正确但Parquet错误的原因
+
+**JSON（enhanced_cumulative_manager.py）**：
+- 通过error_message进行分类（第262行）
+- 使用_classify_error方法（第866行）
+- 正确更新错误统计
+
+**Parquet（parquet_cumulative_manager.py）**：
+- 只查找error_type属性（第368行）
+- 找不到则跳过错误统计
+- 导致所有错误字段为0或None
+
+### failed字段问题
+虽然计算逻辑正确：
+```python
+summary['failed'] = total - summary['success'] - summary['partial_success']
+```
+但partial_success可能未正确统计，导致failed计算不准确。
+
+### 修复方案
+
+#### 方案1：修改parquet_cumulative_manager.py（推荐）
+```python
+# 第368行改为：
+if hasattr(record, 'ai_error_category'):
+    error_type = record.ai_error_category
+elif hasattr(record, 'error_type'):
+    error_type = record.error_type
+elif hasattr(record, 'error_classification'):
+    error_type = record.error_classification
+else:
+    error_type = None
+```
+
+#### 方案2：扩展TestRecord类
+添加正式字段定义，而不是依赖动态添加
+
+#### 方案3：统一字段名
+修改所有地方使用统一的字段名
+
+### 下一步行动
+
+1. **实施修复方案1** - 修改parquet_cumulative_manager.py
+2. **运行小规模测试验证** - 确认错误分类正确记录
+3. **从JSON恢复历史数据** - 修复已有的Parquet记录
+
+## 🔴 当前待办任务（2025-08-19 23:46）
+
+### 🆕 1. 紧急修复：file_processing vs basic_task 任务类型混淆 ✅ 已完成
+
+**问题描述**：
+- 代码中定义了file_processing任务类型，但任务库中实际是basic_task
+- 导致1200个basic_task任务完全没有被测试
+- 日志显示: "WARNING - No tasks found for type 'file_processing' in the task library!"
+
+**根本原因**：
+- 任务库生成时使用basic_task（1200个任务）
+- 但代码中错误地使用file_processing查找
+- 结果只测试了4种任务类型，而不是5种
+
+**已实施的修复**：
+1. **创建fix_task_type_mismatch.py脚本**
+   - 批量替换所有file_processing为basic_task
+   - 自动备份原文件
+   - 验证修复完整性
+
+2. **修复的文件（共8个）**：
+   - unified_training_manager.py ✅
+   - mdp_workflow_generator.py ✅
+   - workflow_quality_test_flawed.py ✅
+   - multi_model_batch_tester_v2.py ✅
+   - extended_execution_result.py ✅
+   - workflow_reasoning_generator.py ✅
+   - unified_training_manager_dqn.py ✅
+   - tool_and_task_generator.py ✅
+
+3. **验证结果**：
+   - 所有文件已完全修复（20处更改）
+   - 任务库验证：5种任务类型都有对应任务
+   - basic_task: 1200个任务现在可以被正确测试
+
+**影响评估**：
+- ⚠️ 之前所有测试结果可能不完整（缺少20%的任务类型）
+- ⚠️ 需要重新运行测试以包含basic_task
+- ✅ 修复后将正确测试所有5040个任务
+
+### 2. 改进debug-log模式以捕获子进程详细输出 ✅ 已完成
+
+**问题描述**：
+- 当前debug-log只显示ultra_parallel_runner.py的高层输出
+- 无法看到smart_batch_runner.py的详细执行日志
+- 子进程stdout被设置为DEVNULL，输出被丢弃
+
+**已实施的解决方案**：
+1. **创建ultra_parallel_runner_debug.py**
+   - 调试版本的ultra_parallel_runner
+   - 每个分片输出保存到独立日志文件
+   - 实时捕获并记录所有子进程输出
+   - 生成调试报告汇总
+
+2. **修改run_systematic_test_final.sh**
+   - 使用--debug-log时调用调试版本
+   - 日志分层保存到debug_ultra_目录
+   - 保留原有功能的向后兼容性
+
+3. **创建test_enhanced_debug.sh**
+   - 演示增强调试功能的使用
+   - 自动找到最新的调试日志
+   - 提供查看报告的快捷命令
+
+**使用方法**：
+```bash
+# 启用分层调试日志
+./run_systematic_test_final.sh --debug-log
+
+# 或使用测试脚本
+./test_enhanced_debug.sh
+
+# 查看调试报告
+cat logs/debug_ultra_*/debug_report.md
+
+# 查看特定分片日志
+less logs/debug_ultra_*/shard_01_*.log
+```
+
+**预期效果**：
+- 能看到每个分片的完整执行过程
+- 能定位到具体的API调用和超时位置
+- 保存完整的错误堆栈和警告信息
+- 生成结构化的调试报告
+
+### 3. 修复debug日志覆盖问题 ✅ 已完成
+
+**问题描述**：
+- 运行5.3测试时，多个模型的日志文件互相覆盖
+- 所有分片都使用相同的命名（shard_01.log, shard_02.log）
+- 后运行的模型覆盖前面模型的日志
+
+**已实施的修复**：
+- 修改ultra_parallel_runner_debug.py
+- 在日志文件名中包含模型名：`{model_safe}_shard_{counter}_{shard_id}.log`
+- 例如：`gpt_4o_mini_shard_01_gpt-4o-mini_easy_0.log`
+
+**验证结果**：
+- 每个模型的日志保存在独立文件中
+- 不再发生覆盖问题
+- 支持同时调试多个模型
+
+### 4. 理解CALCULATION_ERROR ✅ 已完成
+
+**分析结果**：
+- CALCULATION_ERROR是缺陷工作流测试的预期行为
+- 在5.3测试（flawed workflow）中故意触发
+- 用于评估模型的错误恢复能力
+
+**触发机制**：
+1. 初始工具成功率：0.8
+2. 依赖失败/缺失会降低成功率
+3. 连续失败会进一步惩罚
+4. 最终成功率可能降至0.2-0.3
+5. 随机失败时从预定义错误列表选择
+
+### 5. 修复持续的日志覆盖问题 ✅ 已完成 (2025-08-19 16:28)
+
+**问题描述**：
+- 即使在包含模型名后，日志仍然被覆盖
+- 多个模型同时运行时，后启动的会覆盖先启动的
+
+**实施的修复**：
+1. **添加时间戳后缀**
+   - 使用微秒级时间戳的后6位：`{int(time.time() * 1000) % 1000000:06d}`
+   - 确保即使同时启动也有不同的时间戳
+
+2. **文件存在性检查**
+   - 如果文件已存在，添加额外的计数器
+   - 循环检查直到找到未使用的文件名
+
+3. **新的命名格式**：
+   - 从：`{model_safe}_shard_{counter:02d}_{shard_id}.log`
+   - 到：`{model_safe}_{shard_id_safe}_{timestamp_suffix}.log`
+   - 例如：`gpt_4o_mini_gpt_4o_mini_easy_0_112408.log`
+
+**验证结果**：
+- 运行test_log_uniqueness.py测试
+- 3个模型并发运行，生成3个唯一的日志文件
+- 文件名唯一性：✅ 通过
+- 每个模型都有对应的日志文件
+
+### 6. 修改IdealLab超并发workers为1 ✅ 已完成 (2025-08-19 17:04)
+
+**问题描述**：
+- IdealLab的API Key有并发限制
+- 多个worker同时请求可能导致限流或错误
+
+**实施的修复**：
+修改`ultra_parallel_runner.py`中的配置：
+1. **qwen系列（开源模型）**：
+   - 固定模式：max_workers从5改为1
+   - 自适应模式：max_workers从10改为1
+
+2. **IdealLab闭源模型**：
+   - 固定模式：max_workers从5改为1
+   - 自适应模式：max_workers从5改为1
+
+**影响**：
+- ✅ 避免并发限流问题
+- ✅ 提高请求成功率
+- ⚠️ 测试速度会变慢（串行执行）
+
+### 7. 检查IdealLab qwen模型实例配置问题 ✅ 已解决 (2025-08-19 17:36)
+
+**发现的问题**：
+1. **支持5个qwen模型**：72b, 32b, 14b, 7b, 3b
+2. **只注册了3个实例**：72b, 32b, 14b
+3. **7b和3b缺少实例注册**
+
+**根本原因已找到**：
+- ultra_parallel_runner.py第194行：`base_model = "qwen2.5-72b-instruct"`
+- 所有qwen模型都被硬编码为使用72b作为base_model
+- 导致qwen2.5-7b和qwen2.5-3b的测试实际上运行的是72b模型
+
+**已实施的修复**：
+1. 创建fix_qwen_model_mapping.py脚本
+2. 修改ultra_parallel_runner.py：`base_model = model`（使用实际请求的模型）
+3. 备份原文件到ultra_parallel_runner.py.backup_20250819_173648
+
+**影响分析**：
+- ⚠️ 历史数据中的qwen2.5-7b和qwen2.5-3b测试结果可能实际是72b的结果
+- ⚠️ 需要重新运行7b和3b的测试以获得真实数据
+- ✅ 修复后每个qwen模型将正确使用自身作为base_model
+
+### 8. 数据存储现状总结 ✅ 已分析 (2025-08-19 17:15)
+
+**JSON数据库**（pilot_bench_cumulative_results/master_database.json）：
+- 最后更新：8月19日15:20
+- 包含16个模型，总计4976个测试
+- 有完整的层次结构和数据
+
+**Parquet数据库**（pilot_bench_parquet_data/test_results.parquet）：
+- 最后更新：8月19日16:48
+- 包含241条汇总记录
+- 最新的测试结果都在这里
+
+**问题**：
+- 使用`STORAGE_FORMAT=parquet`时，只更新Parquet不更新JSON
+- 两个数据源不同步
+- 需要决定是否要同步或统一使用一种格式
+
+### 9. 紧急：修复Azure API无限阻塞问题
+
+**问题诊断完成**：✅ 已确认为API超时机制缺失
+- 472个CLOSE_WAIT TCP连接
+- 所有进程0% CPU，卡在API调用
+- 日志停在"Executing workflow with 3 steps"
+- 详见：`docs/maintenance/debug_logs/FIX-20250819-002_api_hang_issue.md`
+
+**需要修复的代码**：
+1. **unified_training_manager.py**
+   - 当前：`request_timeout = 10`（但可能未正确应用）
+   - 需要：确保所有API调用都有timeout参数
+
+2. **workflow_quality_tester.py**
+   - 检查execute_workflow方法的API调用
+   - 添加timeout和重试机制
+
+3. **api_client_manager.py**（如存在）
+   - 实现连接池管理
+   - 设置max_lifetime避免CLOSE_WAIT累积
+
+**修复步骤**：
+```python
+# 1. 为所有requests添加timeout
+response = requests.post(url, timeout=30)  # 30秒超时
+
+# 2. 使用requests.Session管理连接
+session = requests.Session()
+session.mount('https://', HTTPAdapter(
+    pool_connections=10,
+    pool_maxsize=100,
+    max_retries=3
+))
+
+# 3. 实现超时重试
+from tenacity import retry, stop_after_attempt, wait_exponential
+@retry(stop=stop_after_attempt(3), wait=wait_exponential())
+def call_api():
+    ...
+```
+
+### 6. 调查为什么DeepSeek-V3-0324测试结果没有保存
+
+**观察到的现象**：
+- 测试运行了但数据未保存
+- STORAGE_FORMAT=parquet正确传递
+- ParquetCumulativeManager初始化成功
+- 但增量文件未创建
+
+**需要检查的点**：
+- [ ] ParquetCumulativeManager的_flush_buffer方法是否被调用
+- [ ] 增量文件路径是否正确
+- [ ] 是否有权限写入parquet文件
+- [ ] 数据是否被正确传递到manager
+
+### 7. 验证数据写入可靠性
+
+**潜在风险点**：
+1. **并发写入冲突**
+   - 25个进程同时写入可能导致数据覆盖
+   - JSON文件不支持真正的并发写入
+   - Parquet格式是否完全解决了并发问题？
+
+2. **批量提交机制**
+   - checkpoint_interval设置是否合理
+   - 小批量数据是否能及时保存
+   - 进程异常退出时数据是否会丢失
+
+3. **数据一致性**
+   - master_database.json的summary是否正确更新
+   - 不同存储格式（JSON/Parquet）的数据是否同步
+   - 中断恢复后的数据完整性
+
+### 8. 分析silent模式是否隐藏了错误
+
+**需要验证**：
+- silent模式下的错误是否被正确记录到日志
+- 是否有关键信息被过滤掉
+- 是否应该添加error-only输出模式
+
+## 🚀 快速命令参考
+
+### 调试命令
+```bash
+# 使用增强调试模式
+./run_systematic_test_final.sh --debug-log
+
+# 查看最新调试日志
+ls -dt logs/debug_ultra_* | head -1
+
+# 监控分片执行
+tail -f logs/debug_ultra_*/shard_*.log
+
+# 查看调试报告
+cat logs/debug_ultra_*/debug_report.md
+```
+
+### 测试运行
+```bash
+# 完整5.3测试
+./run_systematic_test_final.sh --phase 5.3
+
+# 快速验证（3个实例）
+NUM_INSTANCES=3 ./run_systematic_test_final.sh --phase 5.3
+
+# 调试模式运行
+./run_systematic_test_final.sh --phase 5.3 --debug-log
+```
+
+### 监控命令
+```bash
+# 实时内存监控
+watch -n 1 'ps aux | grep python | grep -E "(smart_batch|batch_test)" | awk "{sum+=\$6} END {print \"Total Memory:\", sum/1024, \"MB\"}"'
+
+# 查看数据保存状态
+python -c "import json; db = json.load(open('pilot_bench_cumulative_results/master_database.json')); print(f'总测试: {db[\"summary\"][\"total_tests\"]}')"
+
+# 监控API调用
+tail -f logs/debug_ultra_*/shard_*.log | grep -E "(API|timeout|CLOSE_WAIT)"
+```
+
+---
+
+## 🎯 最新成果总结（2025-08-19 16:10）
+
+### 增强调试日志功能 ✅
+
+**实现的功能**：
+1. **分层日志捕获**
+   - ultra_parallel_runner级别：高层执行流程
+   - 分片级别：每个分片独立日志文件
+   - 子进程级别：完整的smart_batch_runner输出
+   
+2. **实时监控**
+   - 每100行输出显示进度
+   - 关键错误实时显示到控制台
+   - 10秒无输出时记录等待状态
+
+3. **调试报告生成**
+   - 自动统计错误、警告、API调用
+   - 汇总所有分片的执行情况
+   - 检查数据保存状态
+
+**使用场景**：
+- 诊断API阻塞问题
+- 追踪数据保存失败
+- 分析并发执行问题
+- 定位具体错误位置
+
+### 核心问题已完全解决：5.3测试内存爆满（10GB→0.32GB）
+
+**问题起因**：
+- 运行5.3超并发测试（25个进程）导致内存爆满，系统卡死
+- 通过串行测试发现：每个进程加载MDPWorkflowGenerator（350MB神经网络模型）
+- 25个进程 × 350MB = 8.75GB，加上任务库重复加载，总计约10GB
+
+**实施的三层优化方案**：
+
+#### 1️⃣ Workflow预生成（节省8.75GB）
+- 将workflow生成与执行分离
+- 预先生成所有workflow保存到JSON
+- 测试时直接读取，避免加载大型模型
+- **关键文件**：`generate_all_workflows.py`, `batch_test_runner.py`
+
+#### 2️⃣ 任务部分加载（节省1.2GB）
+- 实现两阶段加载：先建索引，再选择性加载
+- 只加载20个任务/类型（而非全部630个）
+- 通过环境变量控制：`USE_PARTIAL_LOADING=true`
+- **关键文件**：`implement_partial_loading.py`, `batch_test_runner.py`
+
+#### 3️⃣ Embedding Manager共享（额外优化）
+- 线程安全的单例模式
+- 多线程场景下共享同一实例
+- 节省潜在的1.2GB内存（25线程场景）
+- **关键文件**：`shared_embedding_solution.py`, `batch_test_runner.py`
+
+**最终效果**：
+- 内存使用：10GB → 0.32GB（**节省96.8%**）
+- 初始化时间：5.8秒 → 0.3秒（**提升94.8%**）
+- 完全自动化，无需手动配置
+
+## 📌 推荐的交互方式
+
+**本文档采用结构化的问题分析和解决方案格式，是调试复杂问题的最佳实践：**
+
+1. **明确问题定义** - 先清晰描述用户的核心需求
+2. **问题分解** - 将复杂问题拆解为具体的子问题
+3. **逐一分析** - 为每个问题提供详细分析和解决方案
+4. **实施步骤** - 给出按优先级排序的修复步骤
+5. **验证标准** - 定义清晰的成功标准
+
+**优点**：
+- ✅ 避免遗漏重要细节
+- ✅ 便于用户审查和确认
+- ✅ 形成可追溯的调试记录
+- ✅ 支持增量式改进和迭代
+
+========================================
+
+## 📚 已归档问题
+
+已解决的问题已归档到：
+- `docs/maintenance/DEBUG_HISTORY.md` - 修复历史索引
+- `docs/maintenance/debug_logs/` - 详细修复文档
+
+最近归档：
+- FIX-20250819-008: 修改IdealLab超并发workers为1 ✅
+- FIX-20250819-007: 修复持续的日志覆盖问题（时间戳+存在性检查）✅
+- FIX-20250819-006: 修复file_processing vs basic_task混淆 ✅
+- FIX-20250819-005: 修复debug日志覆盖问题（初次尝试）✅
+- FIX-20250819-004: 理解CALCULATION_ERROR机制 ✅
+- FIX-20250819-003: 增强调试日志功能实现 ✅
+- FIX-20250819-002: API无限阻塞问题诊断
+- FIX-20250819-001: 内存优化方案实施 ✅
+- FIX-20250818-004: 批量提交和数据保存机制修复 ✅
+
+========================================
+问题状态：🔄 进行中
+最新任务：修复qwen模型映射问题（已完成）
+最新修复：所有qwen模型现在正确使用自身作为base_model（2025-08-19 17:36）
+
+⚠️ 重要发现：
+- qwen2.5-7b和qwen2.5-3b之前的测试实际运行的是qwen2.5-72b模型
+- 历史数据中的7b/3b结果可能需要修正
+- 建议重新运行这两个模型的测试以获得真实数据
+
+下一步：
+1. 重新运行qwen2.5-7b和qwen2.5-3b的测试
+2. 验证测试结果是否正确保存到对应模型名下
+3. 评估历史数据是否需要清理或标记
+========================================

@@ -1,0 +1,3663 @@
+# 文件：tool_and_task_generator.py
+# 位置：第1-25行
+#!/usr/bin/env python3
+"""
+Tool and Task Generator for MCP Protocol
+Generates diverse tools and multi-tool tasks for training
+"""
+from __future__ import annotations  # 在文件顶部添加这一行
+import json
+import random
+import uuid
+from pathlib import Path
+from typing import Dict, List, Optional, Set, Any, Tuple
+from dataclasses import dataclass, field
+from datetime import datetime
+import xml.etree.ElementTree as ET
+from collections import Counter  # 添加Counter导入
+import logging  # 添加logging导入
+import networkx as nx  # 添加networkx导入
+import concurrent.futures
+from typing import Callable, Tuple
+import time
+import os
+from tqdm import tqdm
+from openai import OpenAI
+# 配置日志
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+# 文件：tool_and_task_generator.py
+# 位置：在现有wrapper functions之后添加
+# 注意：新增完整的并行生成接口
+
+import concurrent.futures
+from typing import Callable, Tuple
+import time
+from tqdm import tqdm
+
+# ===========================
+# Parallel Generation Interface
+# ===========================
+
+class ParallelGenerator:
+    """并行生成器，支持并行创建工具和任务"""
+    
+    def __init__(self, max_workers: int = None):
+        """
+        初始化并行生成器
+        
+        Args:
+            max_workers: 最大并行工作线程数，None表示使用CPU核心数
+        """
+        self.max_workers = max_workers or os.cpu_count()
+        print(f"[ParallelGenerator] Initialized with {self.max_workers} workers")
+    
+    def parallel_generate(self,
+                         num_tools: int = 50,
+                         num_tasks: int = 200,
+                         task_distribution: Dict[str, float] = None,
+                         output_dir: str = "mcp_generated_library",
+                         use_processes: bool = False,
+                         show_progress: bool = True) -> Dict[str, Any]:
+        """
+        并行生成工具和任务
+        
+        Args:
+            num_tools: 生成工具数量
+            num_tasks: 生成任务数量
+            task_distribution: 任务类型分布
+            output_dir: 输出目录
+            use_processes: 是否使用进程池（默认使用线程池）
+            show_progress: 是否显示进度条
+            
+        Returns:
+            包含工具和任务的字典
+        """
+        start_time = time.time()
+        results = {
+            'tools': [],
+            'tasks': [],
+            'timings': {},
+            'errors': []
+        }
+        
+        # 选择执行器
+        ExecutorClass = concurrent.futures.ProcessPoolExecutor if use_processes else concurrent.futures.ThreadPoolExecutor
+        
+        with ExecutorClass(max_workers=self.max_workers) as executor:
+            futures = []
+            
+            # 提交工具生成任务
+            tool_future = executor.submit(
+                self._generate_tools_batch,
+                num_tools,
+                output_dir
+            )
+            futures.append(('tools', tool_future))
+            
+            # 提交任务生成任务（分批并行）
+            task_batches = self._split_task_generation(num_tasks, task_distribution)
+            for i, (batch_size, batch_distribution) in enumerate(task_batches):
+                task_future = executor.submit(
+                    self._generate_tasks_batch,
+                    batch_size,
+                    batch_distribution,
+                    output_dir,
+                    batch_id=i
+                )
+                futures.append((f'tasks_batch_{i}', task_future))
+            
+            # 收集结果
+            if show_progress:
+                with tqdm(total=len(futures), desc="Parallel generation") as pbar:
+                    for name, future in futures:
+                        try:
+                            result = future.result(timeout=300)  # 5分钟超时
+                            if name == 'tools':
+                                results['tools'] = result['tools']
+                                results['timings']['tools'] = result['timing']
+                            elif name.startswith('tasks_batch_'):
+                                results['tasks'].extend(result['tasks'])
+                                results['timings'][name] = result['timing']
+                            pbar.update(1)
+                        except Exception as e:
+                            error_msg = f"Error in {name}: {str(e)}"
+                            print(f"\n[ParallelGenerator] {error_msg}")
+                            results['errors'].append(error_msg)
+                            pbar.update(1)
+            else:
+                # 无进度条模式
+                for name, future in futures:
+                    try:
+                        result = future.result(timeout=300)
+                        if name == 'tools':
+                            results['tools'] = result['tools']
+                            results['timings']['tools'] = result['timing']
+                        elif name.startswith('tasks_batch_'):
+                            results['tasks'].extend(result['tasks'])
+                            results['timings'][name] = result['timing']
+                    except Exception as e:
+                        error_msg = f"Error in {name}: {str(e)}"
+                        print(f"[ParallelGenerator] {error_msg}")
+                        results['errors'].append(error_msg)
+        
+        # 保存结果
+        self._save_results(results, output_dir)
+        
+        total_time = time.time() - start_time
+        results['timings']['total'] = total_time
+        
+        print(f"\n[ParallelGenerator] Completed in {total_time:.2f} seconds")
+        print(f"[ParallelGenerator] Generated {len(results['tools'])} tools and {len(results['tasks'])} tasks")
+        if results['errors']:
+            print(f"[ParallelGenerator] Encountered {len(results['errors'])} errors")
+        
+        return results
+    
+    def _generate_tools_batch(self, num_tools: int, output_dir: str) -> Dict[str, Any]:
+        """生成工具批次（在工作线程中执行）"""
+        start_time = time.time()
+        
+        # 使用现有的工具生成函数
+        tools = create_diverse_tool_library(num_tools=num_tools)
+        
+        return {
+            'tools': tools,
+            'timing': time.time() - start_time
+        }
+    
+    def _generate_tasks_batch(self, 
+                            num_tasks: int, 
+                            task_distribution: Dict[str, float],
+                            output_dir: str,
+                            batch_id: int = 0) -> Dict[str, Any]:
+        """生成任务批次（在工作线程中执行）"""
+        start_time = time.time()
+        
+        # 首先需要加载或生成工具
+        tool_registry_path = Path(output_dir) / "tool_registry.json"
+        
+        # 等待工具文件生成（最多等待60秒）
+        wait_time = 0
+        while not tool_registry_path.exists() and wait_time < 60:
+            time.sleep(1)
+            wait_time += 1
+        
+        if not tool_registry_path.exists():
+            # 如果工具文件还不存在，生成一个临时的
+            temp_tools = create_diverse_tool_library(num_tools=30)
+            tool_library = {tool.name: tool for tool in temp_tools}
+        else:
+            # 加载工具
+            with open(tool_registry_path, 'r') as f:
+                tool_registry = json.load(f)
+            
+            # 转换为MCPTool对象
+            from tool_and_task_generator import MCPTool, ToolParameter, ToolReturn, ToolError
+            tool_library = {}
+            for tool_name, tool_data in tool_registry.items():
+                # 转换参数
+                parameters = []
+                for param in tool_data.get('parameters', []):
+                    parameters.append(ToolParameter(
+                        name=param.get('name', ''),
+                        type=param.get('type', 'string'),
+                        description=param.get('description', ''),
+                        required=param.get('required', True),
+                        default=param.get('default', None),
+                        constraints=param.get('constraints', {})
+                    ))
+                
+                # 转换返回值
+                returns = []
+                for ret in tool_data.get('returns', []):
+                    returns.append(ToolReturn(
+                        name=ret.get('name', ''),
+                        type=ret.get('type', 'string'),
+                        description=ret.get('description', '')
+                    ))
+                
+                # 转换错误
+                errors = []
+                for err in tool_data.get('errors', []):
+                    errors.append(ToolError(
+                        code=err.get('code', ''),
+                        description=err.get('description', '')
+                    ))
+                
+                # 创建工具对象
+                tool = MCPTool(
+                    name=tool_name,
+                    description=tool_data.get('description', ''),
+                    parameters=parameters,
+                    returns=returns,
+                    errors=errors,
+                    dependencies=tool_data.get('dependencies', []),
+                    metadata=tool_data.get('metadata', {})
+                )
+                tool_library[tool.name] = tool
+        
+        # 加载增强的工具注册表（如果存在）
+        tool_registry_consolidated_path = Path(output_dir) / "tool_registry_consolidated.json"
+        tool_registry_data = {}
+        if tool_registry_consolidated_path.exists():
+            with open(tool_registry_consolidated_path, 'r') as f:
+                tool_registry_data = json.load(f)
+        
+        # 创建任务生成器
+        task_generator = TaskGenerator(tool_library, tool_registry_data)
+        
+        # 如果需要启用LLM生成
+        if hasattr(task_generator, 'enable_llm_generation'):
+            task_generator.enable_llm_generation(True)
+        
+        # 生成任务
+        tasks = []
+        if task_distribution:
+            # 按分布生成任务
+            for task_type, proportion in task_distribution.items():
+                type_num_tasks = int(num_tasks * proportion)
+                type_templates = [t for t in task_generator.task_templates if t.task_type == task_type]
+                
+                for _ in range(type_num_tasks):
+                    if type_templates:
+                        template = random.choice(type_templates)
+                        task = task_generator.generate_task_instance(template)
+                        task.task_type = task_type  # 确保类型正确
+                        task.metadata['batch_id'] = batch_id
+                        tasks.append(task)
+        else:
+            # 使用默认批量生成
+            batch_tasks = task_generator._generate_task_batch(num_tasks)
+            for task in batch_tasks:
+                task.metadata['batch_id'] = batch_id
+            tasks.extend(batch_tasks)
+        
+        return {
+            'tasks': tasks,
+            'timing': time.time() - start_time
+        }
+    
+    def _split_task_generation(self, 
+                             total_tasks: int, 
+                             task_distribution: Dict[str, float] = None) -> List[Tuple[int, Dict[str, float]]]:
+        """将任务生成分割成多个批次"""
+        # 每个批次的任务数
+        batch_size = max(50, total_tasks // self.max_workers)
+        batches = []
+        
+        remaining_tasks = total_tasks
+        while remaining_tasks > 0:
+            current_batch_size = min(batch_size, remaining_tasks)
+            batches.append((current_batch_size, task_distribution))
+            remaining_tasks -= current_batch_size
+        
+        return batches
+    
+    def _save_results(self, results: Dict[str, Any], output_dir: str):
+        """保存生成结果"""
+        output_path = Path(output_dir)
+        output_path.mkdir(exist_ok=True)
+        
+        # 保存工具
+        if results['tools']:
+            tool_registry = {}
+            for tool in results['tools']:
+                tool_registry[tool.name] = tool.to_mcp_json()
+            
+            with open(output_path / "tool_registry.json", 'w') as f:
+                json.dump(tool_registry, f, indent=2)
+        
+        # 保存任务
+        if results['tasks']:
+            task_data = []
+            for task in results['tasks']:
+                task_dict = {
+                    "instance_id": task.instance_id,
+                    "task_type": task.task_type,
+                    "description": task.description,
+                    "inputs": task.inputs,
+                    "expected_outputs": task.expected_outputs,
+                    "required_tools": task.required_tools,
+                    "constraints": task.constraints,
+                    "complexity": task.complexity,
+                    "metadata": task.metadata
+                }
+                task_data.append(task_dict)
+            
+            task_library_data = {
+                "tasks": task_data,
+                "metadata": {
+                    "generated_at": datetime.now().isoformat(),
+                    "num_tasks": len(task_data),
+                    "parallel_generation": True,
+                    "max_workers": self.max_workers
+                }
+            }
+            
+            with open(output_path / "task_library.json", 'w') as f:
+                json.dump(task_library_data, f, indent=2)
+        
+        # 保存性能报告
+        performance_report = {
+            "timings": results['timings'],
+            "errors": results['errors'],
+            "summary": {
+                "total_tools": len(results['tools']),
+                "total_tasks": len(results['tasks']),
+                "total_time": results['timings'].get('total', 0),
+                "parallel_speedup": self._calculate_speedup(results['timings'])
+            }
+        }
+        
+        with open(output_path / "parallel_generation_report.json", 'w') as f:
+            json.dump(performance_report, f, indent=2)
+    
+    def _calculate_speedup(self, timings: Dict[str, float]) -> float:
+        """计算并行加速比"""
+        if 'total' not in timings:
+            return 1.0
+        
+        # 估算串行时间（所有批次时间之和）
+        serial_time = sum(t for k, t in timings.items() if k != 'total')
+        parallel_time = timings['total']
+        
+        if parallel_time > 0:
+            return serial_time / parallel_time
+        return 1.0
+
+
+# 便捷函数
+def parallel_generate_tools_and_tasks(
+    num_tools: int = 50,
+    num_tasks: int = 200,
+    task_distribution: Dict[str, float] = None,
+    max_workers: int = None,
+    use_processes: bool = False,
+    show_progress: bool = True,
+    output_dir: str = "mcp_generated_library"
+) -> Dict[str, Any]:
+    """
+    并行生成工具和任务的便捷接口
+    
+    Args:
+        num_tools: 生成工具数量
+        num_tasks: 生成任务数量  
+        task_distribution: 任务类型分布
+        max_workers: 最大并行工作线程数
+        use_processes: 是否使用进程池
+        show_progress: 是否显示进度条
+        output_dir: 输出目录
+        
+    Returns:
+        生成结果字典
+        
+    Example:
+        # 使用默认设置
+        results = parallel_generate_tools_and_tasks()
+        
+        # 自定义设置
+        results = parallel_generate_tools_and_tasks(
+            num_tools=100,
+            num_tasks=500,
+            task_distribution={
+                'basic_task': 0.3,
+                'simple_task': 0.3,
+                'data_pipeline': 0.2,
+                'api_integration': 0.1,
+                'multi_stage_pipeline': 0.1
+            },
+            max_workers=8,
+            show_progress=True
+        )
+    """
+    generator = ParallelGenerator(max_workers=max_workers)
+    return generator.parallel_generate(
+        num_tools=num_tools,
+        num_tasks=num_tasks,
+        task_distribution=task_distribution,
+        output_dir=output_dir,
+        use_processes=use_processes,
+        show_progress=show_progress
+    )
+
+
+# 异步生成接口（用于集成到异步系统）
+async def async_parallel_generate(
+    num_tools: int = 50,
+    num_tasks: int = 200,
+    task_distribution: Dict[str, float] = None,
+    max_workers: int = None
+) -> Dict[str, Any]:
+    """
+    异步并行生成接口
+    
+    使用asyncio的run_in_executor来执行并行生成
+    """
+    import asyncio
+    
+    loop = asyncio.get_event_loop()
+    
+    # 在线程池中执行
+    result = await loop.run_in_executor(
+        None,  # 使用默认executor
+        parallel_generate_tools_and_tasks,
+        num_tools,
+        num_tasks,
+        task_distribution,
+        max_workers,
+        False,  # use_processes
+        False   # show_progress (在异步模式下禁用)
+    )
+    
+    return result
+
+# 文件：tool_and_task_generator.py
+# 位置：在 ParallelGenerator 类之后添加
+# 注意：新增专门的并行任务生成函数
+
+def parallel_generate_tasks_from_existing_tools(
+    tool_registry_path: str = "mcp_generated_library/tool_registry_consolidated.json",
+    num_tasks: int = 500,
+    task_distribution: Dict[str, float] = None,
+    max_workers: int = None,
+    use_llm: bool = True,
+    output_dir: str = "mcp_generated_library",
+    output_filename: str = None,
+    show_progress: bool = True
+) -> Dict[str, Any]:
+    """
+    基于现有工具库并行生成任务
+    
+    Args:
+        tool_registry_path: 工具注册表路径（tool_registry_consolidated.json）
+        num_tasks: 生成任务数量
+        task_distribution: 任务类型分布
+        max_workers: 最大并行工作线程数
+        use_llm: 是否使用LLM增强任务生成
+        output_dir: 输出目录
+        output_filename: 输出文件名（不含扩展名）
+        show_progress: 是否显示进度条
+        
+    Returns:
+        生成结果字典
+    """
+    print(f"\n{'='*60}")
+    print(f"基于现有工具库并行生成任务")
+    print(f"{'='*60}")
+    print(f"工具库路径: {tool_registry_path}")
+    print(f"任务数量: {num_tasks}")
+    print(f"使用LLM: {use_llm}")
+    print(f"工作线程: {max_workers or os.cpu_count()}")
+    
+    start_time = time.time()
+    
+    # 检查工具库是否存在
+    if not Path(tool_registry_path).exists():
+        raise FileNotFoundError(f"工具库文件不存在: {tool_registry_path}")
+    
+    # 加载工具库
+    print("\n📂 加载工具库...")
+    with open(tool_registry_path, 'r') as f:
+        tool_registry = json.load(f)
+    print(f"✅ 已加载 {len(tool_registry)} 个工具")
+    
+    # 转换为MCPTool对象
+    tools = []
+    tool_library = {}
+    
+    for tool_name, tool_data in tool_registry.items():
+        # 转换参数
+        parameters = []
+        for param in tool_data.get('parameters', []):
+            parameters.append(ToolParameter(
+                name=param.get('name', ''),
+                type=param.get('type', 'string'),
+                description=param.get('description', ''),
+                required=param.get('required', True),
+                default=param.get('default', None),
+                constraints=param.get('constraints', {})
+            ))
+        
+        # 转换返回值
+        returns = []
+        for ret in tool_data.get('returns', []):
+            returns.append(ToolReturn(
+                name=ret.get('name', ''),
+                type=ret.get('type', 'string'),
+                description=ret.get('description', '')
+            ))
+        
+        # 转换错误
+        errors = []
+        for err in tool_data.get('errors', []):
+            errors.append(ToolError(
+                code=err.get('code', ''),
+                description=err.get('description', '')
+            ))
+        
+        # 创建工具对象
+        tool = MCPTool(
+            name=tool_name,
+            description=tool_data.get('description', ''),
+            parameters=parameters,
+            returns=returns,
+            errors=errors,
+            dependencies=tool_data.get('dependencies', []),
+            metadata=tool_data.get('metadata', {})
+        )
+        
+        # 设置类别
+        if 'category' not in tool.metadata and 'metadata' in tool_data:
+            tool.metadata['category'] = tool_data['metadata'].get('category', 'general')
+        
+        tools.append(tool)
+        tool_library[tool_name] = tool
+    
+    # 使用默认任务分布
+    if task_distribution is None:
+        task_distribution = {
+            'basic_task': 0.20,       # 20%
+            'simple_task': 0.25,      # 25%
+            'data_pipeline': 0.25,    # 25%
+            'api_integration': 0.15,  # 15%
+            'multi_stage_pipeline': 0.15  # 15%
+        }
+    
+    # 创建并行生成器
+    generator = ParallelTaskGenerator(
+        tool_library=tool_library,
+        tool_registry=tool_registry,
+        max_workers=max_workers
+    )
+    
+    # 执行并行生成
+    results = generator.generate_tasks_parallel(
+        num_tasks=num_tasks,
+        task_distribution=task_distribution,
+        use_llm=use_llm,
+        show_progress=show_progress
+    )
+    
+    # 保存结果
+    output_path = Path(output_dir)
+    output_path.mkdir(exist_ok=True)
+    
+    # 确定输出文件名
+    if output_filename is None:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        output_filename = f"task_library_parallel_{timestamp}"
+    
+    # 保存任务库
+    task_data = []
+    for task in results['tasks']:
+        task_dict = {
+            "instance_id": task.instance_id,
+            "task_type": task.task_type,
+            "description": task.description,
+            "inputs": task.inputs,
+            "expected_outputs": task.expected_outputs,
+            "required_tools": task.required_tools,
+            "constraints": task.constraints,
+            "complexity": task.complexity,
+            "metadata": task.metadata
+        }
+        task_data.append(task_dict)
+    
+    task_library_data = {
+        "tasks": task_data,
+        "metadata": {
+            "generated_at": datetime.now().isoformat(),
+            "num_tasks": len(task_data),
+            "parallel_generation": True,
+            "tool_registry_path": tool_registry_path,
+            "llm_enhanced": use_llm,
+            "task_distribution": task_distribution,
+            "generation_time": results['timings']['total']
+        }
+    }
+    
+    task_file_path = output_path / f"{output_filename}.json"
+    with open(task_file_path, 'w') as f:
+        json.dump(task_library_data, f, indent=2)
+    
+    print(f"\n✅ 任务库已保存到: {task_file_path}")
+    
+    # 生成统计报告
+    report = {
+        "summary": {
+            "total_tasks": len(results['tasks']),
+            "total_time": results['timings']['total'],
+            "tasks_per_second": len(results['tasks']) / results['timings']['total'] if results['timings']['total'] > 0 else 0,
+            "parallel_speedup": results.get('speedup', 1.0)
+        },
+        "task_distribution": {},
+        "complexity_distribution": {"easy": 0, "medium": 0, "hard": 0},
+        "tool_usage": {},
+        "errors": results.get('errors', [])
+    }
+    
+    # 统计任务类型分布
+    for task in results['tasks']:
+        task_type = task.task_type
+        if task_type not in report['task_distribution']:
+            report['task_distribution'][task_type] = 0
+        report['task_distribution'][task_type] += 1
+        
+        # 统计复杂度
+        report['complexity_distribution'][task.complexity] += 1
+        
+        # 统计工具使用
+        for tool in task.required_tools:
+            if tool not in report['tool_usage']:
+                report['tool_usage'][tool] = 0
+            report['tool_usage'][tool] += 1
+    
+    # 保存报告
+    report_path = output_path / f"{output_filename}_report.json"
+    with open(report_path, 'w') as f:
+        json.dump(report, f, indent=2)
+    
+    # 打印统计信息
+    print(f"\n📊 生成统计:")
+    print(f"总任务数: {report['summary']['total_tasks']}")
+    print(f"总耗时: {report['summary']['total_time']:.2f} 秒")
+    print(f"生成速度: {report['summary']['tasks_per_second']:.2f} 任务/秒")
+    print(f"并行加速: {report['summary']['parallel_speedup']:.2f}x")
+    
+    print(f"\n任务类型分布:")
+    for task_type, count in report['task_distribution'].items():
+        percentage = (count / report['summary']['total_tasks']) * 100
+        print(f"  - {task_type}: {count} ({percentage:.1f}%)")
+    
+    print(f"\n复杂度分布:")
+    for complexity, count in report['complexity_distribution'].items():
+        percentage = (count / report['summary']['total_tasks']) * 100
+        print(f"  - {complexity}: {count} ({percentage:.1f}%)")
+    
+    return {
+        'task_file': str(task_file_path),
+        'report_file': str(report_path),
+        'tasks': results['tasks'],
+        'summary': report
+    }
+
+
+class ParallelTaskGenerator:
+    """专门的并行任务生成器"""
+    
+    def __init__(self, 
+                 tool_library: Dict[str, 'MCPTool'],  # 使用字符串形式的前向引用
+                 tool_registry: Dict[str, Any],
+                 max_workers: int = None):
+        self.tool_library = tool_library
+        self.tool_registry = tool_registry
+        self.max_workers = max_workers or os.cpu_count()
+        
+        # 预创建任务生成器（用于模板）
+        self.task_generator = TaskGenerator(tool_library, tool_registry)
+        
+    def generate_tasks_parallel(self,
+                              num_tasks: int,
+                              task_distribution: Dict[str, float],
+                              use_llm: bool = True,
+                              show_progress: bool = True) -> Dict[str, Any]:
+        """并行生成任务"""
+        start_time = time.time()
+        
+        # 计算每种类型的任务数量
+        task_batches = []
+        for task_type, proportion in task_distribution.items():
+            type_num_tasks = int(num_tasks * proportion)
+            if type_num_tasks > 0:
+                # 将每种类型分成多个批次
+                batch_size = max(10, type_num_tasks // self.max_workers)
+                remaining = type_num_tasks
+                
+                while remaining > 0:
+                    current_batch_size = min(batch_size, remaining)
+                    task_batches.append({
+                        'task_type': task_type,
+                        'num_tasks': current_batch_size,
+                        'use_llm': use_llm
+                    })
+                    remaining -= current_batch_size
+        
+        # 随机打乱批次顺序以平衡负载
+        random.shuffle(task_batches)
+        
+        print(f"\n🔄 开始并行生成 {len(task_batches)} 个批次...")
+        
+        results = {
+            'tasks': [],
+            'errors': [],
+            'timings': {'batches': {}}
+        }
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            # 提交所有批次
+            future_to_batch = {
+                executor.submit(self._generate_batch, batch): batch
+                for batch in task_batches
+            }
+            
+            # 收集结果
+            if show_progress:
+                with tqdm(total=len(task_batches), desc="生成任务批次") as pbar:
+                    for future in concurrent.futures.as_completed(future_to_batch):
+                        batch = future_to_batch[future]
+                        try:
+                            batch_result = future.result(timeout=60)
+                            results['tasks'].extend(batch_result['tasks'])
+                            results['timings']['batches'][f"{batch['task_type']}_{len(results['timings']['batches'])}"] = batch_result['timing']
+                            pbar.update(1)
+                        except Exception as e:
+                            error_msg = f"批次生成失败 ({batch['task_type']}): {str(e)}"
+                            print(f"\n❌ {error_msg}")
+                            results['errors'].append(error_msg)
+                            pbar.update(1)
+            else:
+                for future in concurrent.futures.as_completed(future_to_batch):
+                    batch = future_to_batch[future]
+                    try:
+                        batch_result = future.result(timeout=60)
+                        results['tasks'].extend(batch_result['tasks'])
+                    except Exception as e:
+                        results['errors'].append(f"批次失败: {str(e)}")
+        
+        # 计算总时间和加速比
+        total_time = time.time() - start_time
+        results['timings']['total'] = total_time
+        
+        # 计算加速比
+        batch_times = list(results['timings']['batches'].values())
+        if batch_times:
+            serial_time = sum(batch_times)
+            results['speedup'] = serial_time / total_time if total_time > 0 else 1.0
+        else:
+            results['speedup'] = 1.0
+        
+        return results
+        
+
+    def _generate_batch(self, batch: Dict[str, Any]) -> Dict[str, Any]:
+        """生成单个批次的任务"""
+        start_time = time.time()
+        
+        # 创建本批次的任务生成器
+        # 注意：这里也需要确保正确初始化
+        
+        # 首先确保缓存目录存在
+        cache_dir = Path(".mcp_embedding_cache")
+        cache_dir.mkdir(exist_ok=True)
+        
+        # 确保索引文件存在
+        index_path = cache_dir / "tool_index.pkl"
+        if not index_path.exists():
+            # 构建索引
+            from mcp_embedding_manager import get_embedding_manager
+            temp_manager = get_embedding_manager()
+            
+            # 查找工具注册表
+            tool_registry_path = Path("mcp_generated_library/tool_registry_consolidated.json")
+            if not tool_registry_path.exists():
+                tool_registry_path = Path("mcp_generated_library/tool_registry.json")
+            
+            # 构建并保存索引
+            temp_manager.build_index(tool_registry_path, force_rebuild=True)
+            print(f"[ParallelTaskGenerator] Built index for batch processing")
+        
+        # 现在可以安全创建任务生成器
+        batch_generator = TaskGenerator(self.tool_library, self.tool_registry)
+        
+        # 启用LLM生成（如果配置）
+        batch_generator.use_llm_generation = batch.get('use_llm', True)
+        
+        # 生成任务
+        tasks = []
+        
+        # 根据任务类型生成
+        if batch['task_type'] == 'mixed':
+            # 生成混合类型任务
+            for task_type in ['simple_task', 'data_pipeline', 'api_integration', 
+                            'basic_task', 'multi_stage_pipeline']:
+                type_tasks = batch_generator.generate_tasks_by_type(
+                    task_type=task_type,
+                    count=batch['count'] // 5,  # 平均分配
+                    use_llm=batch.get('use_llm', True)
+                )
+                tasks.extend(type_tasks)
+        else:
+            # 生成特定类型任务
+            tasks = batch_generator.generate_tasks_by_type(
+                task_type=batch['task_type'],
+                count=batch['count'],
+                use_llm=batch.get('use_llm', True)
+            )
+        
+        # 结果
+        result = {
+            'tasks': tasks,
+            'timing': time.time() - start_time,
+            'batch_info': batch
+        }
+        
+        return result
+
+
+    def _create_default_template(self, task_type: str) -> TaskTemplate:
+        """创建默认任务模板"""
+        available_tools = list(self.tool_library.keys())
+        selected_tools = random.sample(available_tools, min(3, len(available_tools)))
+        
+        return TaskTemplate(
+            task_type=task_type,
+            description=f"Default {task_type} task",
+            required_tools=selected_tools,
+            optional_tools=[],
+            requirements=[
+                TaskRequirement("input_data", "Input data to process")
+            ],
+            objectives=[
+                TaskObjective(
+                    f"Complete {task_type}",
+                    [f"Use {tool}" for tool in selected_tools],
+                    "output"
+                )
+            ],
+            complexity="medium"
+        )
+# ===========================
+# Data Classes
+# ===========================
+
+@dataclass
+class ToolParameter:
+    """Parameter for a tool"""
+    name: str
+    type: str
+    description: str
+    required: bool = True
+    default: Optional[Any] = None
+    constraints: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class ToolReturn:
+    """Return value from a tool"""
+    name: str
+    type: str
+    description: str
+
+
+@dataclass
+class ToolError:
+    """Possible error from a tool"""
+    code: str
+    description: str
+
+
+@dataclass
+class MCPTool:
+    """Complete tool definition"""
+    name: str
+    description: str
+    parameters: List[ToolParameter]
+    returns: List[ToolReturn]
+    errors: List[ToolError]
+    dependencies: List[str] = field(default_factory=list)  # 添加依赖字段
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    
+    # 文件：tool_and_task_generator.py
+    # 位置：第51-76行，修改to_mcp_json方法
+    def to_mcp_json(self) -> Dict[str, Any]:
+        """Convert to MCP JSON format with dependency metadata"""
+        return {
+            "name": self.name,
+            "description": self.description,
+            "parameters": [
+                {
+                    "name": p.name,
+                    "type": p.type,
+                    "description": p.description,
+                    "required": p.required,
+                    "default": p.default,
+                    "constraints": p.constraints
+                }
+                for p in self.parameters
+            ],
+            "returns": [
+                {
+                    "name": r.name,
+                    "type": r.type,
+                    "description": r.description
+                }
+                for r in self.returns
+            ],
+            "errors": [
+                {
+                    "code": e.code,
+                    "description": e.description
+                }
+                for e in self.errors
+            ],
+            "dependencies": self.dependencies,
+            "dependency_metadata": {
+                "level": self.metadata.get('dependency_level', 0),
+                "execution_order": self.metadata.get('execution_order', 0),
+                "category": self.metadata.get('category', 'general')
+            },
+            "metadata": self.metadata
+        }
+    
+    def to_mcp_xml(self) -> str:
+        """Convert to MCP XML format"""
+        tool = ET.Element("tool", name=self.name)
+        ET.SubElement(tool, "description").text = self.description
+        
+        params = ET.SubElement(tool, "parameters")
+        for p in self.parameters:
+            param = ET.SubElement(params, "parameter", name=p.name, type=p.type)
+            param.set("required", str(p.required).lower())
+            ET.SubElement(param, "description").text = p.description
+        
+        returns = ET.SubElement(tool, "returns")
+        for r in self.returns:
+            ret = ET.SubElement(returns, "return", name=r.name, type=r.type)
+            ET.SubElement(ret, "description").text = r.description
+        
+        errors = ET.SubElement(tool, "errors")
+        for e in self.errors:
+            err = ET.SubElement(errors, "error", code=e.code)
+            ET.SubElement(err, "description").text = e.description
+        
+        return ET.tostring(tool, encoding='unicode')
+
+
+@dataclass
+class TaskRequirement:
+    """Requirement for a task"""
+    data_type: str
+    description: str
+    constraints: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class TaskObjective:
+    """Objective for a task"""
+    description: str
+    success_criteria: List[str]
+    output_type: str
+
+
+@dataclass
+class TaskTemplate:
+    """Template for generating task instances"""
+    task_type: str
+    description: str
+    required_tools: List[str]
+    optional_tools: List[str]
+    requirements: List[TaskRequirement]
+    objectives: List[TaskObjective]
+    complexity: str  # easy, medium, hard
+
+
+@dataclass
+class TaskInstance:
+    """Concrete task instance"""
+    instance_id: str
+    task_type: str
+    description: str
+    inputs: Dict[str, Any]
+    expected_outputs: Dict[str, Any]
+    required_tools: List[str]
+    constraints: Dict[str, Any]
+    complexity: str
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    tool_dependencies: Dict[str, List[str]] = field(default_factory=dict)  # 新增：任务特定的工具依赖
+
+
+
+
+# ===========================
+# Tool Generation
+# ===========================
+
+class ToolGenerator:
+    """Generate diverse MCP tools"""
+    
+    def __init__(self):
+        self.tool_templates = {
+            "data_processing": [
+                ("parser", "Parse and extract structured data"),
+                ("transformer", "Transform data between formats"),
+                ("validator", "Validate data against schemas"),
+                ("aggregator", "Aggregate and summarize data"),
+                ("filter", "Filter data based on criteria")
+            ],
+            "file_operations": [
+                ("reader", "Read content from files"),
+                ("writer", "Write content to files"),
+                ("scanner", "Scan and analyze file contents"),
+                ("compressor", "Compress and decompress files"),
+                ("converter", "Convert between file formats")
+            ],
+            "network": [
+                ("fetcher", "Fetch data from network sources"),
+                ("poster", "Post data to endpoints"),
+                ("monitor", "Monitor network connections"),
+                ("validator", "Validate network responses"),
+                ("router", "Route requests to appropriate handlers")
+            ],
+            "computation": [
+                ("calculator", "Perform calculations"),
+                ("analyzer", "Analyze numerical data"),
+                ("optimizer", "Optimize parameters"),
+                ("simulator", "Simulate processes"),
+                ("predictor", "Make predictions based on data")
+            ],
+            "integration": [
+                ("connector", "Connect to external services"),
+                ("authenticator", "Handle authentication"),
+                ("mapper", "Map between data schemas"),
+                ("queue", "Queue operations for processing"),
+                ("scheduler", "Schedule operations")
+            ],
+            "utility": [
+                ("logger", "Log operations and results"),
+                ("cache", "Cache frequently used data"),
+                ("notifier", "Send notifications"),
+                ("tracker", "Track operation progress"),
+                ("helper", "Provide utility functions")
+            ]
+        }
+        self.generated_tools = set()  # 追踪已生成的工具
+
+    def to_training_view(self) -> Dict[str, Any]:
+        """完整视图用于训练，包含所有依赖信息"""
+        return self.to_mcp_json()  # 包含dependencies
+
+    def to_testing_view(self) -> Dict[str, Any]:
+        """测试视图，隐藏依赖信息"""
+        data = self.to_mcp_json()
+        # 移除dependencies字段
+        data.pop('dependencies', None)
+        # 可选：混淆metadata中的依赖相关信息
+        if 'metadata' in data:
+            data['metadata'] = {k: v for k, v in data['metadata'].items() 
+                            if 'depend' not in k.lower()}
+        return data
+        
+    def generate_tool(self, category: str, operation: Optional[str] = None) -> MCPTool:
+        """Generate a single tool"""
+        if operation is None:
+            operation = random.choice(self.tool_templates.get(category, [("generic", "Generic operation")]))[0]
+        
+        tool_name = f"{category}_{operation}"
+        
+        # Generate parameters based on category and operation
+        parameters = self._generate_parameters(category, operation)
+        
+        # Generate returns
+        returns = self._generate_returns(category, operation)
+        
+        # Generate errors
+        errors = self._generate_errors(category, operation)
+        
+        # Generate dependencies based on operation type
+        dependencies = self._generate_dependencies(category, operation)
+
+
+        # Create tool
+        return MCPTool(
+            name=tool_name,
+            description=f"{operation.capitalize()} for {category.replace('_', ' ')}",
+            parameters=parameters,
+            returns=returns,
+            errors=errors,
+            dependencies= dependencies,  # 添加依赖
+            metadata={
+                "category": category,
+                "operation": operation,
+                "version": "1.0.0",
+                "created_at": datetime.now().isoformat()
+            }
+        )
+    
+    def _generate_parameters(self, category: str, operation: str) -> List[ToolParameter]:
+        """Generate appropriate parameters for a tool"""
+        params = []
+        
+        # Common parameters
+        if operation in ["reader", "parser", "scanner", "fetcher"]:
+            params.append(ToolParameter("source", "string", "Source location or identifier", True))
+        
+        if operation in ["writer", "poster", "notifier"]:
+            params.append(ToolParameter("destination", "string", "Destination location or identifier", True))
+            params.append(ToolParameter("data", "object", "Data to send", True))
+        
+        if operation in ["transformer", "converter", "mapper"]:
+            params.append(ToolParameter("input_format", "string", "Input data format", True))
+            params.append(ToolParameter("output_format", "string", "Desired output format", True))
+        
+        if operation in ["validator"]:
+            params.append(ToolParameter("schema", "object", "Validation schema", True))
+            params.append(ToolParameter("data", "object", "Data to validate", True))
+        
+        # Category-specific parameters
+        if category == "computation":
+            params.append(ToolParameter("precision", "number", "Calculation precision", False, 2))
+        
+        if category == "network":
+            params.append(ToolParameter("timeout", "number", "Operation timeout in seconds", False, 30))
+            params.append(ToolParameter("retry_count", "number", "Number of retries", False, 3))
+        
+        # Always add options parameter
+        params.append(ToolParameter("options", "object", "Additional options", False, {}))
+        
+        return params
+    
+
+    
+    def _generate_returns(self, category: str, operation: str) -> List[ToolReturn]:
+        """Generate return values for a tool"""
+        returns = []
+        
+        # Common returns
+        returns.append(ToolReturn("success", "boolean", "Whether operation succeeded"))
+        
+        if operation in ["reader", "parser", "fetcher", "scanner"]:
+            returns.append(ToolReturn("data", "object", "Retrieved or parsed data"))
+        
+        if operation in ["transformer", "converter"]:
+            returns.append(ToolReturn("transformed_data", "object", "Transformed data"))
+        
+        if operation in ["validator"]:
+            returns.append(ToolReturn("valid", "boolean", "Whether data is valid"))
+            returns.append(ToolReturn("errors", "array", "Validation errors if any"))
+        
+        if operation in ["calculator", "analyzer", "predictor"]:
+            returns.append(ToolReturn("result", "object", "Calculation or analysis result"))
+        
+        # Metadata return
+        returns.append(ToolReturn("metadata", "object", "Operation metadata"))
+        
+        return returns
+    
+    def _generate_errors(self, category: str, operation: str) -> List[ToolError]:
+        """Generate possible errors for a tool"""
+        errors = [
+            ToolError("INVALID_INPUT", "Input validation failed"),
+            ToolError("OPERATION_FAILED", "Operation could not be completed"),
+            ToolError("TIMEOUT", "Operation timed out")
+        ]
+        
+        # Category-specific errors
+        if category == "file_operations":
+            errors.append(ToolError("FILE_NOT_FOUND", "Specified file not found"))
+            errors.append(ToolError("PERMISSION_DENIED", "Insufficient permissions"))
+        
+        if category == "network":
+            errors.append(ToolError("NETWORK_ERROR", "Network connection failed"))
+            errors.append(ToolError("INVALID_RESPONSE", "Invalid response from server"))
+        
+        if category == "computation":
+            errors.append(ToolError("CALCULATION_ERROR", "Calculation failed"))
+            errors.append(ToolError("OVERFLOW", "Numerical overflow"))
+        
+        return errors
+    
+    # 文件：tool_and_task_generator.py
+    # 位置：在_generate_errors方法后添加（约第350行）
+    # 文件：tool_and_task_generator.py
+    # 位置：第350行开始，替换原有的_generate_dependencies方法
+
+    def _generate_dependencies(self, category: str, operation: str) -> List[str]:
+        """Generate tool dependencies based on logical flow and data dependencies"""
+        dependencies = []
+        
+        # 定义操作类型的语义分类
+        operation_types = {
+            'sources': ['reader', 'fetcher', 'scanner', 'authenticator'],
+            'processors': ['parser', 'transformer', 'validator', 'analyzer', 'calculator'],
+            'aggregators': ['aggregator', 'combiner', 'merger'],
+            'outputs': ['writer', 'poster', 'exporter', 'notifier'],
+            'utilities': ['logger', 'cache', 'tracker', 'monitor']
+        }
+        
+        # 确定当前操作的类型
+        current_type = None
+        for op_type, ops in operation_types.items():
+            if operation in ops:
+                current_type = op_type
+                break
+        
+        if not current_type:
+            return dependencies
+        
+        # 基于数据流的依赖规则
+        dependency_rules = {
+            'processors': {
+                'transformer': ['parser', 'reader'],
+                'validator': ['parser', 'transformer'],
+                'analyzer': ['parser', 'aggregator'],
+                'calculator': ['parser', 'validator']
+            },
+            'aggregators': {
+                'aggregator': ['parser', 'transformer'],
+                'combiner': ['reader', 'parser'],
+                'merger': ['transformer', 'validator']
+            },
+            'outputs': {
+                'writer': ['transformer', 'validator'],
+                'poster': ['transformer', 'authenticator'],
+                'exporter': ['aggregator', 'validator'],
+                'notifier': ['analyzer', 'monitor']
+            }
+        }
+        
+        # 获取特定操作的依赖
+        if current_type in dependency_rules and operation in dependency_rules[current_type]:
+            potential_deps = dependency_rules[current_type][operation]
+            
+            # 查找已存在的匹配工具
+            for dep_op in potential_deps:
+                # 优先查找同类别的工具
+                same_category_tool = f"{category}_{dep_op}"
+                if same_category_tool in self.generated_tools:
+                    dependencies.append(same_category_tool)
+                    break
+                
+                # 其次查找任何类别的该操作工具
+                for tool in self.generated_tools:
+                    if dep_op in tool:
+                        dependencies.append(tool)
+                        break
+        
+        # 特殊的跨类别依赖
+        cross_category_deps = {
+            ('network', 'poster'): 'integration_authenticator',
+            ('network', 'fetcher'): 'integration_authenticator',
+            ('file_operations', 'writer'): 'data_processing_validator',
+            ('computation', 'optimizer'): 'computation_analyzer',
+            ('integration', 'scheduler'): 'integration_queue'
+        }
+        
+        key = (category, operation)
+        if key in cross_category_deps and cross_category_deps[key] in self.generated_tools:
+            dependencies.append(cross_category_deps[key])
+        
+        # 去重并限制依赖数量
+        dependencies = list(dict.fromkeys(dependencies))[:2]  # 最多2个依赖
+        
+        return dependencies
+
+    def _build_dependency_graph(self, tools: Dict[str, MCPTool]) -> Dict[str, Any]:
+        """构建工具依赖图并检测循环依赖"""
+        
+        # 创建有向图
+        G = nx.DiGraph()
+        
+        # 添加节点和边
+        for tool_name, tool in tools.items():
+            G.add_node(tool_name)
+            for dep in tool.dependencies:
+                if dep in tools:  # 确保依赖的工具存在
+                    G.add_edge(dep, tool_name)
+        
+        # 检测循环依赖
+        cycles = list(nx.simple_cycles(G))
+        if cycles:
+            logger.warning(f"Detected circular dependencies: {cycles}")
+            # 移除循环中的某些边
+            for cycle in cycles:
+                # 移除循环中的最后一条边
+                if len(cycle) > 1:
+                    G.remove_edge(cycle[-1], cycle[0])
+                    # 更新工具的依赖列表
+                    if cycle[0] in tools[cycle[-1]].dependencies:
+                        tools[cycle[-1]].dependencies.remove(cycle[0])
+        
+        # 计算拓扑排序（执行顺序）
+        try:
+            topo_order = list(nx.topological_sort(G))
+        except nx.NetworkXUnfeasible:
+            logger.error("Failed to compute topological order - graph has cycles")
+            topo_order = list(tools.keys())
+        
+        # 计算每个工具的层级
+        levels = {}
+        for node in topo_order:
+            if G.in_degree(node) == 0:
+                levels[node] = 0
+            else:
+                levels[node] = max(levels[pred] for pred in G.predecessors(node)) + 1
+        
+        return {
+            'graph': G,
+            'topological_order': topo_order,
+            'levels': levels,
+            'has_cycles': len(cycles) > 0
+        }
+
+    def generate_tool_library(self, num_per_category: int = 5) -> Dict[str, MCPTool]:
+        """Generate a library of tools with intelligent dependencies"""
+        library = {}
+        
+        logger.info(f"Starting tool generation with {num_per_category} tools per category")
+        
+        # Phase 1: 生成基础工具（无依赖）
+        base_operations = ['reader', 'fetcher', 'scanner', 'authenticator', 'logger']
+        for category in self.tool_templates:
+            operations = self.tool_templates[category]
+            # 优先生成基础操作
+            for operation, desc in operations:
+                if operation in base_operations and len([t for t in library.values() if t.metadata['category'] == category]) < num_per_category:
+                    tool = self.generate_tool(category, operation)
+                    tool.dependencies = []  # 基础工具无依赖
+                    library[tool.name] = tool
+                    self.generated_tools.add(tool.name)
+        
+        logger.info(f"Phase 1 complete: Generated {len(library)} base tools")
+        
+        # Phase 2: 生成中间层工具（有少量依赖）
+        intermediate_operations = ['parser', 'transformer', 'validator', 'calculator']
+        for category in self.tool_templates:
+            operations = self.tool_templates[category]
+            for operation, desc in operations:
+                if operation in intermediate_operations and len([t for t in library.values() if t.metadata['category'] == category]) < num_per_category:
+                    tool = self.generate_tool(category, operation)
+                    library[tool.name] = tool
+                    self.generated_tools.add(tool.name)
+        
+        logger.info(f"Phase 3 complete: Total {len(library)} tools generated")
+
+        # Phase 3: 生成高级工具（可能有多个依赖）
+        for category in self.tool_templates:
+            operations = self.tool_templates[category]
+            remaining = num_per_category - len([t for t in library.values() if t.metadata['category'] == category])
+            if remaining > 0:
+                available_ops = [op for op, _ in operations if f"{category}_{op}" not in library]
+                selected_ops = random.sample(available_ops, min(remaining, len(available_ops)))
+                for operation in selected_ops:
+                    tool = self.generate_tool(category, operation)
+                    library[tool.name] = tool
+                    self.generated_tools.add(tool.name)
+        
+        # Phase 4: 构建和验证依赖图
+        logger.info("Building dependency graph...")
+        dep_graph_info = self._build_dependency_graph(library)
+        
+        # 添加依赖图信息到metadata
+        for tool_name, tool in library.items():
+            tool.metadata['dependency_level'] = dep_graph_info['levels'].get(tool_name, 0)
+            tool.metadata['execution_order'] = dep_graph_info['topological_order'].index(tool_name)
+        
+        logger.info(f"Generated {len(library)} tools with dependency graph")
+        logger.info(f"Dependency levels: {dict(Counter(dep_graph_info['levels'].values()))}")
+        
+        # 使用Counter前确保已导入
+
+        level_counts = Counter(dep_graph_info['levels'].values())
+        logger.info(f"Generated {len(library)} tools with dependency graph")
+        logger.info(f"Dependency levels: {dict(level_counts)}")
+        
+        return library
+    
+    # 文件：tool_and_task_generator.py
+    # 位置：在TaskGenerator类中添加新方法（约第600行）
+
+    def _create_dependency_aware_template(self, tool_chain: List[str]) -> TaskTemplate:
+        """基于工具依赖链创建任务模板"""
+        # 分析工具链的特征
+        categories = set()
+        operations = []
+        for tool in tool_chain:
+            if tool in self.tool_library:
+                tool_obj = self.tool_library[tool]
+                categories.add(tool_obj.metadata.get('category', 'general'))
+                operation = tool.name.split('_')[-1]
+                operations.append(operation)
+        
+        # 生成任务描述
+        task_type = f"{'_'.join(categories)}_workflow" if len(categories) <= 2 else "multi_domain_workflow"
+        description = f"Process data through {len(tool_chain)} stages involving {', '.join(categories)}"
+        
+        # 创建阶段性目标
+        objectives = []
+        for i, tool in enumerate(tool_chain):
+            tool_obj = self.tool_library.get(tool)
+            if tool_obj:
+                stage_desc = tool_obj.description or f"Execute {tool}"
+                objectives.append(TaskObjective(
+                    f"Stage {i+1}: {stage_desc}",
+                    [f"Execute {tool}", "Verify output"],
+                    f"stage_{i+1}_output"
+                ))
+        
+        return TaskTemplate(
+            task_type=task_type,
+            description=description,
+            required_tools=tool_chain,
+            optional_tools=[],
+            requirements=[
+                TaskRequirement("input_data", "Initial data to process"),
+                TaskRequirement("stage_configs", f"Configuration for {len(tool_chain)} stages")
+            ],
+            objectives=objectives,
+            complexity="medium" if len(tool_chain) <= 3 else "hard"
+        )
+
+    def _find_tool_chains(self) -> List[List[str]]:
+        """Find tools that can be chained together based on dependencies"""
+        chains = []
+        
+        # 构建依赖图
+        dep_graph_info = self.tool_library._build_dependency_graph(self.tool_library)
+        G = dep_graph_info['graph']
+        topo_order = dep_graph_info['topological_order']
+        
+        # 方法1：找出所有从源到汇的路径
+        sources = [n for n in G.nodes() if G.in_degree(n) == 0]
+        sinks = [n for n in G.nodes() if G.out_degree(n) == 0]
+        
+        for source in sources[:3]:  # 限制源节点数量
+            for sink in sinks[:3]:  # 限制汇节点数量
+                try:
+                    # 找最短路径
+                    path = nx.shortest_path(G, source, sink)
+                    if 2 <= len(path) <= 5:  # 合理的链长度
+                        chains.append(path)
+                except nx.NetworkXNoPath:
+                    continue
+        
+        # 方法2：基于依赖层级构建链
+        levels = dep_graph_info['levels']
+        max_level = max(levels.values()) if levels else 0
+        
+        for level in range(max_level):
+            level_tools = [t for t, l in levels.items() if l == level]
+            next_level_tools = [t for t, l in levels.items() if l == level + 1]
+            
+            if level_tools and next_level_tools:
+                # 创建跨层级的链
+                for start in random.sample(level_tools, min(2, len(level_tools))):
+                    for end in random.sample(next_level_tools, min(2, len(next_level_tools))):
+                        chain = [start, end]
+                        # 可选：添加中间工具
+                        if level + 2 <= max_level:
+                            mid_tools = [t for t, l in levels.items() if l == level + 2]
+                            if mid_tools:
+                                chain.append(random.choice(mid_tools))
+                        chains.append(chain)
+        
+        # 去重并限制数量
+        unique_chains = []
+        seen = set()
+        for chain in chains:
+            chain_key = tuple(sorted(chain))
+            if chain_key not in seen:
+                seen.add(chain_key)
+                unique_chains.append(chain)
+        
+        return unique_chains[:10]  # 最多返回10个链
+    
+
+
+
+# ===========================
+# Task Generation
+# ===========================
+
+class TaskGenerator:
+    """Generate diverse multi-tool tasks with semantic enhancement"""
+        
+    def __init__(self, tool_library: Dict[str, MCPTool], tool_registry: Dict[str, Any] = None):
+            """初始化任务生成器"""
+            self.tool_library = tool_library 
+            self.tool_registry = tool_registry or {}
+            
+            # 确保缓存目录存在
+            cache_dir = Path(".mcp_embedding_cache")
+            cache_dir.mkdir(exist_ok=True)
+            
+            # 初始化embedding管理器
+            self.embedding_manager = None
+            self.operation_index = None
+            self._initialize_semantic_components()
+            
+            # 创建任务模板 - 在语义组件初始化后
+            self.task_templates = self._create_task_templates()
+            
+            api_key = os.getenv('OPENAI_API_KEY')
+            self.llm_client = OpenAI(api_key=api_key)
+            # 初始化其他属性
+            self.use_llm_generation = True
+
+
+
+    def _initialize_semantic_components(self):
+        """初始化语义组件"""
+        print("[TaskGenerator] Initializing semantic components...")
+        
+        # 使用单例模式获取MCPEmbeddingManager
+        from mcp_embedding_manager import get_embedding_manager
+        self.embedding_manager = get_embedding_manager()
+        
+        # 确保索引存在
+        index_path = Path(".mcp_embedding_cache/tool_index.pkl")
+        
+        # 检查索引文件是否存在
+        index_exists = index_path.exists()
+        print(f"[TaskGenerator] Index file exists: {index_exists}")
+        
+        # 如果索引不存在，构建它
+        if not index_exists:
+            print("[TaskGenerator] Building embedding index...")
+            
+            # 确定工具注册表路径
+            tool_registry_path = Path("mcp_generated_library/tool_registry_consolidated.json")
+            
+            # 如果consolidated版本不存在，使用普通版本
+            if not tool_registry_path.exists():
+                tool_registry_path = Path("mcp_generated_library/tool_registry.json")
+            
+            # 构建索引
+            build_stats = self.embedding_manager.build_index(tool_registry_path, force_rebuild=True)
+            print(f"[TaskGenerator] Built index with {build_stats['tools']} tools")
+        else:
+            # 加载已有索引
+            self.embedding_manager.load_index(index_path)
+            print(f"[TaskGenerator] Loaded index with {len(self.embedding_manager.tool_embeddings)} tools")
+        
+        # 初始化操作索引
+        from operation_embedding_index import get_operation_index
+        self.operation_index = get_operation_index()
+        print(f"[TaskGenerator] Operation index initialized")
+            
+    def _create_task_templates(self) -> List[TaskTemplate]:
+        """Create task templates based on available tools"""
+        templates = []
+        
+        # Analyze available tools
+        categories = self._analyze_tool_categories()
+        
+        # Simple single-tool tasks
+        templates.extend(self._create_simple_templates(categories))
+        
+        # Data pipeline tasks
+        if self._has_tools(["parser", "transformer", "writer"]):
+            templates.append(self._create_data_pipeline_template())
+        
+        # API integration tasks
+        if self._has_tools(["fetcher", "validator", "poster"]):
+            templates.append(self._create_api_integration_template())
+        
+        # Basic task tasks
+        if self._has_tools(["reader", "scanner", "converter"]):
+            templates.append(self._create_basic_task_template())
+        
+        # Multi-Stage Pipeline Tasks
+        templates.append(self._create_multi_stage_template())
+        
+        # Basic tasks with guaranteed tools
+        templates.extend(self._create_basic_templates())  # 注意这里是 templates 复数形式
+        
+        return templates
+    
+    def _generate_enhanced_description(self, template: TaskTemplate, instance_id: str) -> str:
+        """生成增强的任务描述，利用key_differentiators"""
+        base_description = template.description
+        
+        # 收集所有工具的key_differentiators
+        tool_features = []
+        for tool_name in template.required_tools:
+            if tool_name in self.tool_registry:
+                tool_data = self.tool_registry[tool_name]
+                differentiation = tool_data.get('differentiation', {})
+                
+                # 添加关键差异化特征
+                key_diffs = differentiation.get('key_differentiators', [])
+                if key_diffs:
+                    tool_features.extend(key_diffs[:2])  # 每个工具最多2个特征
+                
+                # 添加使用关键词
+                usage_keywords = differentiation.get('usage_keywords', [])
+                if usage_keywords:
+                    tool_features.append(f"involving {usage_keywords[0]}")
+        
+        # 构建增强描述
+        if tool_features:
+            feature_text = ", ".join(set(tool_features[:3]))  # 最多3个特征，去重
+            enhanced_desc = f"{base_description} with {feature_text} - Instance {instance_id}"
+        else:
+            enhanced_desc = f"{base_description} - Instance {instance_id}"
+        
+        return enhanced_desc
+    
+
+
+    def _generate_semantic_tool_flow(self, task_type: str, num_tools: int) -> List[str]:
+        """基于语义相似度生成工具流，并按拓扑顺序排序"""
+        if not self.embedding_manager or not self.embedding_manager.tool_embeddings:
+            # Fallback到随机选择
+            selected_tools = random.sample(list(self.tool_library.keys()), min(num_tools, len(self.tool_library)))
+            # 即使是随机选择，也要进行拓扑排序
+            return self._topological_sort_tools(selected_tools)
+        
+        # 根据任务类型确定操作序列
+        operation_sequences = {
+            'data_pipeline': ['read', 'validate', 'transform', 'aggregate', 'write'],
+            'api_integration': ['fetch', 'parse', 'validate', 'transform', 'post'],
+            'basic_task': ['read', 'scan', 'filter', 'convert', 'write'],
+            'multi_stage_pipeline': ['read', 'validate', 'transform', 'compute', 'aggregate', 'write'],
+            'simple_task': ['read', 'process', 'output'],
+            'basic_task': ['input', 'process']
+        }
+        
+        operations = operation_sequences.get(task_type, ['process'])
+        selected_tools = []
+        used_tools = set()
+        
+        # 为每个操作找到最合适的工具
+        for operation in operations[:num_tools]:
+            # 搜索语义相似的工具
+            search_results = self.embedding_manager.search(
+                query=operation,
+                k=5,
+                filter_tools=set(self.tool_library.keys()) - used_tools
+            )
+            
+            if search_results:
+                # 选择得分最高且未使用的工具
+                for result in search_results:
+                    if result.tool_name not in used_tools:
+                        selected_tools.append(result.tool_name)
+                        used_tools.add(result.tool_name)
+                        break
+        
+        # 如果工具不够，补充随机工具
+        remaining_tools = list(set(self.tool_library.keys()) - used_tools)
+        while len(selected_tools) < num_tools and remaining_tools:
+            tool = random.choice(remaining_tools)
+            selected_tools.append(tool)
+            remaining_tools.remove(tool)
+        
+        # 对选择的工具进行拓扑排序
+        logger.debug(f" Before topological sort: {selected_tools}")
+        sorted_tools = self._topological_sort_tools(selected_tools)
+        logger.debug(f" After topological sort: {sorted_tools}")
+        
+        return sorted_tools
+
+    def _topological_sort_tools(self, tools: List[str]) -> List[str]:
+        """根据工具依赖关系进行拓扑排序"""
+        if not tools or len(tools) <= 1:
+            return tools
+        
+        # 构建或获取依赖图
+        dep_graph_info = self._get_dependency_graph_info()
+        if not dep_graph_info:
+            print(f"[WARNING] No dependency graph available, returning original order")
+            return tools
+        
+        dep_graph = dep_graph_info['graph']
+        
+        # 创建包含选定工具的子图
+        subgraph = dep_graph.subgraph(tools)
+        
+        # 尝试拓扑排序
+        try:
+            # 获取子图的拓扑排序
+            sorted_nodes = list(nx.topological_sort(subgraph))
+            
+            # 处理不在依赖图中的工具（保持相对顺序）
+            remaining_tools = [t for t in tools if t not in sorted_nodes]
+            
+            # 合并排序结果
+            result = sorted_nodes + remaining_tools
+            
+            return result
+            
+        except nx.NetworkXUnfeasible:
+            # 如果有循环依赖，尝试基于execution_order排序
+            print(f"[WARNING] Circular dependency detected, using execution_order")
+            return self._sort_by_execution_order(tools)
+        except Exception as e:
+            print(f"[ERROR] Topological sort failed: {e}")
+            # 降级到基于execution_order的排序
+            return self._sort_by_execution_order(tools)
+
+    def _get_dependency_graph_info(self) -> Optional[Dict[str, Any]]:
+        """获取依赖图信息（从工具库或缓存）"""
+        # 检查是否已有缓存的依赖图信息
+        if hasattr(self, '_dependency_graph_info'):
+            return self._dependency_graph_info
+        
+        # 尝试从工具库构建依赖图
+        if hasattr(self, 'tool_library') and self.tool_library:
+            # 检查工具库是否是字典
+            if isinstance(self.tool_library, dict):
+                # 从字典构建依赖图
+                return self._build_dependency_graph_from_dict(self.tool_library)
+            # 检查工具库是否有_build_dependency_graph方法
+            elif hasattr(self.tool_library, '_build_dependency_graph'):
+                self._dependency_graph_info = self.tool_library._build_dependency_graph(self.tool_library)
+                return self._dependency_graph_info
+        
+        return None
+
+    def _build_dependency_graph_from_dict(self, tools: Dict[str, Any]) -> Dict[str, Any]:
+        """从工具字典构建依赖图"""
+        import networkx as nx
+        
+        # 创建有向图
+        G = nx.DiGraph()
+        
+        # 添加节点和边
+        for tool_name, tool in tools.items():
+            G.add_node(tool_name)
+            # 获取依赖列表
+            dependencies = []
+            if hasattr(tool, 'dependencies'):
+                dependencies = tool.dependencies
+            elif isinstance(tool, dict) and 'dependencies' in tool:
+                dependencies = tool['dependencies']
+            
+            for dep in dependencies:
+                if dep in tools:  # 确保依赖的工具存在
+                    G.add_edge(dep, tool_name)
+        
+        # 计算拓扑排序（执行顺序）
+        try:
+            topo_order = list(nx.topological_sort(G))
+        except nx.NetworkXUnfeasible:
+            print("[WARNING] Failed to compute topological order - graph has cycles")
+            topo_order = list(tools.keys())
+        
+        # 计算每个工具的层级
+        levels = {}
+        for node in topo_order:
+            if G.in_degree(node) == 0:
+                levels[node] = 0
+            else:
+                predecessors = list(G.predecessors(node))
+                if predecessors:
+                    levels[node] = max(levels.get(pred, 0) for pred in predecessors) + 1
+                else:
+                    levels[node] = 0
+        
+        # 缓存结果
+        self._dependency_graph_info = {
+            'graph': G,
+            'topological_order': topo_order,
+            'levels': levels,
+            'has_cycles': False
+        }
+        
+        return self._dependency_graph_info
+
+    def _sort_by_execution_order(self, tools: List[str]) -> List[str]:
+        """基于工具的execution_order进行排序（备用方案）"""
+        # 获取每个工具的execution_order
+        tool_orders = []
+        for tool in tools:
+            order = float('inf')
+            
+            if tool in self.tool_library:
+                tool_obj = self.tool_library[tool]
+                # 尝试从不同位置获取execution_order
+                if hasattr(tool_obj, 'metadata') and isinstance(tool_obj.metadata, dict):
+                    order = tool_obj.metadata.get('execution_order', float('inf'))
+                elif isinstance(tool_obj, dict) and 'metadata' in tool_obj:
+                    order = tool_obj['metadata'].get('execution_order', float('inf'))
+                elif isinstance(tool_obj, dict) and 'execution_order' in tool_obj:
+                    order = tool_obj['execution_order']
+            
+            tool_orders.append((tool, order))
+        
+        # 按execution_order排序
+        tool_orders.sort(key=lambda x: x[1])
+        
+        return [tool for tool, _ in tool_orders]
+
+
+    def _create_basic_templates(self, task_type: str = "basic_task", use_llm: bool = None) -> List[TaskTemplate]:
+        """Create basic task templates using RAG+LLM when available"""
+        templates = []
+        
+        # 如果指定了特定的task_type且不是basic_task，创建对应类型的模板
+        if task_type != "basic_task":
+            # 为其他类型创建单个模板
+            available_tools = list(self.tool_library.keys())
+            if available_tools:
+                num_tools = 3 if task_type in ['data_pipeline', 'api_integration'] else 4
+                selected_tools = random.sample(available_tools, min(num_tools, len(available_tools)))
+                
+                templates.append(TaskTemplate(
+                    task_type=task_type,
+                    description=f"Generated {task_type} task",
+                    required_tools=selected_tools,
+                    optional_tools=[],
+                    requirements=[
+                        TaskRequirement("input_data", "Data to process"),
+                        TaskRequirement("config", "Processing configuration")
+                    ],
+                    objectives=[
+                        TaskObjective(
+                            f"Complete {task_type}",
+                            [f"Execute {tool}" for tool in selected_tools],
+                            "output"
+                        )
+                    ],
+                    complexity="medium" if task_type in ['data_pipeline', 'api_integration'] else "easy"
+                ))
+            
+            return templates
+        
+        # 原有的basic_task模板生成逻辑
+        available_tools = list(self.tool_library.keys())
+        
+        if len(available_tools) >= 2:
+            # Create 2-3 basic templates with different tool combinations
+            for i in range(min(3, len(available_tools) // 2)):
+                num_tools = random.randint(2, min(3, len(available_tools)))
+                selected_tools = random.sample(available_tools, num_tools)
+                
+                templates.append(TaskTemplate(
+                    task_type="basic_task",
+                    description=f"Basic data processing workflow #{i+1}",
+                    required_tools=selected_tools,
+                    optional_tools=[],
+                    requirements=[
+                        TaskRequirement("input_data", "Data to process"),
+                        TaskRequirement("processing_config", "Configuration for processing")
+                    ],
+                    objectives=[
+                        TaskObjective(
+                            "Process data through selected tools",
+                            [f"Execute {tool}" for tool in selected_tools],
+                            "output"
+                        )
+                    ],
+                    complexity="easy"
+                ))
+        
+        # Fallback templates
+        if not templates and available_tools:
+            templates.append(TaskTemplate(
+                task_type="basic_task",
+                description="Basic single-tool processing task",
+                required_tools=available_tools[:1],
+                optional_tools=[],
+                requirements=[
+                    TaskRequirement("input_data", "Data to process")
+                ],
+                objectives=[
+                    TaskObjective(
+                        "Process data",
+                        ["Execute processing"],
+                        "output"
+                    )
+                ],
+                complexity="easy"
+            ))
+        
+        if not templates:
+            print("[TaskGenerator] Warning: No tools available, creating minimal basic template")
+            templates.append(TaskTemplate(
+                task_type="basic_task",
+                description="Minimal basic task",
+                required_tools=["generic_processor"],
+                optional_tools=[],
+                requirements=[
+                    TaskRequirement("input", "Input data")
+                ],
+                objectives=[
+                    TaskObjective(
+                        "Process input",
+                        ["Execute basic processing"],
+                        "output"
+                    )
+                ],
+                complexity="easy"
+            ))
+        
+        return templates
+
+
+
+    def _create_simple_templates(self, categories: Dict[str, List[str]]) -> List[TaskTemplate]:
+        """Create simple single/dual tool task templates"""
+        templates = []
+        
+        # Single tool tasks
+        for category, tools in categories.items():
+            if tools:
+                tool = random.choice(tools)
+                templates.append(TaskTemplate(
+                    task_type=f"simple_{category}_task",
+                    description=f"Simple {category.replace('_', ' ')} task",
+                    required_tools=[tool],
+                    optional_tools=self._find_tools(["validator", "logger"])[:2],
+                    requirements=[
+                        TaskRequirement("input_data", f"Data for {category} processing")
+                    ],
+                    objectives=[
+                        TaskObjective(
+                            f"Process {category} data",
+                            [f"Execute {tool}", "Validate results"],
+                            "processed_data"
+                        )
+                    ],
+                    complexity="easy"
+                ))
+        
+        # Dual tool tasks
+        if len(self.tool_library) >= 2:
+            for _ in range(3):  # Create 3 dual-tool templates
+                tools = random.sample(list(self.tool_library.keys()), 2)
+                templates.append(TaskTemplate(
+                    task_type="simple_task",
+                    description="Simple two-step processing task",
+                    required_tools=tools,
+                    optional_tools=[],
+                    requirements=[
+                        TaskRequirement("data", "Input data"),
+                        TaskRequirement("config", "Processing configuration")
+                    ],
+                    objectives=[
+                        TaskObjective(
+                            "Process data through two steps",
+                            [f"Step 1: {tools[0]}", f"Step 2: {tools[1]}"],
+                            "final_output"
+                        )
+                    ],
+                    complexity="easy"
+                ))
+        
+        return templates
+    
+
+    def _create_data_pipeline_template(self) -> TaskTemplate:
+        """Create data pipeline task template with semantic-aware tool selection"""
+        # 使用语义化的工具流生成，而不是简单的字符串匹配
+        # 定义data_pipeline的标准流程
+        num_tools = 3  # data_pipeline通常需要3个核心工具
+        
+        # 直接使用语义工具流生成
+        semantic_tools = self._generate_semantic_tool_flow('data_pipeline', num_tools)
+        
+        # 如果语义生成失败或结果不合理，使用改进的查找逻辑
+        if not semantic_tools or len(semantic_tools) < 3:
+            # 按照数据处理的逻辑顺序查找工具
+            # 1. 首先需要读取工具
+            reader_tools = self._find_tools_by_operation(["reader", "loader", "fetcher"])
+            # 2. 然后需要验证/解析工具
+            validator_tools = self._find_tools_by_operation(["validator", "parser", "checker"])
+            # 3. 接着需要转换工具
+            transformer_tools = self._find_tools_by_operation(["transformer", "converter", "processor"])
+            # 4. 最后需要输出工具
+            writer_tools = self._find_tools_by_operation(["writer", "exporter", "saver"])
+            
+            # 构建有序的工具列表
+            required = []
+            
+            # 添加读取工具（优先file_operations_reader）
+            if reader_tools:
+                for tool in reader_tools:
+                    if "file_operations_reader" in tool:
+                        required.append(tool)
+                        break
+                else:
+                    required.append(reader_tools[0])
+            
+            # 添加验证工具（优先data_processing_validator）
+            if validator_tools:
+                for tool in validator_tools:
+                    if "data_processing_validator" in tool:
+                        required.append(tool)
+                        break
+                else:
+                    required.append(validator_tools[0])
+            
+            # 添加转换工具（优先data_processing_transformer）
+            if transformer_tools:
+                for tool in transformer_tools:
+                    if "data_processing_transformer" in tool:
+                        required.append(tool)
+                        break
+                else:
+                    required.append(transformer_tools[0])
+            
+            # 添加输出工具（如果还有空间）
+            if len(required) < 3 and writer_tools:
+                for tool in writer_tools:
+                    if "file_operations_writer" in tool:
+                        required.append(tool)
+                        break
+                else:
+                    required.append(writer_tools[0])
+            
+            # 确保至少有3个工具
+            while len(required) < 3:
+                # 从可用工具中选择未使用的
+                available_tools = list(set(self.tool_library.keys()) - set(required))
+                if available_tools:
+                    # 优先选择data_processing或file_operations类别的工具
+                    for tool in available_tools:
+                        if "data_processing" in tool or "file_operations" in tool:
+                            required.append(tool)
+                            break
+                    else:
+                        required.append(available_tools[0])
+                else:
+                    break
+                    
+            # 使用拓扑排序确保依赖顺序正确
+            required = self._topological_sort_tools(required[:3])
+        else:
+            required = semantic_tools
+        
+        # 打印调试信息
+        logger.debug(f" data_pipeline template - required_tools: {required}")
+        
+        return TaskTemplate(
+            task_type="data_pipeline",
+            description="Multi-stage data processing pipeline",
+            required_tools=required,
+            optional_tools=self._find_tools(["monitor", "logger", "cache"])[:3],
+            requirements=[
+                TaskRequirement("raw_data", "Raw data to process"),
+                TaskRequirement("output_format", "Desired output format"),
+                TaskRequirement("transformation_rules", "Data transformation rules")
+            ],
+            objectives=[
+                TaskObjective(
+                    "Parse raw data",
+                    ["Extract structured data", "Validate format"],
+                    "parsed_data"
+                ),
+                TaskObjective(
+                    "Transform data",
+                    ["Apply transformation rules", "Maintain data integrity"],
+                    "transformed_data"
+                ),
+                TaskObjective(
+                    "Write output",
+                    ["Write to specified format", "Verify output"],
+                    "output_file"
+                )
+            ],
+            complexity="medium"
+        )
+
+    def _find_tools_by_operation(self, operations: List[str]) -> List[str]:
+        """Find tools that match certain operations with better matching logic"""
+        matching_tools = []
+        operation_priority = {op: i for i, op in enumerate(operations)}
+        
+        # 收集所有匹配的工具及其优先级
+        tool_scores = []
+        for tool_name in self.tool_library:
+            for op_idx, op in enumerate(operations):
+                if op in tool_name.lower():
+                    # 给予更早出现的操作更高的优先级
+                    score = len(operations) - op_idx
+                    tool_scores.append((tool_name, score))
+                    break
+        
+        # 按分数排序
+        tool_scores.sort(key=lambda x: x[1], reverse=True)
+        matching_tools = [tool for tool, _ in tool_scores]
+        
+        return matching_tools[:5]  # 返回前5个匹配的工具
+    
+    def _create_api_integration_template(self) -> TaskTemplate:
+        """Create API integration task template"""
+        fetcher_tools = self._find_tools(["fetcher"])
+        validator_tools = self._find_tools(["validator"])
+        poster_tools = self._find_tools(["poster"])
+        
+        required = []
+        if fetcher_tools:
+            required.append(fetcher_tools[0])
+        if validator_tools:
+            required.append(validator_tools[0])
+        
+        return TaskTemplate(
+            task_type="api_integration",
+            description="API data fetching and processing",
+            required_tools=required if required else ["network_fetcher", "data_processing_validator"],
+            optional_tools=poster_tools[:1] + self._find_tools(["cache", "logger"]),
+            requirements=[
+                TaskRequirement("api_endpoints", "API endpoints to interact with"),
+                TaskRequirement("auth_credentials", "Authentication credentials"),
+                TaskRequirement("validation_schema", "Response validation schema")
+            ],
+            objectives=[
+                TaskObjective(
+                    "Fetch API data",
+                    ["Authenticate with API", "Retrieve data", "Handle errors"],
+                    "api_response"
+                ),
+                TaskObjective(
+                    "Validate response",
+                    ["Check response format", "Validate against schema"],
+                    "validated_data"
+                )
+            ],
+            complexity="medium"
+        )
+    
+    def _create_basic_task_template(self) -> TaskTemplate:
+        """Create file processing task template"""
+        reader_tools = self._find_tools(["reader"])
+        scanner_tools = self._find_tools(["scanner"])
+        converter_tools = self._find_tools(["converter"])
+        
+        required = []
+        if reader_tools:
+            required.extend(reader_tools[:1])
+        if scanner_tools:
+            required.extend(scanner_tools[:1])
+        
+        return TaskTemplate(
+            task_type="basic_task",
+            description="File reading and analysis task",
+            required_tools=required if required else ["file_operations_reader", "file_operations_scanner"],
+            optional_tools=converter_tools[:1] + self._find_tools(["compressor"]),
+            requirements=[
+                TaskRequirement("file_paths", "Files to process"),
+                TaskRequirement("scan_criteria", "What to scan for")
+            ],
+            objectives=[
+                TaskObjective(
+                    "Read files",
+                    ["Open and read file contents", "Handle different formats"],
+                    "file_contents"
+                ),
+                TaskObjective(
+                    "Analyze content",
+                    ["Scan for patterns", "Extract metadata"],
+                    "analysis_results"
+                )
+            ],
+            complexity="easy"
+        )
+    
+    def _create_multi_stage_template(self) -> TaskTemplate:
+        """Create a complex multi-stage task template"""
+        # Find tools that can be chained
+        chains = self._find_tool_chains()
+        
+        if chains:
+            chain = random.choice(chains)
+            return TaskTemplate(
+                task_type="multi_stage_pipeline",
+                description="Complex multi-stage data processing pipeline",
+                required_tools=chain,
+                optional_tools=self._find_tools(["validator", "monitor"]),
+                requirements=[
+                    TaskRequirement("input_data", "Initial data to process"),
+                    TaskRequirement("pipeline_config", "Pipeline configuration")
+                ],
+                objectives=[
+                    TaskObjective(
+                        "Execute complete pipeline",
+                        [f"Stage {i+1}: {tool}" for i, tool in enumerate(chain)],
+                        "pipeline_result"
+                    )
+                ],
+                complexity="hard"
+            )
+        
+        # Fallback: create a template with some guaranteed tools
+        available_tools = list(self.tool_library.keys())
+        if len(available_tools) >= 3:
+            selected_tools = random.sample(available_tools, 3)
+            return TaskTemplate(
+                task_type="multi_stage_pipeline",
+                description="Multi-stage processing pipeline",
+                required_tools=selected_tools,
+                optional_tools=[],
+                requirements=[
+                    TaskRequirement("input_data", "Initial data to process"),
+                    TaskRequirement("stage_configs", "Configuration for each stage")
+                ],
+                objectives=[
+                    TaskObjective(
+                        "Execute pipeline stages",
+                        [f"Stage {i+1}: {tool}" for i, tool in enumerate(selected_tools)],
+                        "pipeline_output"
+                    )
+                ],
+                complexity="hard"
+            )
+        
+        # Last resort fallback with single tool
+        return TaskTemplate(
+            task_type="simple_task",
+            description="Simple processing task",
+            required_tools=[available_tools[0]] if available_tools else ["generic_processor"],
+            optional_tools=[],
+            requirements=[TaskRequirement("data", "Input data")],
+            objectives=[TaskObjective("Process data", ["Process input"], "output")],
+            complexity="easy"
+        )
+    
+
+    # 注意：重写generate_task_instance方法，添加RAG和LLM支持
+
+
+    def generate_task_instance(self, template: TaskTemplate) -> TaskInstance:
+        """Generate a specific task instance from template with RAG and LLM enhancement"""
+        instance_id = f"task_{uuid.uuid4().hex[:8]}"
+        
+        print(f"[TaskGenerator] Generating task instance {instance_id} with RAG+LLM enhancement")
+        
+        # 使用RAG和LLM生成任务
+        # 通过RAG查询相关工具
+        relevant_tools = self._query_tools_with_rag(template.task_type, template.complexity)
+        
+        # 使用LLM生成完整的任务实例
+        llm_result = self._generate_task_with_llm(
+            task_type=template.task_type,
+            complexity=template.complexity,
+            relevant_tools=relevant_tools,
+            template=template
+        )
+        
+        # 使用LLM生成的内容
+        enhanced_description = llm_result['description']
+        required_tools = llm_result['required_tools']
+        inputs = llm_result.get('inputs', {})
+        expected_outputs = llm_result.get('expected_outputs', {})
+        constraints = llm_result.get('constraints', {})
+        
+        print(f"[TaskGenerator] LLM generated {len(required_tools)} required tools")
+        print(f"[TaskGenerator] Required tools: {required_tools}")
+        print(f"[TaskGenerator] Generated inputs: {list(inputs.keys())}")
+        print(f"[TaskGenerator] Generated outputs: {list(expected_outputs.keys())}")
+        
+        # 验证工具存在性
+        validated_tools = []
+        for tool in required_tools:
+            if tool in self.tool_library or tool in self.tool_registry:
+                validated_tools.append(tool)
+            else:
+                print(f"[TaskGenerator] Warning: Tool {tool} not found, skipping")
+        
+        if not validated_tools:
+            print(f"[TaskGenerator] No valid tools found, falling back to template tools")
+            validated_tools = template.required_tools
+        
+        # 如果LLM没有生成输入输出，使用基于工具的默认值
+        if not inputs:
+            inputs = self._generate_default_inputs(template.task_type, validated_tools)
+        if not expected_outputs:
+            expected_outputs = self._generate_default_outputs(template.task_type, validated_tools)
+            
+
+        
+        # 获取工具依赖
+        tool_dependencies = {}
+        for tool in validated_tools:
+            if tool in self.tool_library:
+                tool_dependencies[tool] = self.tool_library[tool].dependencies
+        
+        # 创建任务实例
+        return TaskInstance(
+            instance_id=instance_id,
+            task_type=template.task_type,
+            description=enhanced_description,
+            inputs=inputs,
+            expected_outputs=expected_outputs,
+            required_tools=validated_tools,
+            constraints=constraints,
+            complexity=template.complexity,
+            tool_dependencies=tool_dependencies,
+            metadata={
+                "template": template.task_type,
+                "generated_at": datetime.now().isoformat(),
+                "timeout": constraints.get("timeout", 300),
+                "semantic_generation": bool(self.embedding_manager),
+                "llm_generated": hasattr(self, 'use_llm_generation') and self.use_llm_generation,
+                "inputs_generated_from": "llm" if hasattr(self, 'use_llm_generation') and self.use_llm_generation else "template"
+            }
+        )
+
+
+    def _query_tools_with_rag(self, task_type: str, complexity: str) -> List[Dict[str, Any]]:
+        """使用RAG查询相关工具"""
+        print(f"[TaskGenerator] Querying tools with RAG for {task_type} task")
+        
+        # 根据任务类型构建查询
+        query_mappings = {
+            'basic_task': 'basic data processing read write',
+            'simple_task': 'simple processing transform validate',
+            'data_pipeline': 'data pipeline parse transform aggregate write',
+            'api_integration': 'api fetch validate authenticate post',
+            'multi_stage_pipeline': 'complex pipeline read validate transform compute aggregate write'
+        }
+        
+        query = query_mappings.get(task_type, 'general data processing')
+        
+        # 如果有embedding manager，使用语义搜索
+        relevant_tools = []
+        
+        if self.embedding_manager and hasattr(self.embedding_manager, 'search'):
+            try:
+                # 搜索相关工具
+                k = 10 if complexity == 'hard' else 7 if complexity == 'medium' else 5
+                search_results = self.embedding_manager.search(
+                    query=query,
+                    k=k,
+                    return_scores=True
+                )
+                
+                print(f"[TaskGenerator] Found {len(search_results)} tools from RAG search")
+                
+                # 获取工具详细信息
+                for result in search_results:
+                    if hasattr(result, 'tool_name'):
+                        tool_name = result.tool_name
+                        if tool_name in self.tool_registry:
+                            tool_info = self.tool_registry[tool_name]
+                            tool_info['rag_score'] = getattr(result, 'score', 0.0)
+                            relevant_tools.append(tool_info)
+                            print(f"[TaskGenerator] Added {tool_name} with score {tool_info['rag_score']:.3f}")
+            
+            except Exception as e:
+                print(f"[TaskGenerator] RAG search failed: {e}")
+        
+        # 如果RAG失败或没有结果，使用基于类别的fallback
+        if not relevant_tools:
+            print(f"[TaskGenerator] Using category-based fallback")
+            categories = self._get_task_categories(task_type)
+            for category in categories:
+                for tool_name, tool_data in self.tool_registry.items():
+                    if tool_data.get('metadata', {}).get('category') == category:
+                        relevant_tools.append(tool_data)
+                        if len(relevant_tools) >= 10:
+                            break
+        
+        return relevant_tools
+
+
+    def _generate_task_with_llm(self, task_type: str, complexity: str, 
+                                relevant_tools: List[Dict[str, Any]], 
+                                template: TaskTemplate = None) -> Dict[str, Any]:
+        """使用LLM生成任务描述、工具流、输入和输出"""
+        print(f"[TaskGenerator] Generating {task_type} task with LLM")
+        
+        # 准备工具信息，包含完整的参数和返回值信息
+        tools_info = []
+        for tool in relevant_tools[:15]:  # 增加到15个工具
+            tool_desc = {
+                'name': tool.get('name', ''),
+                'description': tool.get('description', ''),
+                'category': tool.get('metadata', {}).get('category', 'general'),
+                'operation': tool.get('metadata', {}).get('operation', 'process'),
+                'key_features': tool.get('differentiation', {}).get('key_differentiators', [])[:3],
+                'rag_score': tool.get('rag_score', 0.0),
+                # 添加完整的参数信息
+                'parameters': [],
+                'returns': []
+            }
+            
+            # 处理参数
+            for param in tool.get('parameters', []):
+                tool_desc['parameters'].append({
+                    'name': param.get('name', ''),
+                    'type': param.get('type', 'string'),
+                    'description': param.get('description', ''),
+                    'required': param.get('required', True),
+                    'default': param.get('default')
+                })
+            
+            # 处理返回值
+            for ret in tool.get('returns', []):
+                tool_desc['returns'].append({
+                    'name': ret.get('name', ''),
+                    'type': ret.get('type', 'string'),
+                    'description': ret.get('description', '')
+                })
+                
+            tools_info.append(tool_desc)
+        
+        # 根据任务类型构建更具体的prompt
+        task_descriptions = {
+            'basic_task': 'a simple data processing task with 1-3 tools',
+            'simple_task': 'a straightforward task using 2-3 tools in sequence',
+            'data_pipeline': 'a data processing pipeline that reads, transforms, and writes data',
+            'api_integration': 'an API integration task that fetches, validates, and processes data',
+            'multi_stage_pipeline': 'a complex multi-stage pipeline with 4-6 tools'
+        }
+        
+        task_desc = task_descriptions.get(task_type, f'a {task_type} task')
+        
+        # 构建改进的prompt
+        prompt = f"""
+    You are an expert workflow designer. Based on RAG search results, design {task_desc}.
+
+    Available tools (sorted by relevance):
+    {json.dumps(tools_info, indent=2)}
+
+    Requirements:
+    - Task type: {task_type}
+    - Complexity: {complexity}
+    - Select 3-6 most appropriate tools based on:
+    1. RAG relevance scores
+    2. Logical workflow sequence
+    3. Tool categories and operations
+    4. Input/output compatibility between tools
+
+    Design a complete task instance with:
+    1. A clear description of what the task accomplishes
+    2. A logical sequence of tools that work together
+    3. Realistic input data that matches the first tool's parameters
+    4. Expected output that matches the final tool's returns
+
+    IMPORTANT: 
+    - Ensure inputs match the parameter types of the first tool
+    - Ensure outputs match the return types of the last tool
+    - Create a data flow where each tool's output can feed into the next tool's input
+
+    Return ONLY a JSON object with this structure:
+    {{
+        "description": "Clear description of the task",
+        "required_tools": ["tool1", "tool2", "tool3"],
+        "inputs": {{
+            "param_name": "value based on first tool's parameters",
+            "another_param": "another value"
+        }},
+        "expected_outputs": {{
+            "output_field": "expected value based on last tool's returns",
+            "another_output": "another expected value"
+        }},
+        "constraints": {{
+            "timeout": 300,
+            "max_retries": 3
+        }}
+    }}
+    """
+
+        response = self.llm_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a workflow design expert. Return only valid JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=1000
+        )
+        
+        response_text = response.choices[0].message.content
+        logger.debug(f" LLM Response: {response_text[:200]}...")
+        
+        # 解析JSON响应
+        result = json.loads(response_text)
+        
+        # 验证和清理结果
+        required_tools = result.get('required_tools', [])
+        if not required_tools:
+            raise ValueError("LLM did not generate required_tools")
+        
+        # 确保inputs和outputs不为空
+        if not result.get('inputs'):
+            result['inputs'] = self._generate_default_inputs(task_type, required_tools)
+        
+        if not result.get('expected_outputs'):
+            result['expected_outputs'] = self._generate_default_outputs(task_type, required_tools)
+        
+        # 添加默认约束
+        if not result.get('constraints'):
+            result['constraints'] = {
+                'timeout': 300,
+                'max_retries': 3,
+                'memory_limit': '1GB'
+            }
+        
+        logger.debug(f" LLM generated {len(required_tools)} tools with inputs and outputs")
+        
+        return result
+            
+    def _generate_default_inputs(self, task_type: str, required_tools: List[str]) -> Dict[str, Any]:
+        """基于工具参数生成默认输入"""
+        # 查找第一个工具的参数
+        if required_tools and required_tools[0] in self.tool_registry:
+            first_tool = self.tool_registry[required_tools[0]]
+            params = first_tool.get('parameters', [])
+            
+            inputs = {}
+            for param in params:
+                if param.get('required', True):
+                    param_name = param.get('name', 'input')
+                    param_type = param.get('type', 'string')
+                    
+                    # 根据参数类型生成合理的默认值
+                    if param_type == 'string':
+                        if 'source' in param_name.lower():
+                            inputs[param_name] = f"data/input_{task_type}.json"
+                        elif 'format' in param_name.lower():
+                            inputs[param_name] = "json"
+                        else:
+                            inputs[param_name] = f"sample_{param_name}"
+                    elif param_type == 'number':
+                        inputs[param_name] = 100
+                    elif param_type == 'boolean':
+                        inputs[param_name] = True
+                    elif param_type == 'object':
+                        inputs[param_name] = {"key": "value"}
+                    elif param_type == 'array':
+                        inputs[param_name] = ["item1", "item2"]
+                    else:
+                        inputs[param_name] = f"default_{param_name}"
+            
+            return inputs
+        
+        # 如果无法获取工具信息，返回默认输入
+        return {
+            "data": "sample_input",
+            "format": "json",
+            "config": {"mode": "batch"}
+        }
+    
+
+    def _generate_default_outputs(self, task_type: str, required_tools: List[str]) -> Dict[str, Any]:
+        """基于工具返回值生成默认输出"""
+        # 查找最后一个工具的返回值
+        if required_tools and required_tools[-1] in self.tool_registry:
+            last_tool = self.tool_registry[required_tools[-1]]
+            returns = last_tool.get('returns', [])
+            
+            outputs = {}
+            for ret in returns:
+                ret_name = ret.get('name', 'result')
+                ret_type = ret.get('type', 'string')
+                
+                # 根据返回类型生成合理的期望值
+                if ret_name == 'success':
+                    outputs[ret_name] = True
+                elif ret_type == 'string':
+                    outputs[ret_name] = f"processed_{ret_name}"
+                elif ret_type == 'number':
+                    outputs[ret_name] = 42
+                elif ret_type == 'boolean':
+                    outputs[ret_name] = True
+                elif ret_type == 'object':
+                    if 'data' in ret_name.lower():
+                        outputs[ret_name] = {"processed": True, "records": 100}
+                    else:
+                        outputs[ret_name] = {"status": "completed"}
+                elif ret_type == 'array':
+                    outputs[ret_name] = ["result1", "result2"]
+                else:
+                    outputs[ret_name] = f"expected_{ret_name}"
+            
+            return outputs
+        
+        # 如果无法获取工具信息，返回默认输出
+        return {
+            "status": "success",
+            "data": "processed",
+            "records_processed": 100
+        }
+
+
+
+    def _get_task_categories(self, task_type: str) -> List[str]:
+        """获取任务类型需要的工具类别"""
+        category_mapping = {
+            'basic_task': ['file_operations', 'data_processing'],
+            'simple_task': ['data_processing', 'utility'],
+            'data_pipeline': ['data_processing', 'file_operations', 'utility'],
+            'api_integration': ['network', 'data_processing', 'integration'],
+            'multi_stage_pipeline': ['data_processing', 'file_operations', 'network', 'utility']
+        }
+        return category_mapping.get(task_type, ['data_processing'])
+
+    def _get_tool_action(self, tool_data: Dict[str, Any]) -> str:
+        """根据工具信息生成动作描述"""
+        operation = tool_data.get('metadata', {}).get('operation', 'process')
+        category = tool_data.get('metadata', {}).get('category', 'general')
+        
+        action_templates = {
+            'parser': 'parse and extract structured data',
+            'transformer': 'transform data to the required format',
+            'validator': 'validate data against schema',
+            'writer': 'write processed data to output',
+            'reader': 'read input data from source',
+            'fetcher': 'fetch data from external source',
+            'aggregator': 'aggregate and combine data',
+            'converter': 'convert data format',
+            'scanner': 'scan and analyze content',
+            'poster': 'post data to destination'
+        }
+        
+        return action_templates.get(operation, f'{operation} {category} data')
+
+    def enable_llm_generation(self, enabled: bool = True):
+        """启用或禁用LLM生成模式"""
+        if enabled and not self.llm_client:
+            print("[WARNING] Cannot enable LLM generation - OpenAI client not initialized")
+            print("[WARNING] Please set OPENAI_API_KEY environment variable")
+            self.use_llm_generation = False
+        else:
+            self.use_llm_generation = enabled
+            print(f"[TaskGenerator] LLM generation {'enabled' if enabled else 'disabled'}")
+
+
+
+    def _generate_task_batch(self, batch: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate a batch of tasks with proper LLM support"""
+        start_time = time.time()
+        
+        logger.debug(f" Generating batch: type={batch['task_type']}, use_llm={batch['use_llm']}")
+        
+        # 重建本地索引（如果需要）
+        index_path = Path("mcp_generated_library/embeddings/tool_embeddings_index.pkl")
+        if not index_path.exists() and batch['use_llm']:
+            print(f"[ParallelTaskGenerator] Building index for RAG...")
+            
+            # 创建临时的EmbeddingManager
+            from tool_semantic_embedding import EmbeddingManager
+            temp_manager = EmbeddingManager()
+            
+            # 构建基础索引
+            tool_data = []
+            for tool_name, tool in self.tool_library.items():
+                tool_data.append({
+                    'name': tool_name,
+                    'description': getattr(tool, 'description', ''),
+                    'parameters': getattr(tool, 'parameters', []),
+                    'returns': getattr(tool, 'returns', [])
+                })
+            
+            # 创建临时注册表文件
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+                json.dump(tool_data, f)
+                temp_file = f.name
+            
+            # 构建索引
+            temp_manager.build_index(temp_file, force_rebuild=True)
+            
+            # 清理临时文件
+            Path(temp_file).unlink()
+            
+            print(f"[ParallelTaskGenerator] Built index for batch processing")
+        
+        # 创建任务生成器
+        batch_generator = TaskGenerator(self.tool_library, self.tool_registry)
+        
+        # 启用LLM生成（如果需要）
+        if batch['use_llm']:
+            batch_generator.enable_llm_generation(True)
+            logger.debug(f" LLM generation enabled for batch generator")
+        
+        # 查找该类型的模板
+        task_type = batch['task_type']
+        type_templates = [t for t in batch_generator.task_templates if t.task_type == task_type]
+        
+        if not type_templates:
+            # 创建模板时传递use_llm参数
+            print(f"[WARNING] No template found for {task_type}, creating with LLM={batch['use_llm']}")
+            
+            # 根据任务类型创建模板
+            if hasattr(batch_generator, '_create_basic_templates'):
+                templates = batch_generator._create_basic_templates()
+                template = templates[0] if templates else None
+            else:
+                template = self._create_default_template(task_type)
+            
+            if template:
+                type_templates = [template]
+            else:
+                print(f"[ERROR] Failed to create template for {task_type}")
+                return {'tasks': [], 'timing': time.time() - start_time}
+        
+        # 生成任务
+        tasks = []
+        for i in range(batch['num_tasks']):
+            if type_templates:
+                template = random.choice(type_templates)
+                
+                # 如果启用了LLM，每个任务实例都使用RAG+LLM
+                if batch['use_llm'] and batch_generator.use_llm_generation:
+                    logger.debug(f" Generating task {i+1}/{batch['num_tasks']} with RAG+LLM")
+                
+                task = batch_generator.generate_task_instance(template)
+                # 确保任务类型正确
+                task.task_type = task_type
+                tasks.append(task)
+        
+        logger.debug(f" Generated {len(tasks)} {task_type} tasks in {time.time() - start_time:.2f}s")
+        
+        return {
+            'tasks': tasks,
+            'timing': time.time() - start_time
+        }
+
+
+    def _analyze_tool_categories(self) -> Dict[str, List[str]]:
+        """Analyze available tools by category"""
+        categories = {}
+        for tool_name, tool in self.tool_library.items():
+            category = tool.metadata.get("category", "general")
+            if category not in categories:
+                categories[category] = []
+            categories[category].append(tool_name)
+        return categories
+    
+    def _has_tools(self, operations: List[str]) -> bool:
+        """Check if tools with certain operations exist"""
+        for tool_name in self.tool_library:
+            for op in operations:
+                if op in tool_name:
+                    return True
+        return False
+    
+    def _find_tools(self, operations: List[str]) -> List[str]:
+        """Find tools that match certain operations"""
+        matching_tools = []
+        for tool_name in self.tool_library:
+            for op in operations:
+                if op in tool_name:
+                    matching_tools.append(tool_name)
+                    break
+        return matching_tools[:3]  # Limit to 3 tools
+    
+    def _find_tool_chains(self) -> List[List[str]]:
+        """Find tools that can be chained together"""
+        chains = []
+        
+        # Look for natural chains
+        parser_tools = self._find_tools(["parser", "reader"])
+        transformer_tools = self._find_tools(["transformer", "converter"])
+        writer_tools = self._find_tools(["writer", "poster"])
+        
+        if parser_tools and transformer_tools and writer_tools:
+            chains.append([parser_tools[0], transformer_tools[0], writer_tools[0]])
+        
+        # Look for computation chains
+        fetcher_tools = self._find_tools(["fetcher"])
+        calculator_tools = self._find_tools(["calculator", "analyzer"])
+        
+        if fetcher_tools and calculator_tools:
+            chains.append([fetcher_tools[0], calculator_tools[0]])
+        
+        return chains
+    
+    def _generate_input_data(self, data_type: str) -> Any:
+        """Generate sample input data"""
+        generators = {
+            "raw_data": lambda: {"records": [{"id": i, "value": random.random()} for i in range(10)]},
+            "file_paths": lambda: [f"/data/file_{i}.txt" for i in range(3)],
+            "api_endpoints": lambda: ["https://api.example.com/data", "https://api.example.com/submit"],
+            "auth_credentials": lambda: {"api_key": "sample_key_123", "secret": "sample_secret"},
+            "validation_schema": lambda: {"type": "object", "required": ["id", "value"]},
+            "transformation_rules": lambda: {"normalize": True, "format": "json"},
+            "output_format": lambda: random.choice(["json", "csv", "xml"]),
+            "scan_criteria": lambda: {"patterns": ["error", "warning"], "threshold": 0.8},
+            "input_data": lambda: {"data": [random.random() for _ in range(5)]},
+            "data": lambda: {"values": [random.randint(1, 100) for _ in range(5)]},
+            "config": lambda: {"mode": "standard", "options": {}},
+            "pipeline_config": lambda: {"stages": 3, "parallel": False},
+            "stage_configs": lambda: [{"stage": i, "timeout": 30} for i in range(3)]
+        }
+        
+        generator = generators.get(data_type, lambda: {"placeholder": "data"})
+        return generator()
+    
+    def _generate_expected_output(self, output_type: str) -> Any:
+        """Generate expected output structure"""
+        generators = {
+            "parsed_data": lambda: {"structured": True, "record_count": 10},
+            "transformed_data": lambda: {"format": "normalized", "records": []},
+            "output_file": lambda: {"path": "/output/result.json", "size": 1024},
+            "api_response": lambda: {"status": 200, "data": {}},
+            "validated_data": lambda: {"valid": True, "errors": []},
+            "file_contents": lambda: {"content": "sample", "encoding": "utf-8"},
+            "analysis_results": lambda: {"patterns_found": 3, "metadata": {}},
+            "pipeline_result": lambda: {"stages_completed": 3, "final_output": {}},
+            "processed_data": lambda: {"processed": True, "result": {}},
+            "final_output": lambda: {"success": True, "data": {}},
+            "output": lambda: {"result": "completed"},
+            "processed_output": lambda: {"status": "complete", "data": {}},
+            "pipeline_output": lambda: {"stages": 3, "results": []}
+        }
+        
+        generator = generators.get(output_type, lambda: {"placeholder": "output"})
+        return generator()
+    
+    def _generate_task_constraints(self, complexity: str) -> Dict[str, Any]:
+        """Generate task constraints based on complexity"""
+        base_constraints = {
+            "easy": {"timeout": 60, "max_retries": 3, "required_confidence": 0.8},
+            "medium": {"timeout": 300, "max_retries": 2, "required_confidence": 0.9},
+            "hard": {"timeout": 600, "max_retries": 1, "required_confidence": 0.95}
+        }
+        
+        constraints = base_constraints.get(complexity, base_constraints["medium"]).copy()
+        
+        # Add random specific constraints
+        if random.random() < 0.3:
+            constraints["max_cost"] = random.uniform(0.1, 10.0)
+        if random.random() < 0.2:
+            constraints["priority"] = random.choice(["low", "medium", "high"])
+        
+        return constraints
+
+
+# ===========================
+# Main Generator Class
+# ===========================
+
+class MCPToolTaskGenerator:
+    """Complete MCP tool and task generation system with semantic enhancement"""
+    
+    def __init__(self, output_dir: str = "mcp_generated_library"):
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(exist_ok=True)
+        self.tool_generator = ToolGenerator()
+        self.tool_library = {}
+        self.task_generator = None
+        self.tool_registry_path = self.output_dir / "tool_registry_consolidated.json"
+    
+    def generate_complete_library(self, 
+                                num_tools_per_category: int = 5,
+                                num_tasks: int = 100) -> Dict[str, Any]:
+        """Generate complete tool and task library with semantic enhancement"""
+        
+        # Generate tools
+        print(f"Generating {num_tools_per_category} tools per category...")
+        self.tool_library = self.tool_generator.generate_tool_library(num_tools_per_category)
+        print(f"Generated {len(self.tool_library)} tools")
+        
+        # Save tools
+        self._save_tools()
+        
+        # Load or create tool registry with differentiation
+        tool_registry = {}
+        if self.tool_registry_path.exists():
+            with open(self.tool_registry_path, 'r') as f:
+                tool_registry = json.load(f)
+            print(f"Loaded existing tool registry with differentiation info")
+        else:
+            # Create basic registry
+            for tool_name, tool in self.tool_library.items():
+                tool_registry[tool_name] = tool.to_mcp_json()
+            print("Created basic tool registry")
+        
+        # Generate tasks with semantic enhancement
+        print(f"\nGenerating {num_tasks} tasks with semantic enhancement...")
+        self.task_generator = TaskGenerator(self.tool_library, tool_registry)
+        print("TaskGenerator initialized with semantic components")
+        tasks = self.task_generator._generate_task_batch(num_tasks)
+        print(f"Generated {len(tasks)} tasks")
+        
+        # Save tasks
+        print("Saving tasks...")
+        self._save_tasks(tasks)
+        print("Tasks saved successfully")
+        
+        # Generate summary
+        summary = self._generate_summary(tasks)
+        self._save_summary(summary)
+        
+        return {
+            "tools": self.tool_library,
+            "tasks": tasks,
+            "summary": summary
+        }
+    
+    def _save_tools(self):
+        """Save generated tools in MCP format"""
+        # Create directories
+        xml_dir = self.output_dir / "tools_xml"
+        json_dir = self.output_dir / "tools_json"
+        xml_dir.mkdir(exist_ok=True)
+        json_dir.mkdir(exist_ok=True)
+        
+        # Save each tool
+        for tool_name, tool in self.tool_library.items():
+            # Save XML version
+            xml_path = xml_dir / f"{tool_name}.xml"
+            with open(xml_path, 'w') as f:
+                f.write(tool.to_mcp_xml())
+            
+            # Save JSON version
+            json_path = json_dir / f"{tool_name}.json"
+            with open(json_path, 'w') as f:
+                json.dump(tool.to_mcp_json(), f, indent=2)
+        
+        # Save complete registry
+        registry = {
+            tool_name: tool.to_mcp_json()
+            for tool_name, tool in self.tool_library.items()
+        }
+        with open(self.output_dir / "tool_registry.json", 'w') as f:
+            json.dump(registry, f, indent=2)
+    
+    def _save_tasks(self, tasks: List[TaskInstance]):
+        """Save generated tasks with all required fields"""
+        tasks_data = []
+        
+        for task in tasks:
+            # 确保所有必需字段都存在
+            task_data = {
+                # 使用instance_id作为主键，但也提供id字段以保持兼容性
+                "instance_id": task.instance_id,
+                "id": task.instance_id,  # 兼容性字段
+                "task_type": task.task_type,
+                "description": task.description,
+                
+                # 输入输出字段 - 确保兼容性
+                "inputs": task.inputs,
+                "test_input": task.inputs,  # 兼容性字段
+                "expected_outputs": task.expected_outputs,
+                "expected_output": task.expected_outputs,  # 兼容性字段
+                
+                # 工具和约束
+                "required_tools": task.required_tools,
+                "constraints": task.constraints,
+                "complexity": task.complexity,
+                
+                # 依赖信息（如果存在）
+                "tool_dependencies": getattr(task, 'tool_dependencies', {}),
+                
+                # 元数据
+                "metadata": {
+                    **task.metadata,
+                    "llm_generated_inputs": task.metadata.get('inputs_generated_from', 'unknown') == 'llm',
+                    "llm_generated": task.metadata.get('llm_generated', False),
+                    "semantic_generation": task.metadata.get('semantic_generation', False),
+                    "generated_at": task.metadata.get('generated_at', datetime.now().isoformat()),
+                    "timeout": task.constraints.get('timeout', 300)
+                }
+            }
+            
+            tasks_data.append(task_data)
+        
+        # 保存所有任务
+        with open(self.output_dir / "task_library.json", 'w') as f:
+            json.dump(tasks_data, f, indent=2)
+        
+        # 保存任务类型索引
+        tasks_by_type = {}
+        for task in tasks:
+            if task.task_type not in tasks_by_type:
+                tasks_by_type[task.task_type] = []
+            tasks_by_type[task.task_type].append({
+                "id": task.instance_id,
+                "complexity": task.complexity,
+                "num_tools": len(task.required_tools),
+                "has_llm_inputs": task.metadata.get('inputs_generated_from') == 'llm'
+            })
+        
+        with open(self.output_dir / "tasks_by_type.json", 'w') as f:
+            json.dump(tasks_by_type, f, indent=2)
+        
+        # 保存输入输出示例（用于验证）
+        io_examples = {
+            "task_type_examples": {}
+        }
+        
+        # 为每种任务类型保存几个输入输出示例
+        for task_type, task_list in tasks_by_type.items():
+            examples = []
+            # 获取该类型的前3个任务作为示例
+            example_tasks = [t for t in tasks if t.task_type == task_type][:3]
+            
+            for task in example_tasks:
+                examples.append({
+                    "task_id": task.instance_id,
+                    "description": task.description[:100] + "..." if len(task.description) > 100 else task.description,
+                    "required_tools": task.required_tools,
+                    "input_keys": list(task.inputs.keys()),
+                    "output_keys": list(task.expected_outputs.keys()),
+                    "sample_input": {k: str(v)[:50] + "..." if len(str(v)) > 50 else v 
+                                for k, v in list(task.inputs.items())[:3]},
+                    "sample_output": {k: str(v)[:50] + "..." if len(str(v)) > 50 else v 
+                                    for k, v in list(task.expected_outputs.items())[:3]}
+                })
+            
+            io_examples["task_type_examples"][task_type] = examples
+        
+        with open(self.output_dir / "io_examples.json", 'w') as f:
+            json.dump(io_examples, f, indent=2)
+        
+        print(f"\n📁 任务保存完成:")
+        print(f"  - 主任务库: {self.output_dir / 'task_library.json'}")
+        print(f"  - 类型索引: {self.output_dir / 'tasks_by_type.json'}")
+        print(f"  - IO示例: {self.output_dir / 'io_examples.json'}")
+    
+    def _generate_summary(self, tasks: List[TaskInstance]) -> Dict[str, Any]:
+        """Generate summary statistics"""
+        # Tool statistics
+        tool_stats = {
+            "total_tools": len(self.tool_library),
+            "tools_by_category": {}
+        }
+        
+        for tool in self.tool_library.values():
+            category = tool.metadata.get("category", "general")
+            if category not in tool_stats["tools_by_category"]:
+                tool_stats["tools_by_category"][category] = 0
+            tool_stats["tools_by_category"][category] += 1
+        
+        # Task statistics
+        task_stats = {
+            "total_tasks": len(tasks),
+            "tasks_by_type": {},
+            "tasks_by_complexity": {"easy": 0, "medium": 0, "hard": 0},
+            "tool_usage": {}
+        }
+        
+        for task in tasks:
+            # By type
+            if task.task_type not in task_stats["tasks_by_type"]:
+                task_stats["tasks_by_type"][task.task_type] = 0
+            task_stats["tasks_by_type"][task.task_type] += 1
+            
+            # By complexity
+            task_stats["tasks_by_complexity"][task.complexity] += 1
+            
+            # Tool usage
+            for tool in task.required_tools:
+                if tool not in task_stats["tool_usage"]:
+                    task_stats["tool_usage"][tool] = 0
+                task_stats["tool_usage"][tool] += 1
+        
+        return {
+            "generation_timestamp": datetime.now().isoformat(),
+            "tool_statistics": tool_stats,
+            "task_statistics": task_stats
+        }
+    
+    def _save_summary(self, summary: Dict[str, Any]):
+        """Save generation summary"""
+        with open(self.output_dir / "generation_summary.json", 'w') as f:
+            json.dump(summary, f, indent=2)
+        
+        # Also create human-readable report
+        report = [
+            "MCP Tool and Task Generation Report",
+            "=" * 40,
+            f"Generated: {summary['generation_timestamp']}",
+            "",
+            "Tool Statistics:",
+            f"  Total tools: {summary['tool_statistics']['total_tools']}",
+            "  By category:"
+        ]
+        
+        for category, count in summary['tool_statistics']['tools_by_category'].items():
+            report.append(f"    - {category}: {count}")
+        
+        report.extend([
+            "",
+            "Task Statistics:",
+            f"  Total tasks: {summary['task_statistics']['total_tasks']}",
+            "  By type:"
+        ])
+        
+        for task_type, count in summary['task_statistics']['tasks_by_type'].items():
+            report.append(f"    - {task_type}: {count}")
+        
+        report.extend([
+            "  By complexity:",
+            f"    - Easy: {summary['task_statistics']['tasks_by_complexity']['easy']}",
+            f"    - Medium: {summary['task_statistics']['tasks_by_complexity']['medium']}",
+            f"    - Hard: {summary['task_statistics']['tasks_by_complexity']['hard']}",
+            "",
+            "Top 10 Most Used Tools:"
+        ])
+        
+        tool_usage = sorted(
+            summary['task_statistics']['tool_usage'].items(),
+            key=lambda x: x[1],
+            reverse=True
+        )[:10]
+        for tool, count in tool_usage:
+            report.append(f"  - {tool}: {count} tasks")
+        
+        with open(self.output_dir / "generation_report.txt", 'w') as f:
+            f.write("\n".join(report))
+
+
+# ===========================
+# Wrapper Functions for Compatibility
+# ===========================
+
+
+def create_diverse_tool_library(num_tools: int = 30, tool_registry_path: str = None) -> List[MCPTool]:
+    """
+    Wrapper function for compatibility with main.py
+    Creates a diverse tool library and returns list of tools
+    
+    Args:
+        num_tools: Number of tools to generate
+        tool_registry_path: Path to consolidated tool registry with differentiation info
+    """
+    # Calculate tools per category to reach total
+    num_categories = 6  # We have 6 categories
+    tools_per_category = max(1, num_tools // num_categories)
+    
+    logger.info(f"Creating diverse tool library with {num_tools} tools")
+    
+    # Create generator and generate tools
+    generator = ToolGenerator()
+    
+    # 确保调用前清空generated_tools
+    generator.generated_tools = set()
+    
+    tool_library = generator.generate_tool_library(tools_per_category)
+    
+    # Convert to list and ensure we have exactly num_tools
+    tools_list = list(tool_library.values())
+    
+    logger.info(f"Generated {len(tools_list)} tools, adjusting to {num_tools}")
+    
+    # 修复：避免无限循环
+    max_attempts = 100  # 防止无限循环
+    attempts = 0
+    
+    # Add more tools if needed
+    while len(tools_list) < num_tools and attempts < max_attempts:
+        attempts += 1
+        category = random.choice(list(generator.tool_templates.keys()))
+        operation = random.choice([op for op, _ in generator.tool_templates[category]])
+        
+        # 生成唯一的工具名
+        tool_name = f"{category}_{operation}_{attempts}"
+        
+        # 确保工具名唯一
+        if tool_name not in [t.name for t in tools_list]:
+            tool = generator.generate_tool(category, operation)
+            tool.name = tool_name  # 使用唯一名称
+            tools_list.append(tool)
+            
+            # 每生成10个工具记录一次
+            if len(tools_list) % 10 == 0:
+                logger.debug(f"Progress: {len(tools_list)}/{num_tools} tools")
+    
+    if len(tools_list) < num_tools:
+        logger.warning(f"Could only generate {len(tools_list)} tools out of requested {num_tools}")
+    
+    # Trim if we have too many
+    return tools_list[:num_tools]
+
+
+def generate_multi_tool_tasks(tools: List[MCPTool], num_tasks: int = 200, 
+                             task_type: str = None, complexity: str = None,
+                             tool_registry_path: str = "mcp_generated_library/tool_registry_consolidated.json") -> List[TaskInstance]:
+    """
+    Wrapper function for compatibility with main.py
+    Generates tasks that use the provided tools with semantic enhancement
+    
+    Args:
+        tools: List of MCPTool objects
+        num_tasks: Number of tasks to generate
+        task_type: Specific task type to generate
+        complexity: Specific complexity level
+        tool_registry_path: Path to consolidated tool registry with differentiation info
+    """
+    logger.info(f"Generating {num_tasks} tasks of type {task_type} with complexity {complexity}")
+    
+    # Convert tools list to dictionary
+    tool_library = {tool.name: tool for tool in tools}
+    
+    # Load tool registry if available
+    tool_registry = {}
+    if tool_registry_path and Path(tool_registry_path).exists():
+        with open(tool_registry_path, 'r') as f:
+            tool_registry = json.load(f)
+        logger.info(f"Loaded tool registry with {len(tool_registry)} tools")
+    
+    # Create task generator with registry
+    task_generator = TaskGenerator(tool_library, tool_registry)
+    
+    # 如果指定了task_type，需要特殊处理
+    if task_type:
+        logger.info(f"Generating specific task type: {task_type}")
+        # 临时减少任务数量用于调试
+        if num_tasks > 20:
+            logger.warning(f"Reducing tasks from {num_tasks} to 20 for debugging")
+            num_tasks = 20
+    
+    tasks = task_generator._generate_task_batch(num_tasks)
+    
+    # 如果指定了task_type，需要修改任务类型
+    if task_type:
+        for task in tasks:
+            task.task_type = task_type
+            if complexity:
+                task.complexity = complexity
+    
+    logger.info(f"Generated {len(tasks)} tasks")
+    return tasks
+
+def tool_task_generator(
+    num_tasks: int = 500,
+    output_filename: str = None,
+    task_distribution: Dict[str, float] = None,
+    num_tools: int = 50,
+    output_dir: str = "mcp_generated_library",
+    generation_mode: str = "both"
+) -> Dict[str, Any]:
+    """
+    统一的工具和任务生成器接口
+    
+    Args:
+        num_tasks: 生成任务总数，默认500
+        output_filename: 输出文件名（不含扩展名），默认为 task_library_{timestamp}
+        task_distribution: 各任务类型的比例，默认均衡分布
+            例如: {
+                'basic_task': 0.2,      # 20%
+                'simple_task': 0.2,     # 20%
+                'data_pipeline': 0.2,   # 20%
+                'api_integration': 0.2, # 20%
+                'multi_stage_pipeline': 0.2  # 20%
+            }
+        num_tools: 生成工具数量，默认50
+        output_dir: 输出目录，默认 mcp_generated_library
+        generation_mode: 生成模式，可选值：
+            - "both": 同时生成工具和任务（默认）
+            - "tools_only": 仅生成工具库
+            - "tasks_only": 仅生成任务库（使用现有工具）
+    
+    Returns:
+        Dict包含:
+            - tools_file: 工具注册表文件路径（如果生成了工具）
+            - tasks_file: 任务库文件路径（如果生成了任务）
+            - summary: 生成摘要统计
+    
+    Example:
+        # 默认生成工具和任务
+        result = tool_task_generator()
+        
+        # 仅生成工具库
+        result = tool_task_generator(
+            generation_mode="tools_only",
+            num_tools=100
+        )
+        
+        # 仅生成任务库（使用现有工具）
+        result = tool_task_generator(
+            generation_mode="tasks_only",
+            num_tasks=1000,
+            task_distribution={
+                'basic_task': 0.3,      # 30%
+                'simple_task': 0.3,     # 30%
+                'data_pipeline': 0.2,   # 20%
+                'api_integration': 0.1, # 10%
+                'multi_stage_pipeline': 0.1  # 10%
+            }
+        )
+    """
+    from pathlib import Path
+    import json
+    import time
+    from datetime import datetime
+    
+    # 验证生成模式
+    valid_modes = ["both", "tools_only", "tasks_only"]
+    if generation_mode not in valid_modes:
+        raise ValueError(f"无效的生成模式: {generation_mode}。有效值: {valid_modes}")
+    
+    # 设置输出目录
+    output_path = Path(output_dir)
+    output_path.mkdir(exist_ok=True)
+    
+    # 设置默认的任务分布（均衡）
+    if task_distribution is None:
+        task_distribution = {
+            'basic_task': 0.2,
+            'simple_task': 0.2,
+            'data_pipeline': 0.2,
+            'api_integration': 0.2,
+            'multi_stage_pipeline': 0.2
+        }
+    
+    # 验证任务分布
+    total_ratio = sum(task_distribution.values())
+    if abs(total_ratio - 1.0) > 0.01:
+        print(f"警告: 任务分布总和为 {total_ratio}，将进行归一化处理")
+        # 归一化
+        task_distribution = {k: v/total_ratio for k, v in task_distribution.items()}
+    
+    # 生成输出文件名
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    if output_filename is None:
+        task_filename = f"task_library_{timestamp}.json"
+        tool_filename = f"tool_registry_{timestamp}.json"
+    else:
+        task_filename = f"{output_filename}_tasks.json"
+        tool_filename = f"{output_filename}_tools.json"
+    
+    task_file_path = output_path / task_filename
+    tool_file_path = output_path / tool_filename
+    
+    print(f"🔧 开始生成...")
+    print(f"📋 生成模式: {generation_mode}")
+    
+    # 初始化结果
+    result = {
+        "summary": {
+            "generated_at": datetime.now().isoformat(),
+            "generation_mode": generation_mode,
+            "configuration": {}
+        }
+    }
+    
+    tools = []
+    tool_library = {}
+    
+    # 1. 生成或加载工具
+    if generation_mode in ["both", "tools_only"]:
+        # 生成新工具
+        print(f"\n📦 生成 {num_tools} 个工具...")
+        from tool_and_task_generator import create_diverse_tool_library
+        tools = create_diverse_tool_library(num_tools=num_tools)
+        
+        # 保存工具
+        tool_registry = {}
+        for tool in tools:
+            tool_registry[tool.name] = tool.to_mcp_json()
+        
+        with open(tool_file_path, 'w') as f:
+            json.dump(tool_registry, f, indent=2)
+        print(f"✅ 工具已保存到: {tool_file_path}")
+        
+        result["tools_file"] = str(tool_file_path)
+        result["summary"]["configuration"]["num_tools"] = num_tools
+        
+        # 转换为字典供任务生成使用
+        tool_library = {tool.name: tool for tool in tools}
+    
+    elif generation_mode == "tasks_only":
+        # 加载现有工具
+        print(f"\n📂 加载现有工具...")
+        existing_tool_file = output_path / "tool_registry.json"
+        
+        if not existing_tool_file.exists():
+            raise FileNotFoundError(
+                f"任务生成模式需要现有的工具文件: {existing_tool_file}\n"
+                "请先使用 generation_mode='tools_only' 生成工具，或使用 'both' 模式"
+            )
+        
+        with open(existing_tool_file, 'r') as f:
+            tool_registry = json.load(f)
+        
+        print(f"✅ 已加载 {len(tool_registry)} 个工具")
+        
+        # 转换为 MCPTool 对象
+        from tool_and_task_generator import MCPTool, ToolParameter, ToolReturn, ToolError
+        for tool_name, tool_data in tool_registry.items():
+            # 转换参数
+            parameters = []
+            for param in tool_data.get('parameters', []):
+                parameters.append(ToolParameter(
+                    name=param.get('name', ''),
+                    type=param.get('type', 'string'),
+                    description=param.get('description', ''),
+                    required=param.get('required', True),
+                    default=param.get('default', None),
+                    constraints=param.get('constraints', {})
+                ))
+            
+            # 转换返回值
+            returns = []
+            for ret in tool_data.get('returns', []):
+                returns.append(ToolReturn(
+                    name=ret.get('name', ''),
+                    type=ret.get('type', 'string'),
+                    description=ret.get('description', '')
+                ))
+            
+            # 转换错误
+            errors = []
+            for err in tool_data.get('errors', []):
+                errors.append(ToolError(
+                    code=err.get('code', ''),
+                    description=err.get('description', '')
+                ))
+            
+            # 创建工具对象
+            tool = MCPTool(
+                name=tool_name,
+                description=tool_data.get('description', ''),
+                parameters=parameters,
+                returns=returns,
+                errors=errors,
+                dependencies=tool_data.get('dependencies', []),
+                metadata=tool_data.get('metadata', {})
+            )
+            # 设置类别（如果不在metadata中）
+            if 'category' not in tool.metadata and 'metadata' in tool_data:
+                tool.metadata['category'] = tool_data['metadata'].get('category', 'general')
+            tools.append(tool)
+            tool_library[tool_name] = tool
+    
+    # 2. 修改 TaskGenerator 以支持自定义分布
+    # 转换工具列表为字典
+    tool_library = {tool.name: tool for tool in tools}
+    
+    # 加载工具注册表（如果存在）
+    tool_registry_consolidated_path = output_path / "tool_registry_consolidated.json"
+    tool_registry_data = {}
+    if tool_registry_consolidated_path.exists():
+        with open(tool_registry_consolidated_path, 'r') as f:
+            tool_registry_data = json.load(f)
+    
+    # 创建任务生成器
+    print(f"\n📝 生成 {num_tasks} 个任务...")
+    task_generator = TaskGenerator(tool_library, tool_registry_data)
+    
+    # 临时修改任务生成器的分布（通过猴子补丁）
+    original_generate_task_batch = task_generator._generate_task_batch
+    
+    def generate_task_batch_with_distribution(self, num_tasks_param: int = 100) -> List[TaskInstance]:
+        """使用自定义分布生成任务批次"""
+        tasks = []
+        
+        # 使用自定义的任务分布
+        for task_type, proportion in task_distribution.items():
+            num_tasks_of_type = int(num_tasks_param * proportion)
+            
+            # 查找该类型的模板
+            type_templates = [t for t in self.task_templates if t.task_type == task_type]
+            
+            if not type_templates:
+                # 如果没有精确匹配的模板，尝试创建一个
+                print(f"警告: 未找到 {task_type} 的模板，尝试生成...")
+                if task_type == 'basic_task':
+                    templates = self._create_basic_templates()
+                    template = templates[0] if templates else None
+                elif task_type == 'simple_task':
+                    templates = self._create_simple_templates(self._analyze_tool_categories())
+                    template = templates[0] if templates else None
+                elif task_type == 'data_pipeline':
+                    template = self._create_data_pipeline_template()
+                elif task_type == 'api_integration':
+                    template = self._create_api_integration_template()
+                elif task_type == 'multi_stage_pipeline':
+                    template = self._create_multi_stage_pipeline_template()
+                else:
+                    print(f"错误: 无法生成 {task_type} 类型的任务")
+                    continue
+                
+                if template:
+                    type_templates = [template]
+            
+            # 生成该类型的任务
+            for i in range(num_tasks_of_type):
+                if type_templates:
+                    template = random.choice(type_templates)
+                    task = self.generate_task_instance(template)
+                    # 确保任务类型正确
+                    task.task_type = task_type
+                    tasks.append(task)
+                else:
+                    print(f"跳过 {task_type} 任务生成")
+        
+        # 如果任务数不足，随机补充
+        while len(tasks) < num_tasks_param:
+            task_type = random.choice(list(task_distribution.keys()))
+            templates = self._create_basic_templates()  # 返回列表
+            if templates:
+                template = templates[0]  # 使用第一个模板
+                task = self.generate_task_instance(template)
+                task.task_type = task_type
+                tasks.append(task)
+        
+        # 裁剪多余的任务
+        tasks = tasks[:num_tasks_param]
+        
+        # 打乱顺序
+        random.shuffle(tasks)
+        
+        return tasks
+    
+    # 应用猴子补丁
+    import types
+    task_generator._generate_task_batch = types.MethodType(generate_task_batch_with_distribution, task_generator)
+    
+    # 生成任务
+    tasks = task_generator._generate_task_batch(num_tasks)
+    
+    # 3. 保存任务
+    task_data = []
+    for task in tasks:
+        task_dict = {
+            "id": task.instance_id,
+            "task_type": task.task_type,
+            "complexity": task.complexity,
+            "description": task.description,
+            "test_input": task.inputs,
+            "expected_output": task.expected_outputs,
+            "required_tools": task.required_tools,
+            "metadata": task.metadata
+        }
+        task_data.append(task_dict)
+    
+    task_library_data = {
+        "tasks": task_data,
+        "metadata": {
+            "generated_at": datetime.now().isoformat(),
+            "num_tasks": len(tasks),
+            "task_distribution": task_distribution,
+            "generator_version": "2.0"
+        }
+    }
+    
+    with open(task_file_path, 'w') as f:
+        json.dump(task_library_data, f, indent=2)
+    print(f"✅ 任务已保存到: {task_file_path}")
+    
+    # 3. 生成统计摘要
+    if generation_mode in ["both", "tools_only"] and tools:
+        # 工具统计
+        tool_categories = {}
+        for tool in tools:
+            category = tool.category if hasattr(tool, 'category') else 'general'
+            if category not in tool_categories:
+                tool_categories[category] = 0
+            tool_categories[category] += 1
+        
+        result["summary"]["results"] = result["summary"].get("results", {})
+        result["summary"]["results"]["tools"] = {
+            "total": len(tools),
+            "by_category": tool_categories,
+            "file": str(tool_file_path) if "tools_file" in result else None
+        }
+    
+    if generation_mode in ["both", "tasks_only"] and tasks:
+        # 任务统计
+        task_stats = {
+            "total": len(tasks),
+            "by_type": {},
+            "by_complexity": {"easy": 0, "medium": 0, "hard": 0},
+            "tool_usage": {}
+        }
+        
+        for task in tasks:
+            # 按类型统计
+            if task.task_type not in task_stats["by_type"]:
+                task_stats["by_type"][task.task_type] = 0
+            task_stats["by_type"][task.task_type] += 1
+            
+            # 按复杂度统计
+            task_stats["by_complexity"][task.complexity] += 1
+            
+            # 工具使用统计
+            for tool in task.required_tools:
+                if tool not in task_stats["tool_usage"]:
+                    task_stats["tool_usage"][tool] = 0
+                task_stats["tool_usage"][tool] += 1
+        
+        result["summary"]["results"] = result["summary"].get("results", {})
+        result["summary"]["results"]["tasks"] = task_stats
+        result["summary"]["results"]["tasks"]["file"] = str(task_file_path) if "tasks_file" in result else None
+    
+    # 保存摘要
+    summary_file = output_path / f"generation_summary_{timestamp}.json"
+    with open(summary_file, 'w') as f:
+        json.dump(result["summary"], f, indent=2)
+    
+    # 打印摘要
+    print(f"\n📊 生成完成!")
+    
+    if generation_mode in ["both", "tools_only"] and tools:
+        print(f"工具数量: {len(tools)}")
+        if "results" in result["summary"] and "tools" in result["summary"]["results"]:
+            print("工具类别分布:")
+            for category, count in result["summary"]["results"]["tools"]["by_category"].items():
+                print(f"  - {category}: {count}")
+    
+    if generation_mode in ["both", "tasks_only"] and tasks:
+        print(f"\n任务数量: {len(tasks)}")
+        print("任务类型分布:")
+        for task_type, count in task_stats["by_type"].items():
+            percentage = (count / len(tasks)) * 100
+            print(f"  - {task_type}: {count} ({percentage:.1f}%)")
+        print("\n复杂度分布:")
+        for complexity, count in task_stats["by_complexity"].items():
+            percentage = (count / len(tasks)) * 100
+            print(f"  - {complexity}: {count} ({percentage:.1f}%)")
+    
+    return result
+
+
+
+
+# ===========================
+# Example Usage
+# ===========================
+
+if __name__ == "__main__":
+    # Create generator
+    generator = MCPToolTaskGenerator(output_dir="mcp_generated_library")
+    
+    # Generate complete library
+    print("Starting tool and task generation...")
+    result = generator.generate_complete_library(
+        num_tools_per_category=5,
+        num_tasks=200
+    )
+    
+    print("\nGeneration complete!")
+    print(f"Generated {len(result['tools'])} tools")
+    print(f"Generated {len(result['tasks'])} tasks")
+    print(f"\nFiles saved to: mcp_generated_library/")
+    print("\nFiles created:")
+    print("  - tool_registry.json: Complete tool registry")
+    print("  - task_library.json: All task instances")
+    print("  - tools_xml/: Individual tool definitions in XML")
+    print("  - tools_json/: Individual tool definitions in JSON")
+    print("  - generation_summary.json: Detailed statistics")
+    print("  - generation_report.txt: Human-readable report")

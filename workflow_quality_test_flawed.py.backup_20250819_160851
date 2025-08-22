@@ -1,0 +1,4433 @@
+# 相同位置的修复代码
+# 修改的行用注释标注：# <- 修改了这一行
+
+#!/usr/bin/env python3
+"""
+Enhanced Workflow Quality Testing Framework with Phase 2/3 Improvements
+======================================================================
+Tests workflow generation quality across different prompting strategies.
+Includes interactive execution and comprehensive scoring.
+"""
+
+import argparse
+import json
+import logging
+import random
+import re
+import time
+import numpy as np
+from collections import defaultdict
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Tuple, Optional, Any
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Lock, Semaphore
+import os
+import threading
+import pickle
+from api_client_manager import get_api_client, get_model_name
+
+
+from openai import OpenAI, AzureOpenAI
+import matplotlib.pyplot as plt
+
+# Configure matplotlib
+import matplotlib
+matplotlib.use('Agg')
+
+# Setup logging
+logger = logging.getLogger(__name__)
+# logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
+
+# 创建文件处理器
+log_filename = f"logs/debug_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+file_handler = logging.FileHandler(log_filename)
+# file_handler.setLevel(logging.DEBUG)
+file_handler.setLevel(logging.INFO)
+
+# 创建格式器
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+
+# 添加处理器到logger
+logger.addHandler(file_handler)
+
+# Import required modules
+from mdp_workflow_generator import MDPWorkflowGenerator
+from mcp_embedding_manager import MCPEmbeddingManager
+from interactive_executor import InteractiveExecutor, ExecutionState, ToolExecutionResult
+from workflow_reasoning_generator import WorkflowReasoningGenerator
+from tool_capability_manager import ToolCapabilityManager  # <- 修改了这一行：添加导入
+from flawed_workflow_generator import FlawedWorkflowGenerator
+from visualization_utils import WorkflowVisualizationManager, ReportGenerator
+# ======================
+# Data Classes
+# ======================
+
+@dataclass
+class WorkflowQuality:
+    """Metrics for workflow quality assessment"""
+    success_rate: float
+    tool_count: int
+    has_error_handling: bool
+    optimal_sequence_length: int
+    key_tools_identified: int
+    dag_nodes: int
+    dag_edges: int
+    
+    @property
+    def overall_score(self) -> float:
+        score = self.success_rate * 0.4
+        score += min(self.key_tools_identified / max(self.tool_count, 1), 1.0) * 0.3
+        score += (1.0 if self.has_error_handling else 0.0) * 0.2
+        score += min(self.dag_edges / max(self.dag_nodes, 1), 1.0) * 0.1
+        return score
+
+@dataclass
+class ExecutionResult:
+    """Result of a single test execution"""
+    test_id: str
+    task_type: str
+    prompt_type: str
+    success: bool
+    workflow_score: float
+    adherence_scores: Dict[str, float]
+    tool_calls: List[str]
+    execution_time: float
+    phase2_score: float = 0.0
+    quality_score: float = 0.0
+    final_score: float = 0.0
+    error: Optional[str] = None
+    success_level: str = "failure"  # <- 添加了这一行："full_success", "partial_success", or "failure"
+    flaw_severity: Optional[str] = None
+    flaw_type: Optional[str] = None
+
+
+@dataclass
+class ScoringThresholds:
+    """Configuration for all scoring thresholds and constants"""
+    # 语义相似度阈值
+    semantic_match_threshold: float = 0.75
+    critical_tool_threshold: float = 0.75
+    output_tool_threshold: float = 0.7
+    
+    # 工具可靠性基准值
+    validator_reliability: float = 0.95
+    network_reliability: float = 0.70
+    reader_writer_reliability: float = 0.85
+    default_reliability: float = 0.80
+    
+    # 任务最小要求（可配置）
+    task_min_requirements: Dict[str, int] = None
+    
+    # 成功判定阈值
+    partial_success_coverage: float = 0.6
+    full_success_min_tools: float = 1.0
+    
+    # 执行质量阈值
+    efficiency_penalty_threshold: int = 2  # 允许每个工具最多重试次数
+    efficiency_bonus_factor: float = 1.2
+    efficiency_penalty_factor: float = 0.8
+    
+    # 动态学习参数
+    min_history_for_learning: int = 5  # 最少需要的历史数据
+    learning_weight: float = 0.7  # 历史数据权重
+    
+    def __post_init__(self):
+        """Initialize default task requirements if not provided"""
+        if self.task_min_requirements is None:
+            self.task_min_requirements = {
+                'simple_task': 1,
+                'basic_task': 2,
+                'data_pipeline': 3,
+                'api_integration': 2,
+                'multi_stage_pipeline': 3
+            }
+    
+    @classmethod
+    def create_lenient(cls):
+        """Create lenient thresholds for easier scoring"""
+        return cls(
+            semantic_match_threshold=0.6,
+            partial_success_coverage=0.5,
+            efficiency_penalty_threshold=3
+        )
+    
+    @classmethod
+    def create_strict(cls):
+        """Create strict thresholds for harder scoring"""
+        return cls(
+            semantic_match_threshold=0.85,
+            partial_success_coverage=0.8,
+            efficiency_penalty_threshold=1
+        )
+
+# ======================
+# Phase 2: Simplified Scoring
+# ======================
+
+@dataclass
+class SimplifiedScoringConfig:
+    """Phase 2: Simplified scoring configuration with auto-normalization"""
+    # 主维度权重（会自动归一化）
+    task_achievement_weight: float = 0.5
+    execution_quality_weight: float = 0.5
+    
+    # 子维度权重（会自动归一化）
+    required_tools_weight: float = 0.6
+    output_generated_weight: float = 0.4
+    workflow_adherence_weight: float = 0.6
+    efficiency_weight: float = 0.2
+    error_handling_weight: float = 0.2
+    
+    def __post_init__(self):
+        """自动归一化所有权重"""
+        # 归一化主维度
+        main_sum = self.task_achievement_weight + self.execution_quality_weight
+        if main_sum > 0:
+            self.task_achievement_weight /= main_sum
+            self.execution_quality_weight /= main_sum
+        
+        # 归一化task achievement子维度
+        ta_sum = self.required_tools_weight + self.output_generated_weight
+        if ta_sum > 0:
+            self.required_tools_weight /= ta_sum
+            self.output_generated_weight /= ta_sum
+        
+        # 归一化execution quality子维度
+        eq_sum = self.workflow_adherence_weight + self.efficiency_weight + self.error_handling_weight
+        if eq_sum > 0:
+            self.workflow_adherence_weight /= eq_sum
+            self.efficiency_weight /= eq_sum
+            self.error_handling_weight /= eq_sum
+    
+    @classmethod
+    def create_simple(cls, 
+                     focus: str = "balanced",
+                     task_vs_execution: float = 0.5,
+                     tools_importance: float = 0.6,
+                     workflow_importance: float = 0.6):
+        """
+        简化的配置创建方法
+        
+        Args:
+            focus: 预设模式 - "balanced", "task_focused", "quality_focused", "strict"
+            task_vs_execution: 任务完成 vs 执行质量的权重 (0-1, 0=纯执行质量, 1=纯任务完成)
+            tools_importance: 在任务完成中，工具使用的重要性 (0-1)
+            workflow_importance: 在执行质量中，工作流遵循的重要性 (0-1)
+        """
+        # 预设配置
+        presets = {
+            "balanced": {
+                "task_achievement": 0.5,
+                "execution_quality": 0.5,
+                "required_tools": 0.6,
+                "output_generated": 0.4,
+                "workflow_adherence": 0.6,
+                "efficiency": 0.2,
+                "error_handling": 0.2
+            },
+            "task_focused": {
+                "task_achievement": 0.7,
+                "execution_quality": 0.3,
+                "required_tools": 0.7,
+                "output_generated": 0.3,
+                "workflow_adherence": 0.5,
+                "efficiency": 0.2,
+                "error_handling": 0.3
+            },
+            "quality_focused": {
+                "task_achievement": 0.3,
+                "execution_quality": 0.7,
+                "required_tools": 0.5,
+                "output_generated": 0.5,
+                "workflow_adherence": 0.7,
+                "efficiency": 0.2,
+                "error_handling": 0.1
+            },
+            "strict": {
+                "task_achievement": 0.6,
+                "execution_quality": 0.4,
+                "required_tools": 0.8,
+                "output_generated": 0.2,
+                "workflow_adherence": 0.8,
+                "efficiency": 0.1,
+                "error_handling": 0.1
+            }
+        }
+        
+        if focus in presets:
+            preset = presets[focus]
+            return cls(
+                task_achievement_weight=preset["task_achievement"],
+                execution_quality_weight=preset["execution_quality"],
+                required_tools_weight=preset["required_tools"],
+                output_generated_weight=preset["output_generated"],
+                workflow_adherence_weight=preset["workflow_adherence"],
+                efficiency_weight=preset["efficiency"],
+                error_handling_weight=preset["error_handling"]
+            )
+        else:
+            # 自定义配置
+            return cls(
+                task_achievement_weight=task_vs_execution,
+                execution_quality_weight=1 - task_vs_execution,
+                required_tools_weight=tools_importance,
+                output_generated_weight=1 - tools_importance,
+                workflow_adherence_weight=workflow_importance,
+                efficiency_weight=(1 - workflow_importance) / 2,
+                error_handling_weight=(1 - workflow_importance) / 2
+            )
+    
+    def describe(self) -> str:
+        """返回配置的可读描述"""
+        return f"""
+评分配置:
+├─ 任务完成 ({self.task_achievement_weight:.1%})
+│  ├─ 必需工具覆盖: {self.required_tools_weight:.1%}
+│  └─ 输出生成: {self.output_generated_weight:.1%}
+└─ 执行质量 ({self.execution_quality_weight:.1%})
+   ├─ 工作流遵循: {self.workflow_adherence_weight:.1%}
+   ├─ 执行效率: {self.efficiency_weight:.1%}
+   └─ 错误处理: {self.error_handling_weight:.1%}
+"""
+
+def extract_tool_names(tool_calls):
+    """从tool_calls中提取工具名称，处理不同的数据格式"""
+    if not tool_calls:
+        return []
+    
+    if isinstance(tool_calls, list):
+        if not tool_calls:
+            return []
+        
+        # 如果是字典列表
+        if isinstance(tool_calls[0], dict):
+            return [tc.get('tool', '') for tc in tool_calls if 'tool' in tc]
+        # 如果是字符串列表
+        else:
+            return tool_calls
+    
+    return []
+
+class StableScorer:
+    """Phase 2: Stable scoring system implementation"""
+    
+    # 类级别的共享缓存
+    _shared_semantic_cache = {}
+    _shared_success_history = defaultdict(lambda: {'success': 0, 'total': 0})
+    _lock = threading.Lock()  # 添加线程锁
+    
+    def __init__(self, config: SimplifiedScoringConfig = None, verifier=None, 
+                embedding_manager=None, thresholds: ScoringThresholds = None,
+                mdp_generator=None, tool_capability_manager=None):
+        """Initialize with configuration and thresholds"""
+        self.config = config or SimplifiedScoringConfig()
+        self.thresholds = thresholds or ScoringThresholds()
+        self.verifier = verifier
+        
+        # 总是使用单例，忽略传入的 embedding_manager
+        from mcp_embedding_manager import get_embedding_manager
+        self.embedding_manager = get_embedding_manager()   
+        
+        self.mdp_generator = mdp_generator
+        
+        # 使用统一的工具能力管理器
+        self.tool_capability_manager = tool_capability_manager or ToolCapabilityManager()
+        
+        # 使用共享缓存而不是实例缓存
+        self.tool_semantic_cache = StableScorer._shared_semantic_cache
+        self.tool_success_history = StableScorer._shared_success_history
+        
+        # 线程安全的缓存合并
+        if self.mdp_generator and hasattr(self.mdp_generator, 'tool_success_rates'):
+            with StableScorer._lock:
+                for tool_name, stats in self.mdp_generator.tool_success_rates.items():
+                    if tool_name not in self.tool_success_history:
+                        self.tool_success_history[tool_name] = stats.copy()
+                print(f"[INFO] Loaded tool success history for {len(self.tool_success_history)} tools")
+
+        # 日志配置
+        if not self.verifier:
+            print("[WARNING] StableScorer initialized without verifier")
+        print("[INFO] StableScorer initialized with semantic capability")
+    
+    def experiment_with_weights(self, test_cases: List[Dict]) -> None:
+        """实验不同权重配置的效果"""
+        print("\n" + "="*80)
+        print("权重配置实验")
+        print("="*80)
+        
+        for i, test_case in enumerate(test_cases):
+            print(f"\n测试案例 {i+1}:")
+            print(f"  工具调用: {test_case['tool_calls']}")
+            print(f"  必需工具: {test_case['required_tools']}")
+            print(f"  输出生成: {test_case['output_generated']}")
+            print(f"  执行时间: {test_case['execution_time']}s")
+            print(f"  工作流遵循: {test_case['workflow_adherence']:.1%}")
+            
+            # 测试不同配置
+            configs = [
+                ("平衡模式", SimplifiedScoringConfig.create_simple("balanced")),
+                ("任务优先", SimplifiedScoringConfig.create_simple("task_focused")),
+                ("质量优先", SimplifiedScoringConfig.create_simple("quality_focused")),
+                ("严格模式", SimplifiedScoringConfig.create_simple("strict"))
+            ]
+            
+            print("\n  不同配置下的得分:")
+            for config_name, config in configs:
+                self.config = config
+                score, breakdown = self.calculate_stable_score(
+                    {
+                        'tool_calls': test_case['tool_calls'],
+                        'execution_time': test_case['execution_time'],
+                        'output_generated': test_case['output_generated'],
+                        'error_message': test_case.get('error_message')
+                    },
+                    {
+                        'required_tools': test_case['required_tools'],
+                        'expected_time': 10.0,
+                        'adherence_scores': {'overall_adherence': test_case['workflow_adherence']}
+                    }
+                )
+                print(f"    {config_name}: {score:.3f} (任务:{breakdown['task_achievement']:.3f}, 质量:{breakdown['execution_quality']:.3f})")
+    
+ 
+    def calculate_stable_score(self, execution_result: Dict, 
+                            evaluation_context: Dict) -> Tuple[float, Dict]:
+        """Calculate stable score with Phase 2 improvements - without double penalty"""
+        logger.debug(f" SimplifiedStableScorer.calculate_stable_score called")
+        logger.debug(f" execution_result keys: {list(execution_result.keys())}")
+        
+        # 获取成功级别（使用字符串）
+        success_level = execution_result.get('success_level', 'failure')
+        logger.debug(f" success_level: {success_level}")
+        
+        # 1. Calculate raw Task Achievement Score (不调整)
+        task_achievement_raw, ta_details = self._calculate_task_achievement(
+            execution_result, evaluation_context
+        )
+        logger.debug(f" task_achievement_raw: {task_achievement_raw}")
+        
+        # 2. Calculate raw Execution Quality Score (不调整)
+        execution_quality_raw, eq_details = self._calculate_execution_quality(
+            execution_result, evaluation_context
+        )
+        logger.debug(f" execution_quality_raw: {execution_quality_raw}")
+        
+        # 3. 基于成功级别的统一调整策略（加性调整）
+        if success_level == 'full_success':
+            # 全面成功：确保高分，但不过度奖励
+            task_achievement = max(task_achievement_raw, 0.8)
+            execution_quality = max(execution_quality_raw, 0.7)
+            logger.debug(f" Full success adjustments applied")
+            
+        elif success_level == 'partial_success':
+            # 部分成功：适度提升，反映实际完成度
+            task_achievement = max(task_achievement_raw, 0.5)
+            # 执行质量保持原始分数，因为部分成功可能执行质量不高
+            execution_quality = execution_quality_raw
+            logger.debug(f" Partial success adjustments applied")
+            
+        else:  # failure
+            # 失败：不过度惩罚，根据实际进展给分
+            # 检查是否有实质性进展
+            tool_calls = execution_result.get('tool_calls', [])
+            execution_history = execution_result.get('execution_history', [])
+            
+            has_progress = False
+            if execution_history:
+                successful_count = sum(1 for h in execution_history if h.success)
+                has_progress = successful_count > 0
+            elif len(tool_calls) > 0:
+                has_progress = True
+            
+            if has_progress:
+                # 有进展的失败：给予基础分数
+                task_achievement = max(task_achievement_raw * 0.8, 0.2)
+                execution_quality = max(execution_quality_raw * 0.8, 0.2)
+                logger.debug(f" Failure with progress: adjusted scores")
+            else:
+                # 完全失败：仅给予最低分
+                task_achievement = task_achievement_raw * 0.5
+                execution_quality = execution_quality_raw * 0.5
+                logger.debug(f" Complete failure: minimal scores")
+        
+        # 4. 计算最终分数（不再使用multiplier）
+        final_score = (
+            self.config.task_achievement_weight * task_achievement +
+            self.config.execution_quality_weight * execution_quality
+        )
+        
+        logger.debug(f" task_achievement (adjusted): {task_achievement}")
+        logger.debug(f" execution_quality (adjusted): {execution_quality}")
+        logger.debug(f" final_score: {final_score}")
+        
+        # 确保分数合理性
+        if final_score == 0.0 and len(tool_calls) > 0:
+            final_score = 0.05  # 有尝试就给予最小分数
+            logger.debug(f" Adjusted to minimum score for non-empty execution")
+        
+        # 5. Create detailed breakdown
+        breakdown = {
+            'task_achievement': task_achievement,
+            'task_achievement_raw': task_achievement_raw,
+            'task_achievement_details': ta_details,
+            'execution_quality': execution_quality,
+            'execution_quality_raw': execution_quality_raw,
+            'execution_quality_details': eq_details,
+            'success_level': success_level,
+            'final_score': final_score,
+            'has_progress': has_progress if success_level == 'failure' else None
+        }
+        
+        return final_score, breakdown
+
+    def _get_dynamic_success_multiplier(self, success_level: str, 
+                                    execution_result: Dict,
+                                    evaluation_context: Dict) -> float:
+        """获取基于RAG和语义理解的动态成功乘数"""
+        # 基础乘数（使用配置而非硬编码）
+        base_multipliers = {
+            'full_success': self.thresholds.full_success_min_tools,
+            'partial_success': self.thresholds.partial_success_coverage,
+            'failure': 0.0
+        }
+        
+        base_multiplier = base_multipliers.get(success_level, 0.0)
+        
+        # RAG增强：基于语义分析调整乘数
+        if self.embedding_manager and execution_result.get('tool_calls'):
+            try:
+                # 分析工具调用的语义相关性
+                task_type = evaluation_context.get('workflow', {}).get('task_type', '')
+                task_objective = evaluation_context.get('workflow', {}).get('objective', '')
+                
+                # 搜索与任务相关的关键工具
+                search_query = f"{task_type} {task_objective} essential tools"
+                search_results = self.embedding_manager.search(
+                    query=search_query,
+                    k=10,
+                    return_scores=True
+                )
+                
+                # 计算实际调用工具的语义匹配度
+                tool_calls = execution_result.get('tool_calls', [])
+                semantic_match_score = 0.0
+                matched_tools = 0
+                
+                tool_names = extract_tool_names(tool_calls)
+                for result in search_results:
+                    if result.tool_name in tool_names:
+                        semantic_match_score += result.score
+                        matched_tools += 1
+                        print(f"[DEBUG RAG] Tool {result.tool_name} semantic match: {result.score:.3f}")
+                
+                if matched_tools > 0:
+                    avg_semantic_score = semantic_match_score / matched_tools
+                    # 根据语义匹配度调整乘数
+                    if avg_semantic_score > self.thresholds.semantic_match_threshold:
+                        # 高语义匹配度，提升乘数
+                        adjustment = 1.0 + (avg_semantic_score - self.thresholds.semantic_match_threshold) * 0.5
+                        base_multiplier = min(base_multiplier * adjustment, 1.0)
+                        print(f"[DEBUG RAG] Multiplier adjusted up: {base_multiplier:.3f}")
+                    elif success_level == 'partial_success' and avg_semantic_score < 0.5:
+                        # 低语义匹配度的部分成功，降低乘数
+                        base_multiplier *= avg_semantic_score / 0.5
+                        print(f"[DEBUG RAG] Multiplier adjusted down: {base_multiplier:.3f}")
+            except Exception as e:
+                print(f"[DEBUG RAG] Semantic adjustment failed: {e}")
+        
+        return base_multiplier
+
+
+    def _calculate_task_achievement(self, execution_result: Dict, 
+                                evaluation_context: Dict) -> Tuple[float, Dict]:
+        """Calculate raw task achievement score - 不包含success_level调整"""
+        tool_calls = execution_result.get('tool_calls', [])
+        required_tools = evaluation_context.get('required_tools', [])
+        execution_history = execution_result.get('execution_history', [])
+        
+        # 1. Output generation（使用语义检测）
+        output_generated = execution_result.get('output_generated', False)
+        output_score = 0.0
+        
+        if output_generated:
+            output_score = 1.0
+        else:
+            # 使用语义检测
+            output_score = self._detect_output_semantically(tool_calls, execution_history)
+        
+        # 2. Task progress（基于成功执行）
+        progress_score = 0.0
+        if execution_history:
+            successful_tools = [h.tool_name for h in execution_history if h.success]
+            # 使用配置中的任务最小要求
+            task_type = evaluation_context.get('workflow', {}).get('task_type', 'basic_task')
+            min_tools_required = self.thresholds.task_min_requirements.get(
+                task_type, 
+                self.thresholds.task_min_requirements.get('basic_task', 2)
+            )
+            progress_score = min(1.0, len(successful_tools) / max(min_tools_required, 1))
+        else:
+            min_tools_required = self.thresholds.task_min_requirements.get('basic_task', 2)
+            # 从字典列表中提取工具名称
+            if isinstance(tool_calls, list) and tool_calls:
+                if isinstance(tool_calls[0], dict):
+                    unique_tools = set(tc.get('tool', '') for tc in tool_calls if 'tool' in tc)
+                else:
+                    unique_tools = set(tool_calls)
+            else:
+                unique_tools = set()
+            progress_score = min(1.0, len(unique_tools) / max(min_tools_required, 1))
+        
+        # 3. Required tools coverage
+        required_score = 0.0
+        required_score = self._calculate_semantic_tool_coverage(
+            tool_calls, required_tools, execution_history
+        )
+
+        
+        # 4. 计算原始分数（不根据success_level调整）
+        # 权重可以根据任务类型动态调整
+        if output_score > 0.8:
+            # 如果有明确输出，输出权重更高
+            weights = {'output': 0.5, 'progress': 0.3, 'required': 0.2}
+        elif len(required_tools) > 0:
+            # 如果有必需工具，required权重更高
+            weights = {'output': 0.3, 'progress': 0.3, 'required': 0.4}
+        else:
+            # 默认权重
+            weights = {'output': 0.4, 'progress': 0.4, 'required': 0.2}
+        
+        task_achievement = (
+            weights['output'] * output_score +
+            weights['progress'] * progress_score +
+            weights['required'] * required_score
+        )
+        
+        details = {
+            'output_generated': output_score,
+            'progress_score': progress_score,
+            'required_tools_coverage': required_score,
+            'successful_tools': len(successful_tools) if execution_history else len(set(extract_tool_names(tool_calls))),
+            'tools_used': len(set(extract_tool_names(tool_calls))),
+            'required_tools_count': len(required_tools),
+            'used_semantic_matching': self.embedding_manager is not None,
+            'weights_used': weights
+        }
+        
+        return task_achievement, details
+
+    def _evaluate_task_completion_with_rag(self, execution_result: Dict,
+                                        evaluation_context: Dict) -> float:
+        """使用RAG评估任务完成度"""
+        if not self.embedding_manager:
+            return 0.0
+        
+        try:
+            # 获取任务信息
+            task_type = evaluation_context.get('workflow', {}).get('task_type', '')
+            task_objective = evaluation_context.get('workflow', {}).get('objective', '')
+            tool_calls = execution_result.get('tool_calls', [])
+            
+            if not tool_calls:
+                return 0.0
+            
+            # 构建任务完成度查询
+            completion_queries = [
+                f"{task_type} task completion requirements",
+                f"tools needed to {task_objective}",
+                f"essential steps for {task_type}"
+            ]
+            
+            total_score = 0.0
+            query_count = 0
+            
+            for query in completion_queries:
+                search_results = self.embedding_manager.search(
+                    query=query,
+                    k=15,
+                    return_scores=True
+                )
+                
+                # 计算调用的工具与搜索结果的匹配度
+                query_score = 0.0
+                matched_count = 0
+                
+                tool_names = extract_tool_names(tool_calls)
+                for result in search_results:
+                    if result.tool_name in tool_names:
+                        query_score += result.score
+                        matched_count += 1
+                
+                if search_results:
+                    # 归一化分数
+                    normalized_score = (query_score / len(search_results)) * min(matched_count / 3, 1.0)
+                    total_score += normalized_score
+                    query_count += 1
+            
+            return total_score / query_count if query_count > 0 else 0.0
+            
+        except Exception as e:
+            print(f"[DEBUG RAG] Task completion evaluation failed: {e}")
+            return 0.0
+
+    def _detect_output_semantically(self, tool_calls: List[str], 
+                                execution_history: Optional[List] = None) -> float:
+        """使用语义搜索检测是否有输出工具被调用"""
+        if not tool_calls:
+            return 0.0
+        
+        # 优先使用embedding manager进行语义搜索
+        if self.embedding_manager:
+            logger.debug(f" Using semantic search for output detection")
+            
+            # 定义输出相关的语义查询（更通用，避免硬编码）
+            output_semantic_queries = [
+                "tool that produces output or saves results",
+                "tool for writing or exporting data",
+                "tool that generates final deliverables",
+                "tool for persisting computation results"
+            ]
+            
+            max_score = 0.0
+            tool_output_scores = {}
+            
+            # 对每个工具进行语义匹配
+            for tool_name in set(extract_tool_names(tool_calls)):
+                # 检查缓存
+                cache_key = f"output_{tool_name}"
+                if cache_key in self.tool_semantic_cache:
+                    tool_score = self.tool_semantic_cache[cache_key]
+                    logger.debug(f" Cache hit for {tool_name}: {tool_score}")
+                else:
+                    tool_score = 0.0
+                    
+                    # 对每个语义查询进行搜索
+                    for query in output_semantic_queries:
+                        try:
+                            results = self.embedding_manager.search(
+                                query=query,
+                                k=20,  # 增加搜索范围
+                                return_scores=True
+                            )
+                            
+                            # 查找当前工具的得分
+                            for result in results:
+                                if result.tool_name == tool_name:
+                                    tool_score = max(tool_score, result.score)
+                                    logger.debug(f" Tool {tool_name} matches '{query}' with score {result.score}")
+                                    break
+                        
+                        except Exception as e:
+                            logger.debug(f" Semantic search failed for query '{query}': {e}")
+                            continue
+                    
+                    # 缓存结果
+                    self.tool_semantic_cache[cache_key] = tool_score
+                
+                tool_output_scores[tool_name] = tool_score
+                
+                # 如果有执行历史，只考虑成功的工具
+                if execution_history:
+                    tool_success = any(h.tool_name == tool_name and h.success 
+                                    for h in execution_history)
+                    if tool_success and tool_score > self.thresholds.output_tool_threshold:
+                        max_score = max(max_score, tool_score)
+                        logger.debug(f" Successful output tool found: {tool_name} (score: {tool_score})")
+                else:
+                    if tool_score > self.thresholds.output_tool_threshold:
+                        max_score = max(max_score, tool_score)
+            
+            logger.debug(f" Max output score: {max_score}")
+            return max_score
+        
+        else:
+            logger.debug(f" Fallback to pattern matching for output detection")
+            # 使用更智能的回退方案，基于工具描述而非硬编码关键词
+            for tool_name in set(extract_tool_names(tool_calls)):
+                # 尝试从verifier获取工具描述
+                tool_desc = self._get_tool_description(tool_name)
+                if tool_desc and self._analyze_output_capability(tool_desc):
+                    if execution_history:
+                        tool_success = any(h.tool_name == tool_name and h.success 
+                                        for h in execution_history)
+                        if tool_success:
+                            return 1.0
+                    else:
+                        return 1.0
+            
+            return 0.0
+
+    def _analyze_output_capability(self, description: str) -> bool:
+        """分析工具描述判断是否具有输出能力"""
+        if not description:
+            return False
+        
+        desc_lower = description.lower()
+        
+        # 使用更智能的模式匹配
+        output_patterns = [
+            r'\b(write|save|export|output|persist|store)\s+\w+\s+(to|into|as)\b',
+            r'\b(generat|creat|produc)\w*\s+\w*\s*(file|report|output|result)\b',
+            r'\b(send|publish|emit|post)\s+\w+\s+(to|via)\b',
+            r'\bresult\w*\s+(file|data|output)\b'
+        ]
+        
+        import re
+        for pattern in output_patterns:
+            if re.search(pattern, desc_lower):
+                return True
+        
+        return False
+
+    def _get_tool_description(self, tool_name: str) -> Optional[str]:  # <- 新增辅助方法
+        """获取工具的描述信息"""
+        # 尝试从verifier获取工具描述
+        if hasattr(self, 'verifier') and self.verifier:
+            tool_info = self.verifier.tool_registry.get(tool_name, {})
+            if isinstance(tool_info, dict):
+                return tool_info.get('description', '')
+        return None
+
+    def _has_output_semantic_features(self, tool_name: str) -> bool:  # <- 新增辅助方法
+        """检查工具名称是否具有输出相关的语义特征"""
+        # 使用更通用的语义模式，而不是具体的关键词
+        output_patterns = [
+            r'(write|save|export|output|store|persist)',  # 持久化操作
+            r'(publish|emit|send|notify|report)',  # 发布操作
+            r'(generate|create|produce)',  # 生成操作
+            r'(file|data|result).*out',  # 输出模式
+        ]
+        
+        import re
+        tool_lower = tool_name.lower()
+        return any(re.search(pattern, tool_lower) for pattern in output_patterns)
+    
+    def _calculate_semantic_tool_coverage(self, tool_calls: List[str], 
+                                        required_tools: List[str],
+                                        execution_history: List) -> float:
+        """使用语义匹配计算工具覆盖率"""
+        
+        coverage_scores = []
+        
+        for required_tool in required_tools:
+            max_similarity = 0.0
+            
+            # 检查精确匹配
+            tool_names = extract_tool_names(tool_calls) if not isinstance(tool_calls, list) or (tool_calls and isinstance(tool_calls[0], dict)) else tool_calls
+            if required_tool in tool_names:
+                max_similarity = 1.0
+            elif self.embedding_manager:
+                # 使用语义搜索找到最相似的已调用工具
+                # 搜索与required_tool相似的工具
+                similar_results = self.embedding_manager.find_similar_tools(
+                    required_tool, 
+                    k=5,
+                    same_category_only=False
+                )
+                
+                # 检查这些相似工具是否被调用
+                tool_names = extract_tool_names(tool_calls)
+                for similar_tool, similarity in similar_results:
+                    if similar_tool in tool_names:
+                        max_similarity = max(max_similarity, similarity)
+                        print(f"[DEBUG RAG] {required_tool} semantically matched with {similar_tool} (score: {similarity:.3f})")
+                    
+
+            
+            coverage_scores.append(max_similarity)
+        
+        # 返回平均覆盖率
+        return sum(coverage_scores) / len(coverage_scores) if coverage_scores else 0.0
+
+    def _calculate_execution_quality(self, execution_result: Dict,
+                                evaluation_context: Dict) -> Tuple[float, Dict]:
+        """Calculate execution quality score - 关注成功率和效率"""
+        tool_calls = execution_result.get('tool_calls', [])
+        execution_history = execution_result.get('execution_history', [])  # <- 新增
+        
+        # 1. 执行成功率（新增核心指标）  # <- 最重要的质量指标
+        if execution_history:
+            success_count = sum(1 for h in execution_history if h.success)
+            total_attempts = len(execution_history)
+            execution_success_rate = success_count / total_attempts if total_attempts > 0 else 0.0
+        else:
+            # Fallback：假设所有tool_calls都成功
+            execution_success_rate = 0.8 if tool_calls else 0.0
+        
+        # 2. 效率（避免冗余）  # <- 保留但调整
+        unique_tools = len(set(extract_tool_names(tool_calls)))
+        total_calls = len(tool_calls)
+        
+        if total_calls > 0:
+            redundancy_ratio = unique_tools / total_calls
+            # 允许合理的重试
+            if total_calls <= unique_tools * 2:  # 允许每个工具最多2次
+                efficiency = min(1.0, redundancy_ratio * 1.2)  # 给予奖励
+            else:
+                efficiency = redundancy_ratio * 0.8  # 轻微惩罚
+        else:
+            efficiency = 0.0
+        
+        # 3. Workflow adherence（降低权重）  # <- 保留但不是主要指标
+        adherence_scores = evaluation_context.get('adherence_scores', {})
+        workflow_adherence = adherence_scores.get('overall_adherence', 0.5)
+        
+        # 4. 错误恢复（新增）  # <- 奖励从错误中恢复
+        error_recovery_score = 0.0
+        if execution_history and len(execution_history) > 1:
+            # 检查是否有失败后重试成功的模式
+            for i in range(1, len(execution_history)):
+                if (not execution_history[i-1].success and 
+                    execution_history[i].success and 
+                    execution_history[i-1].tool_name == execution_history[i].tool_name):
+                    error_recovery_score = min(1.0, error_recovery_score + 0.3)
+        
+        # 5. 新的权重分配  # <- 调整权重
+        execution_quality = (
+            0.4 * execution_success_rate +    # 成功率最重要
+            0.3 * efficiency +                 # 效率次要
+            0.2 * workflow_adherence +         # workflow参考
+            0.1 * error_recovery_score         # 错误恢复奖励
+        )
+        
+        details = {
+            'execution_success_rate': execution_success_rate,
+            'efficiency': efficiency,
+            'workflow_adherence': workflow_adherence,
+            'error_recovery': error_recovery_score,
+            'unique_tools': unique_tools,
+            'total_calls': total_calls,
+            'redundancy_ratio': 1.0 - redundancy_ratio if total_calls > 0 else 0.0
+        }
+        
+        return execution_quality, details
+        
+    def update_tool_success(self, tool_name: str, success: bool):
+        """更新工具成功历史"""
+        self.tool_success_history[tool_name]['total'] += 1
+        if success:
+            self.tool_success_history[tool_name]['success'] += 1
+        
+        # 如果有MDPWorkflowGenerator，同步更新  # <- 新增
+        if self.mdp_generator and hasattr(self.mdp_generator, 'tool_success_rates'):
+            self.mdp_generator.tool_success_rates[tool_name]['total'] += 1
+            if success:
+                self.mdp_generator.tool_success_rates[tool_name]['success'] += 1
+
+
+    def get_tool_reliability(self, tool_name: str) -> float:
+        """获取工具可靠性评分，优先使用学习数据，包含缓存机制"""
+        # 1. 检查缓存
+        cache_key = f"reliability_{tool_name}"
+        if cache_key in self.tool_semantic_cache:
+            return self.tool_semantic_cache[cache_key]
+        
+        # 2. 使用统一管理器计算可靠性  # <- 修改了这一行
+        reliability = self.tool_capability_manager.get_base_reliability(tool_name)  # <- 修改了这一行
+        
+        # 检查本地历史（保持原有逻辑）
+        if tool_name in self.tool_success_history:
+            stats = self.tool_success_history[tool_name]
+            if stats['total'] >= self.thresholds.min_history_for_learning:
+                reliability = stats['success'] / stats['total']
+        
+        # 3. 缓存结果
+        self.tool_semantic_cache[cache_key] = reliability
+        
+        return reliability
+
+    def _update_execution_history_success(self, execution_history: List):
+        """从执行历史更新工具成功率"""
+        if not execution_history:
+            return
+        
+        for exec_result in execution_history:
+            if hasattr(exec_result, 'tool_name') and hasattr(exec_result, 'success'):
+                self.update_tool_success(exec_result.tool_name, exec_result.success)
+
+# ======================
+# Tool Call Verifier
+# ======================
+
+class ToolCallVerifier:
+    """Verify tool calls against workflow and registry"""
+    
+    def __init__(self, tool_capabilities: Dict[str, Any], embedding_manager=None):  # <- 修改了这一行：添加embedding_manager参数
+        self.tool_registry = tool_capabilities
+        self.tool_names = list(tool_capabilities.keys())
+        self.embedding_manager = embedding_manager  # <- 新增这一行
+        self.categories = self._extract_categories()
+        self.output_tools = self._identify_output_tools()
+        
+    def _extract_categories(self) -> Dict[str, List[str]]:
+        """Extract tool categories"""
+        categories = defaultdict(list)
+        for tool_name, tool_info in self.tool_registry.items():
+            category = self._get_tool_attribute(tool_info, 'category', 'general')
+            categories[category].append(tool_name)
+        return dict(categories)
+    
+
+    def _identify_output_tools(self) -> set:
+        """Identify tools that generate output"""
+        output_keywords = ['write', 'export', 'save', 'output', 'generate', 'create']
+        output_tools = set()
+        
+        # 如果有embedding manager，使用语义搜索  # <- 新增这部分
+        if hasattr(self, 'embedding_manager') and self.embedding_manager:
+            # 使用语义搜索找出所有输出相关的工具
+            output_queries = [
+                "write data to file",
+                "export results", 
+                "save output",
+                "generate report",
+                "create document"
+            ]
+            
+            for query in output_queries:
+                try:
+                    results = self.embedding_manager.search(
+                        query=query,
+                        k=20,  # 获取更多结果
+                        return_scores=True
+                    )
+                    for result in results:
+                        if result.score > 0.7:  # 相似度阈值
+                            output_tools.add(result.tool_name)
+                except Exception as e:
+                    logger.debug(f"Semantic search failed: {e}")
+                    break
+        
+        # Fallback: 原有的关键词匹配  # <- 保留原有逻辑作为fallback
+        for tool_name in self.tool_names:
+            if any(keyword in tool_name.lower() for keyword in output_keywords):
+                output_tools.add(tool_name)
+        
+        return output_tools
+    
+    def _get_tool_attribute(self, tool_info: Any, attr: str, default: Any = None) -> Any:
+        """Safely get tool attribute"""
+        if hasattr(tool_info, attr):
+            return getattr(tool_info, attr, default)
+        elif isinstance(tool_info, dict):
+            return tool_info.get(attr, default)
+        else:
+            return default
+    
+    def get_tool_category(self, tool_name: str) -> str:
+        """Get category for a tool"""
+        tool_info = self.tool_registry.get(tool_name, {})
+        return self._get_tool_attribute(tool_info, 'category', 'general')
+    
+    def get_tool_dependencies(self, tool_name: str) -> List[str]:
+        """Get dependencies for a tool"""
+        tool_info = self.tool_registry.get(tool_name, {})
+        return self._get_tool_attribute(tool_info, 'dependencies', [])
+    
+    def has_output_tool(self, tool_calls: List[str]) -> bool:
+        """Check if tool calls include output generation"""
+        tool_names = extract_tool_names(tool_calls)
+        return bool(set(tool_names) & self.output_tools)
+    
+    def extract_tool_calls(self, llm_response: str) -> List[str]:
+        """Extract tool calls from LLM response"""
+        tool_calls = []
+        
+        # Pattern 1: <tool_call>tool_name</tool_call>
+        pattern1 = r'<tool_call>([^<]+)</tool_call>'
+        matches = re.findall(pattern1, llm_response, re.IGNORECASE | re.DOTALL)
+        
+        for match in matches:
+            tool_name = match.strip()
+            if tool_name in self.tool_names:
+                tool_calls.append(tool_name)
+            else:
+                # Try fuzzy matching
+                matched = self._fuzzy_match_tool(tool_name)
+                if matched:
+                    tool_calls.append(matched)
+        
+        return tool_calls
+    
+    def _fuzzy_match_tool(self, tool_text: str) -> Optional[str]:
+        """Fuzzy match tool name"""
+        tool_lower = tool_text.lower().strip()
+        
+        # Exact match
+        for tool_name in self.tool_names:
+            if tool_name.lower() == tool_lower:
+                return tool_name
+        
+        # Partial match
+        for tool_name in self.tool_names:
+            if tool_lower in tool_name.lower() or tool_name.lower() in tool_lower:
+                return tool_name
+        
+        return None
+
+# ======================
+# Main Tester Class
+# ======================
+# 文件：workflow_quality_test_flawed.py  
+# 位置：第1100-1220行
+# 修复后的完整__init__方法
+
+class WorkflowQualityTester:
+    """Enhanced workflow quality tester with interactive execution"""
+    def __init__(self, generator: MDPWorkflowGenerator, output_dir: str = "workflow_quality_results",
+                 use_phase2_scoring: bool = False, max_workers: int = 5,
+                 save_logs: bool = False, include_required_tools: bool = False,
+                 use_filtered_tools: bool = False, thresholds: Optional[ScoringThresholds] = None,
+                 model: str = "gpt-4o-mini", resume: bool = False):
+        """Initialize tester with configuration"""
+        self.generator = generator
+        self.output_dir = Path(output_dir or f"workflow_tests_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+        self.output_dir.mkdir(exist_ok=True, parents=True)
+        
+        self.use_phase2_scoring = use_phase2_scoring
+        self.max_workers = max_workers
+        self.save_logs = save_logs
+        self.include_required_tools = include_required_tools
+        self.use_filtered_tools = use_filtered_tools
+        self.thresholds = thresholds or ScoringThresholds()
+        self.model = model
+        self.resume = resume  # 存储resume标志
+
+        
+        print(f"DEBUG: Checking generator attributes")
+        print(f"  - has tool_capabilities: {hasattr(generator, 'tool_capabilities')}")
+        print(f"  - has tool_capability_manager: {hasattr(generator, 'tool_capability_manager')}")
+        print(f"  - has task_manager: {hasattr(generator, 'task_manager')}")
+        
+        # Test configuration
+        self.test_config = {
+            'num_tests_per_task': 10,
+            'prompt_types': ['baseline', 'cot', 'react', 'structured'],
+            'task_types': ['data_pipeline', 'api_integration', 'file_processing'],
+            'timeout': 60.0
+        }
+        
+        # 详细的工具信息
+        self.tool_names = generator.tool_names
+        print(f"[INFO] Loaded {len(self.tool_names)} tools from generator")
+        print(f"[INFO] Tool names sample: {self.tool_names[:5]}...")
+        
+        # Task instances storage
+        self.task_instances = {}
+        self.test_history = []
+        self.error_log = []
+        
+        # Metrics storage
+        self.metrics = defaultdict(lambda: defaultdict(list))
+        self.detailed_results = []
+        self.comparative_results = {}
+        self.workflow_metrics = {}
+        
+        # 确保generator有必要的属性
+        if not hasattr(generator, 'task_manager'):
+            print("[WARNING] Generator missing task_manager, functionality may be limited")
+        if not hasattr(generator, 'output_verifier'):
+            print("[WARNING] Generator missing output_verifier, functionality may be limited")
+        
+        # Initialize components - 修复：在创建StableScorer之前初始化所有必需的组件
+        from mcp_embedding_manager import get_embedding_manager
+        self.embedding_manager = get_embedding_manager()       
+        self.task_manager = generator.task_manager
+        self.verifier = generator.output_verifier  # 修复：在使用前先赋值
+        
+        # Initialize LLM client  
+        self.client = self._get_llm_client()
+        
+        # 提前初始化tool_capability_manager
+        print("[DEBUG] Checking if generator has tool_capability_manager attribute")
+        self.tool_capability_manager = generator.tool_capability_manager
+        
+        # Initialize flawed workflow generator
+        # 修复：使用正确的参数创建 FlawedWorkflowGenerator
+        print("[DEBUG] Creating FlawedWorkflowGenerator with correct parameters")
+        self.flawed_generator = FlawedWorkflowGenerator(
+            tool_registry=generator.tool_capabilities,  # 传递工具能力字典作为 tool_registry
+            embedding_manager=generator.embedding_manager,  # 传递嵌入管理器
+            tool_capabilities=generator.tool_capabilities  # 传递工具能力字典
+        )
+        print("[INFO] FlawedWorkflowGenerator initialized successfully")
+        
+        # Initialize Phase 2 scorer - 修复：现在self.verifier已经被正确初始化
+        if self.use_phase2_scoring:
+            print("[INFO] Initializing StableScorer for Phase 2 scoring")
+            print(self.tool_capability_manager)
+            
+            # 准备StableScorer的参数
+            config = SimplifiedScoringConfig()  # 使用默认配置
+            
+            # 创建 StableScorer，使用正确的参数
+            self.stable_scorer = StableScorer(
+                config=config,
+                verifier=self.verifier,  # 修复：现在self.verifier已经存在
+                embedding_manager=self.embedding_manager,
+                thresholds=self.thresholds,
+                mdp_generator=generator,  # 传递整个generator对象
+                tool_capability_manager=self.tool_capability_manager
+            )
+            
+            # 如果generator有工具成功历史，手动更新到stable_scorer
+            tool_history = generator.get_tool_success_history()
+            if tool_history:
+                # 直接更新stable_scorer的tool_success_history
+                for tool_name, stats in tool_history.items():
+                    self.stable_scorer.tool_success_history[tool_name] = stats.copy()
+                print(f"[INFO] Loaded tool success history for {len(tool_history)} tools into StableScorer")
+                
+            print("[INFO] StableScorer initialized successfully")
+        
+        # Initialize rate limiter
+        self.rate_limiter = threading.Semaphore(self.max_workers)
+        
+        # 加载任务实例 - 这是关键的修复！
+        print("[INFO] Loading task instances...")
+        self._load_task_instances()
+        print(f"[INFO] Task instances loaded: {list(self.task_instances.keys())}")
+
+        self.accumulated_stats = None
+        if self.resume:
+            self._load_accumulated_stats()
+            if self.accumulated_stats:
+                logger.info(f"Resumed from previous statistics with {self.accumulated_stats['total_tests']} tests")
+            else:
+                logger.info("No previous statistics found, starting fresh")
+
+
+    def _load_accumulated_stats(self):
+        """加载之前保存的累积统计数据"""
+        stats_path = self.output_dir / "accumulated_stats.json"
+        if stats_path.exists():
+            print(f"[INFO] Loading accumulated statistics from {stats_path}")
+            with open(stats_path, 'r', encoding='utf-8') as f:
+                self.accumulated_stats = json.load(f)
+            print(f"[INFO] Loaded stats: {self.accumulated_stats.get('total_tests', 0)} previous tests")
+        else:
+            print(f"[INFO] No previous statistics found at {stats_path}")
+            self.accumulated_stats = None
+    
+    def _merge_with_accumulated_stats(self, current_results: Dict[str, List[ExecutionResult]], 
+                                     current_summary: Dict[str, Any]) -> Tuple[Dict[str, List[Any]], Dict[str, Any]]:
+        """合并当前结果与累积的统计数据
+        
+        Args:
+            current_results: 当前测试运行的结果
+            current_summary: 当前测试运行的摘要
+            
+        Returns:
+            合并后的结果和摘要
+        """
+        if not self.accumulated_stats:
+            # 没有历史数据，直接返回当前结果
+            return current_results, current_summary
+        
+        print(f"[INFO] Merging with accumulated statistics...")
+        
+        # 合并原始结果
+        merged_results = {}
+        
+        # 首先加载之前的原始结果
+        if 'raw_results' in self.accumulated_stats:
+            for key, results_list in self.accumulated_stats['raw_results'].items():
+                merged_results[key] = []
+                # 将字典转换回ExecutionResult对象
+                for result_dict in results_list:
+                    result = ExecutionResult(
+                        test_id=result_dict['test_id'],
+                        task_type=result_dict['task_type'],
+                        prompt_type=result_dict['prompt_type'],
+                        success=result_dict['success'],
+                        workflow_score=result_dict['workflow_score'],
+                        adherence_scores=result_dict['adherence_scores'],
+                        tool_calls=result_dict['tool_calls'],
+                        execution_time=result_dict['execution_time'],
+                        phase2_score=result_dict.get('phase2_score', 0.0),
+                        quality_score=result_dict.get('quality_score', 0.0),
+                        final_score=result_dict['final_score'],
+                        error=result_dict.get('error'),
+                        success_level=result_dict.get('success_level', 'failure'),
+                        flaw_severity=result_dict.get('flaw_severity'),
+                        flaw_type=result_dict.get('flaw_type')
+                    )
+                    merged_results[key].append(result)
+        
+        # 添加当前结果
+        for key, results_list in current_results.items():
+            if key not in merged_results:
+                merged_results[key] = []
+            merged_results[key].extend(results_list)
+        
+        # 重新计算合并后的摘要
+        merged_summary = self._analyze_results(merged_results)
+        
+        # 保留一些累积的元数据
+        merged_summary['total_runs'] = self.accumulated_stats.get('total_runs', 0) + 1
+        merged_summary['first_run_timestamp'] = self.accumulated_stats.get('first_run_timestamp', 
+                                                                         current_summary.get('timestamp'))
+        merged_summary['last_run_timestamp'] = datetime.now().isoformat()
+        
+        print(f"[INFO] Merged statistics: {merged_summary['total_tests']} total tests across {merged_summary['total_runs']} runs")
+        
+        return merged_results, merged_summary
+    
+    def _save_accumulated_stats(self, all_results: Dict[str, List[ExecutionResult]], 
+                               summary: Dict[str, Any]):
+        """保存累积的统计数据供下次使用
+        
+        Args:
+            all_results: 所有测试结果
+            summary: 分析摘要
+        """
+        # 准备要保存的数据结构（复用现有的_save_complete_analysis_data逻辑）
+        accumulated_data = {
+            'metadata': {
+                'last_update': datetime.now().isoformat(),
+                'total_runs': summary.get('total_runs', 1),
+                'first_run_timestamp': summary.get('first_run_timestamp', datetime.now().isoformat()),
+                'test_config': self.test_config,
+                'model': self.model,
+                'use_phase2_scoring': self.use_phase2_scoring
+            },
+            'summary': summary,
+            'raw_results': {},
+            'total_tests': summary.get('total_tests', 0)
+        }
+        
+        # 保存原始结果（转换为可序列化格式）
+        for key, results_list in all_results.items():
+            accumulated_data['raw_results'][key] = []
+            for result in results_list:
+                # 将ExecutionResult转换为字典
+                result_dict = {
+                    'task_type': result.task_type,
+                    'prompt_type': result.prompt_type,
+                    'test_id': result.test_id,
+                    'success': result.success,
+                    'success_level': result.success_level if hasattr(result, 'success_level') else None,
+                    'final_score': result.final_score,
+                    'execution_time': result.execution_time,
+                    'workflow_score': result.workflow_score,
+                    'adherence_scores': result.adherence_scores,
+                    'tool_calls': result.tool_calls,
+                    'error': result.error,
+                    'phase2_score': result.phase2_score if hasattr(result, 'phase2_score') else None,
+                    'quality_score': result.quality_score if hasattr(result, 'quality_score') else None,
+                    'metrics': result.metrics if hasattr(result, 'metrics') else None,
+                    'flaw_severity': result.flaw_severity if hasattr(result, 'flaw_severity') else None,
+                    'flaw_type': result.flaw_type if hasattr(result, 'flaw_type') else None
+                }
+                accumulated_data['raw_results'][key].append(result_dict)
+        
+        # 保存到文件
+        stats_path = self.output_dir / "accumulated_stats.json"
+        with open(stats_path, 'w', encoding='utf-8') as f:
+            json.dump(accumulated_data, f, indent=2, ensure_ascii=False)
+        logger.info(f"Accumulated statistics saved to {stats_path}")
+    
+    
+    def _load_task_instances(self):
+        """Load task instances from task library"""
+        task_lib_paths = [
+            # Path("mcp_generated_library/task_library_all_difficulties.json"),
+            # Path("mcp_generated_library/task_library_enhanced_v3.json"),
+            # Path("mcp_generated_library/task_library.json")
+            Path("mcp_generated_library/difficulty_versions/task_library_enhanced_v3_easy.json")
+        ]
+        
+        for task_lib_path in task_lib_paths:
+            if task_lib_path.exists():
+                print(f"[INFO] Loading task instances from {task_lib_path}")
+                try:
+                    with open(task_lib_path, 'r') as f:
+                        task_data = json.load(f)
+                    
+                    # Process tasks
+                    tasks = task_data.get('tasks', task_data) if isinstance(task_data, dict) else task_data
+                    
+                    # Index by task type
+                    for task in tasks:
+                        task_type = task.get('task_type', 'unknown')
+                        if task_type not in self.task_instances:
+                            self.task_instances[task_type] = []
+                        self.task_instances[task_type].append(task)
+                    
+                    print(f"[INFO] Loaded {len(tasks)} task instances")
+                    break
+                except Exception as e:
+                    print(f"[WARNING] Failed to load from {task_lib_path}: {e}")
+                    continue
+        
+        if not self.task_instances:
+            print("[WARNING] No task instances loaded from any file")
+
+    def _load_config_file(self) -> Dict[str, Any]:
+        """Load configuration from config directory
+        
+        Returns:
+            dict: Configuration dictionary or empty dict if not found
+        """
+        # 这个方法可以保留用于其他配置，但 API 配置由 APIClientManager 处理
+        from api_client_manager import APIClientManager
+        manager = APIClientManager()
+        return manager._config
+
+    def _get_llm_client(self):
+        """Initialize and return LLM client based on environment configuration
+        
+        Returns:
+            OpenAI or AzureOpenAI client instance
+        """
+        print("[INFO] Initializing LLM client using APIClientManager")
+        
+        # 检查是否需要强制使用 Azure（比如通过环境变量）
+        force_azure = None
+        if os.getenv('FORCE_AZURE_OPENAI', '').lower() == 'true':
+            force_azure = True
+            print("[INFO] Force Azure OpenAI mode enabled")
+        
+        # 获取客户端
+        client = get_api_client(force_azure=force_azure)
+        
+        # 记录使用的客户端类型
+        if isinstance(client, AzureOpenAI):
+            print("[INFO] Using Azure OpenAI client")
+        else:
+            print("[INFO] Using standard OpenAI client")
+            
+        return client
+
+
+
+    def _build_semantic_tool_mapping(self) -> Dict[str, List[str]]:
+        """构建基于语义的任务类型到工具映射"""
+        if not self.generator.embedding_manager:
+            # 回退到简单映射
+            return self._build_simple_tool_mapping()
+        
+        print("[INFO] Building semantic tool mapping for task types")
+        
+        task_type_queries = {
+            'simple_task': [
+                "simple data processing tools",
+                "basic file operations"
+            ],
+            'basic_task': [
+                "data reading and writing tools",
+                "simple transformation tools"
+            ],
+            'data_pipeline': [
+                "data pipeline processing tools",
+                "ETL transformation tools",
+                "data validation and parsing"
+            ],
+            'api_integration': [
+                "API integration tools",
+                "network communication tools",
+                "external service connectors"
+            ],
+            'multi_stage_pipeline': [
+                "complex data processing pipeline",
+                "multi-stage transformation tools",
+                "advanced data orchestration"
+            ]
+        }
+        
+        task_type_tools = {}
+        
+        for task_type, queries in task_type_queries.items():
+            tools = set()
+            
+            for query in queries:
+                # 直接调用，让错误传播  # <- 修改：移除try
+                results = self.generator.embedding_manager.search(
+                    query, k=30, return_scores=True
+                )
+                
+                # 选择相关性高的工具
+                for result in results:
+                    if result.score > self.thresholds.semantic_match_threshold:
+                        tools.add(result.tool_name)
+                        logger.debug(f" {task_type}: {result.tool_name} "
+                            f"(score: {result.score:.3f} for '{query}')")
+            
+            # 确保每个任务类型至少有一些工具
+            if len(tools) < 5:
+                print(f"[WARNING] Only {len(tools)} tools found for {task_type}, adding defaults")
+                tools.update(self._get_default_tools_for_type(task_type))
+            
+            task_type_tools[task_type] = list(tools)
+            print(f"[INFO] {task_type}: {len(task_type_tools[task_type])} tools assigned")
+        
+        return task_type_tools
+
+
+
+    def run_comprehensive_test_parallel(self, 
+                                    task_types: List[str] = None,
+                                    test_flawed: bool = True,
+                                    instances_per_type: int = 3,
+                                    test_severity_levels: bool = True,
+                                    specific_severity: Optional[str] = None,
+                                    selective_flaws: bool = False,  # 新增参数
+                                    flaw_selection: Dict[str, str] = None) -> Dict[str, Any]:  # 新增参数
+        """
+        Run comprehensive workflow quality tests in parallel
+        
+        Args:
+            task_types: List of task types to test
+            test_flawed: Whether to test flawed workflows
+            instances_per_type: Number of instances per task type
+            test_severity_levels: Whether to test different severity levels
+            specific_severity: Specific severity level to test
+            selective_flaws: Whether to use selective flaw generation (NEW)
+            flaw_selection: Custom flaw selection per severity (NEW)
+            
+        Returns:
+            Dictionary containing test results and summary
+        """
+        logger.info("Starting comprehensive workflow quality test")
+        start_time = time.time()
+        
+        # Get task types
+        if task_types is None:
+            task_types = self.generator.get_available_task_types()[:3]
+        
+        # Create output directory
+        self.output_dir.mkdir(exist_ok=True)
+        
+        # Prepare test tasks
+        test_tasks = self._prepare_test_tasks(
+            task_types, test_flawed, instances_per_type, 
+            test_severity_levels, specific_severity,
+            selective_flaws=selective_flaws,  # 传递新参数
+            flaw_selection=flaw_selection      # 传递新参数
+        )
+        
+        # Execute tests in parallel
+        all_results = {}
+        completed_tests = 0
+        total_tests = len(test_tasks)
+        
+        logger.info(f"Executing {total_tests} tests with {self.max_workers} workers")
+        
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            futures = {}
+            
+            # Submit all tasks
+            for task in test_tasks:
+                future = executor.submit(self._execute_test_task_with_rate_limit, task)
+                futures[future] = task
+            
+            # Collect results as they complete
+            for future in as_completed(futures):
+                task = futures[future]
+                completed_tests += 1
+                
+                # Progress update
+                if completed_tests % 10 == 0 or completed_tests == total_tests:
+                    progress = (completed_tests / total_tests) * 100
+                    elapsed = time.time() - start_time
+                    eta = (elapsed / completed_tests) * (total_tests - completed_tests) if completed_tests > 0 else 0
+                    logger.info(f"Progress: {completed_tests}/{total_tests} ({progress:.1f}%) - ETA: {eta:.0f}s")
+                
+                # Get result
+                result = future.result()
+                
+                # Store result
+                key = f"{task['task_type']}_{task['prompt_type']}"
+                if task['prompt_type'] == 'flawed':
+                    # Include flaw type and severity in key for flawed tests
+                    key = f"{task['task_type']}_flawed_{task.get('flaw_type', 'unknown')}_{task.get('flaw_severity', 'medium')}"
+                
+                if key not in all_results:
+                    all_results[key] = []
+                all_results[key].append(result)
+        
+        execution_time = time.time() - start_time
+        logger.info(f"Completed all tests in {execution_time:.1f} seconds")
+        
+        # Process and analyze results
+        summary = self._analyze_results(all_results)
+        summary['execution_time'] = execution_time
+        summary['tests_per_second'] = total_tests / execution_time if execution_time > 0 else 0
+
+        if self.resume and self.accumulated_stats:
+            print("\n📊 Merging with previous test results...")
+            all_results, summary = self._merge_with_accumulated_stats(all_results, summary)
+        
+        
+        # Enhanced analysis for severity levels
+        if test_flawed and test_severity_levels:
+            severity_analysis = self._analyze_severity_impact(all_results)
+            summary['severity_analysis'] = severity_analysis
+        
+        # Save results
+        self._save_results({
+            'summary': summary,
+            'detailed_results': all_results,
+            'test_config': self.test_config,
+            'test_parameters': {
+                'task_types': task_types,
+                'test_flawed': test_flawed,
+                'instances_per_type': instances_per_type,
+                'test_severity_levels': test_severity_levels
+            }
+        })
+
+        # Generate visualizations
+        print("\n📊 Generating visualization plots...")
+        logger.info("Generating visualization plots...")
+        self._generate_visualizations(all_results)
+        print(f"✅ Visualizations saved to {self.output_dir}")
+        
+        # 保存完整的分析数据 - 这是新增的关键功能
+        print("\n💾 Saving complete analysis data...")
+        self._save_complete_analysis_data(all_results, summary)
+        print(f"✅ Complete analysis data saved to {self.output_dir}")
+        
+
+        if self.resume:
+            print("\n💾 Saving accumulated statistics for future runs...")
+            self._save_accumulated_stats(all_results, summary)
+            print(f"✅ Accumulated statistics saved for resume functionality")
+            
+        return {
+            'summary': summary,
+            'all_results': all_results
+        }
+
+    def _save_complete_analysis_data(self, all_results: Dict[str, List[ExecutionResult]], 
+                                    summary: Dict[str, Any]) -> None:
+        """保存所有用于画图和生成报告的完整数据
+        
+        Args:
+            all_results: 所有测试结果的字典
+            summary: 分析摘要
+        """
+        # 准备要保存的数据结构
+        complete_data = {
+            'metadata': {
+                'timestamp': datetime.now().isoformat(),
+                'test_config': self.test_config,
+                'model': self.model,
+                'use_phase2_scoring': self.use_phase2_scoring,
+                'output_dir': str(self.output_dir)
+            },
+            'summary': summary,
+            'raw_results': {},  # 原始结果（ExecutionResult对象）
+            'visualization_data': {},  # 用于可视化的预处理数据
+            'analysis_data': {}  # 用于分析的数据
+        }
+        
+        # 1. 保存原始结果（转换为可序列化格式）
+        for key, results_list in all_results.items():
+            complete_data['raw_results'][key] = []
+            for result in results_list:
+                # 将ExecutionResult转换为字典
+                result_dict = {
+                    'task_type': result.task_type,
+                    'prompt_type': result.prompt_type,
+                    'test_id': result.test_id,
+                    'success': result.success,
+                    'success_level': result.success_level if hasattr(result, 'success_level') else None,
+                    'final_score': result.final_score,
+                    'execution_time': result.execution_time,
+                    'workflow_score': result.workflow_score,
+                    'adherence_scores': result.adherence_scores,
+                    'tool_calls': result.tool_calls,
+                    'error': result.error,
+                    'phase2_score': result.phase2_score if hasattr(result, 'phase2_score') else None,
+                    'quality_score': result.quality_score if hasattr(result, 'quality_score') else None,
+                    'metrics': result.metrics if hasattr(result, 'metrics') else None,
+                    'flaw_severity': result.flaw_severity if hasattr(result, 'flaw_severity') else None,
+                    'flaw_type': result.flaw_type if hasattr(result, 'flaw_type') else None
+                }
+                complete_data['raw_results'][key].append(result_dict)
+        
+        # 2. 准备可视化数据
+        complete_data['visualization_data'] = self._prepare_visualization_data(all_results)
+        
+        # 3. 准备分析数据
+        complete_data['analysis_data'] = self._prepare_analysis_data(all_results)
+        
+        # 保存为JSON文件
+        json_path = self.output_dir / "complete_analysis_data.json"
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(complete_data, f, indent=2, ensure_ascii=False)
+        logger.info(f"Complete analysis data saved to {json_path}")
+        
+        # 同时保存为pickle文件（保留完整的Python对象）
+        pickle_path = self.output_dir / "complete_analysis_data.pkl"
+        with open(pickle_path, 'wb') as f:
+            pickle.dump({
+                'all_results': all_results,  # 原始的ExecutionResult对象
+                'summary': summary,
+                'metadata': complete_data['metadata']
+            }, f)
+        logger.info(f"Pickled data saved to {pickle_path}")
+
+
+
+    def _prepare_visualization_data(self, all_results: Dict[str, List[ExecutionResult]]) -> Dict[str, Any]:
+        """准备用于可视化的数据
+        
+        Args:
+            all_results: 所有测试结果
+            
+        Returns:
+            包含各种可视化所需数据的字典
+        """
+        viz_data = {
+            'success_rates': {},
+            'score_distributions': {},
+            'workflow_adherence': {},
+            'phase2_metrics': {},
+            'execution_times': {},
+            'severity_impact': {},
+            'flaw_sensitivity': {},
+            'quality_breakdown': {},
+            'quality_vs_achievement': {}
+        }
+        
+        # 1. 获取所有任务类型
+        task_types = set()
+        for results in all_results.values():
+            for r in results:
+                task_types.add(r.task_type)
+        
+        # 2. 成功率数据
+        for prompt_type in ['baseline', 'optimal', 'cot', 'flawed']:
+            success_count = 0
+            total_count = 0
+            
+            for results in all_results.values():
+                for r in results:
+                    if r.prompt_type == prompt_type:
+                        total_count += 1
+                        if r.success:
+                            success_count += 1
+            
+            if total_count > 0:
+                viz_data['success_rates'][prompt_type] = {
+                    'rate': success_count / total_count,
+                    'success_count': success_count,
+                    'total_count': total_count
+                }
+        
+        # 3. 分数分布数据
+        for prompt_type in ['baseline', 'optimal', 'cot', 'flawed_light', 'flawed_medium', 'flawed_severe']:
+            scores = []
+            for key, results in all_results.items():
+                for r in results:
+                    if prompt_type == 'flawed_light' and r.prompt_type == 'flawed' and hasattr(r, 'flaw_severity') and r.flaw_severity == 'light':
+                        scores.append(r.final_score)
+                    elif prompt_type == 'flawed_medium' and r.prompt_type == 'flawed' and hasattr(r, 'flaw_severity') and r.flaw_severity == 'medium':
+                        scores.append(r.final_score)
+                    elif prompt_type == 'flawed_severe' and r.prompt_type == 'flawed' and hasattr(r, 'flaw_severity') and r.flaw_severity == 'severe':
+                        scores.append(r.final_score)
+                    elif r.prompt_type == prompt_type and not prompt_type.startswith('flawed_'):
+                        scores.append(r.final_score)
+            
+            if scores:
+                viz_data['score_distributions'][prompt_type] = {
+                    'scores': scores,
+                    'mean': np.mean(scores),
+                    'std': np.std(scores),
+                    'min': min(scores),
+                    'max': max(scores),
+                    'median': np.median(scores)
+                }
+        
+        # 3. Workflow adherence数据
+        for task_type in sorted(task_types):
+            for prompt_type in ['baseline', 'optimal', 'cot']:
+                key = f"{task_type}_{prompt_type}"
+                scores = []
+                for result_key, results in all_results.items():
+                    for r in results:
+                        if r.task_type == task_type and r.prompt_type == prompt_type:
+                            scores.append(r.workflow_score)
+                
+                if scores:
+                    viz_data['workflow_adherence'][key] = {
+                        'scores': scores,
+                        'mean': np.mean(scores),
+                        'std': np.std(scores)
+                    }
+        
+        # 4. Phase2指标数据 - 修复KeyError的部分
+        phase2_results = []
+        for results in all_results.values():
+            phase2_results.extend([r for r in results if hasattr(r, 'phase2_score')])
+        
+        if phase2_results:
+            for metric in ['task_completion', 'execution_success_rate', 'output_accuracy', 'data_flow_integrity']:
+                # 扩展metric_values以包含所有可能的prompt_type
+                metric_values = {
+                    'baseline': [], 
+                    'optimal': [], 
+                    'cot': [],
+                    'flawed_light': [],
+                    'flawed_medium': [],
+                    'flawed_severe': []
+                }
+                
+                for r in phase2_results:
+                    if hasattr(r, 'adherence_scores') and metric in r.adherence_scores:
+                        # 处理prompt_type，将'flawed'转换为带severity的形式
+                        prompt_key = r.prompt_type
+                        
+                        # 如果是flawed类型，根据severity转换key
+                        if r.prompt_type == 'flawed':
+                            if hasattr(r, 'flaw_severity') and r.flaw_severity:
+                                prompt_key = f"flawed_{r.flaw_severity}"
+                                logger.debug(f" Converting flawed to {prompt_key}")
+                            else:
+                                # 如果没有severity信息，尝试从test_id推断
+                                if hasattr(r, 'test_id') and r.test_id:
+                                    if '_light' in r.test_id:
+                                        prompt_key = 'flawed_light'
+                                    elif '_medium' in r.test_id:
+                                        prompt_key = 'flawed_medium'
+                                    elif '_severe' in r.test_id:
+                                        prompt_key = 'flawed_severe'
+                                    else:
+                                        # 如果无法推断，跳过这条记录并打印警告
+                                        print(f"[WARNING] Cannot determine severity for flawed result: {r.test_id}")
+                                        continue
+                                else:
+                                    print(f"[WARNING] Flawed result without severity information, skipping")
+                                    continue
+                        
+                        # 只处理metric_values中存在的prompt_type
+                        if prompt_key in metric_values:
+                            metric_values[prompt_key].append(r.adherence_scores[metric])
+                        else:
+                            # 直接报错，不使用try-except
+                            print(f"[ERROR] Unexpected prompt_type '{prompt_key}' not in metric_values keys: {list(metric_values.keys())}")
+                            print(f"[ERROR] Original prompt_type: {r.prompt_type}, flaw_severity: {getattr(r, 'flaw_severity', 'None')}")
+                            print(f"[ERROR] This will cause program to terminate with traceback")
+                            # 触发错误以获得完整的traceback
+                            raise KeyError(f"prompt_type '{prompt_key}' not found in metric_values. Available keys: {list(metric_values.keys())}")
+                
+                viz_data['phase2_metrics'][metric] = metric_values
+        
+        # 5. 执行时间数据
+        for prompt_type in ['baseline', 'optimal', 'cot']:
+            times = []
+            for results in all_results.values():
+                times.extend([r.execution_time for r in results if r.prompt_type == prompt_type])
+            
+            if times:
+                viz_data['execution_times'][prompt_type] = {
+                    'times': times,
+                    'mean': np.mean(times),
+                    'median': np.median(times),
+                    'percentile_90': np.percentile(times, 90)
+                }
+        
+        # 6. 严重程度影响数据
+        if any(hasattr(r, 'flaw_severity') for results in all_results.values() for r in results):
+            severity_levels = ['light', 'medium', 'severe']
+            for severity in severity_levels:
+                severity_results = []
+                for results in all_results.values():
+                    severity_results.extend([
+                        r for r in results 
+                        if r.prompt_type == 'flawed' and hasattr(r, 'flaw_severity') and r.flaw_severity == severity
+                    ])
+                
+                if severity_results:
+                    viz_data['severity_impact'][severity] = {
+                        'success_rate': sum(r.success for r in severity_results) / len(severity_results),
+                        'avg_score': np.mean([r.final_score for r in severity_results]),
+                        'count': len(severity_results)
+                    }
+        
+        # 7. 缺陷类型敏感性数据
+        if any(hasattr(r, 'flaw_type') for results in all_results.values() for r in results):
+            flaw_types = set()
+            for results in all_results.values():
+                for r in results:
+                    if hasattr(r, 'flaw_type') and r.flaw_type:
+                        flaw_types.add(r.flaw_type)
+            
+            for flaw_type in flaw_types:
+                flaw_results = []
+                for results in all_results.values():
+                    flaw_results.extend([
+                        r for r in results 
+                        if hasattr(r, 'flaw_type') and r.flaw_type == flaw_type
+                    ])
+                
+                if flaw_results:
+                    viz_data['flaw_sensitivity'][flaw_type] = {
+                        'success_rate': sum(r.success for r in flaw_results) / len(flaw_results),
+                        'avg_score': np.mean([r.final_score for r in flaw_results]),
+                        'count': len(flaw_results)
+                    }
+        
+        # 8. 质量分解数据
+        for prompt_type in ['baseline', 'optimal', 'cot', 'flawed']:
+            quality_results = []
+            for results in all_results.values():
+                quality_results.extend([
+                    r for r in results 
+                    if r.prompt_type == prompt_type and hasattr(r, 'quality_score')
+                ])
+            
+            if quality_results:
+                viz_data['quality_breakdown'][prompt_type] = {
+                    'quality_scores': [r.quality_score for r in quality_results],
+                    'workflow_scores': [r.workflow_score for r in quality_results if hasattr(r, 'workflow_score')],
+                    'phase2_scores': [r.phase2_score for r in quality_results if hasattr(r, 'phase2_score')]
+                }
+        
+        # 9. 质量vs成就数据
+        for prompt_type in ['baseline', 'optimal', 'cot']:
+            achievement_quality_data = []
+            for results in all_results.values():
+                for r in results:
+                    if r.prompt_type == prompt_type and hasattr(r, 'adherence_scores'):
+                        if 'task_completion' in r.adherence_scores and hasattr(r, 'quality_score'):
+                            achievement_quality_data.append({
+                                'achievement': r.adherence_scores['task_completion'],
+                                'quality': r.quality_score
+                            })
+            
+            if achievement_quality_data:
+                viz_data['quality_vs_achievement'][prompt_type] = achievement_quality_data
+        
+        return viz_data
+
+    def _prepare_analysis_data(self, all_results: Dict[str, List[ExecutionResult]]) -> Dict[str, Any]:
+        """准备用于分析的数据
+        
+        Args:
+            all_results: 所有测试结果
+            
+        Returns:
+            包含各种分析所需数据的字典
+        """
+        analysis_data = {
+            'task_type_performance': {},
+            'prompt_strategy_comparison': {},
+            'severity_impact_analysis': {},
+            'flaw_type_analysis': {},
+            'quality_metrics': {},
+            'tool_usage_patterns': {}
+        }
+        
+        # 1. 按任务类型的性能分析
+        task_types = set()
+        for results in all_results.values():
+            for r in results:
+                task_types.add(r.task_type)
+        
+        for task_type in sorted(task_types):
+            task_data = {
+                'baseline': {'success_count': 0, 'total': 0, 'scores': []},
+                'optimal': {'success_count': 0, 'total': 0, 'scores': []},
+                'cot': {'success_count': 0, 'total': 0, 'scores': []},
+                'flawed': {'success_count': 0, 'total': 0, 'scores': []}
+            }
+            
+            for results in all_results.values():
+                for r in results:
+                    if r.task_type == task_type:
+                        prompt_type = r.prompt_type
+                        task_data[prompt_type]['total'] += 1
+                        if r.success:
+                            task_data[prompt_type]['success_count'] += 1
+                        task_data[prompt_type]['scores'].append(r.final_score)
+            
+            analysis_data['task_type_performance'][task_type] = task_data
+        
+        # 2. Prompt策略比较
+        for prompt_type in ['baseline', 'optimal', 'cot']:
+            all_scores = []
+            all_success = []
+            all_workflow_scores = []
+            
+            for results in all_results.values():
+                for r in results:
+                    if r.prompt_type == prompt_type:
+                        all_scores.append(r.final_score)
+                        all_success.append(r.success)
+                        all_workflow_scores.append(r.workflow_score)
+            
+            if all_scores:
+                analysis_data['prompt_strategy_comparison'][prompt_type] = {
+                    'count': len(all_scores),
+                    'success_rate': sum(all_success) / len(all_success),
+                    'avg_score': np.mean(all_scores),
+                    'std_score': np.std(all_scores),
+                    'avg_workflow_score': np.mean(all_workflow_scores),
+                    'score_percentiles': {
+                        '25th': np.percentile(all_scores, 25),
+                        '50th': np.percentile(all_scores, 50),
+                        '75th': np.percentile(all_scores, 75),
+                        '90th': np.percentile(all_scores, 90)
+                    }
+                }
+        
+        # 3. 严重程度影响分析 - 修复KeyError问题
+        severity_data = {'light': [], 'medium': [], 'severe': []}
+        for results in all_results.values():
+            for r in results:
+                if r.prompt_type == 'flawed' and hasattr(r, 'flaw_severity'):
+                    # 打印调试信息
+                    logger.debug(f" Processing flawed result with flaw_severity: {r.flaw_severity}")
+                    
+                    # 验证flaw_severity的值是否有效
+                    if r.flaw_severity is None:
+                        print(f"[ERROR] Found flawed result with None flaw_severity")
+                        print(f"[ERROR] test_id: {getattr(r, 'test_id', 'Unknown')}")
+                        print(f"[ERROR] task_type: {r.task_type}")
+                        # 根据要求，直接终止程序
+                        raise ValueError(f"Invalid flaw_severity value 'None' for flawed result. test_id: {getattr(r, 'test_id', 'Unknown')}")
+                    
+                    # 检查flaw_severity是否在有效值列表中
+                    if r.flaw_severity not in severity_data:
+                        print(f"[ERROR] Invalid flaw_severity value: {r.flaw_severity}")
+                        print(f"[ERROR] Valid values are: {list(severity_data.keys())}")
+                        print(f"[ERROR] test_id: {getattr(r, 'test_id', 'Unknown')}")
+                        # 根据要求，直接终止程序
+                        raise ValueError(f"Invalid flaw_severity value '{r.flaw_severity}'. Valid values are: {list(severity_data.keys())}")
+                    
+                    # 只有在验证通过后才添加数据
+                    severity_data[r.flaw_severity].append({
+                        'success': r.success,
+                        'score': r.final_score,
+                        'task_type': r.task_type
+                    })
+        
+        analysis_data['severity_impact_analysis'] = severity_data
+        
+        # 4. 工具使用模式
+        tool_usage = {}
+        for results in all_results.values():
+            for r in results:
+                for tool in r.tool_calls:
+                    if tool not in tool_usage:
+                        tool_usage[tool] = {
+                            'total_calls': 0,
+                            'success_calls': 0,
+                            'prompt_types': {'baseline': 0, 'optimal': 0, 'cot': 0, 'flawed': 0}
+                        }
+                    tool_usage[tool]['total_calls'] += 1
+                    if r.success:
+                        tool_usage[tool]['success_calls'] += 1
+                    tool_usage[tool]['prompt_types'][r.prompt_type] += 1
+        
+        analysis_data['tool_usage_patterns'] = tool_usage
+        
+        return analysis_data
+
+
+    def _analyze_results(self, all_results: Dict[str, List[ExecutionResult]]) -> Dict[str, Any]:
+        """Analyze test results and generate summary statistics
+        
+        Args:
+            all_results: Dictionary mapping test keys to lists of ExecutionResult objects
+            
+        Returns:
+            Dictionary containing summary statistics
+        """
+        # Count tests by type
+        total_baseline = sum(1 for results in all_results.values() 
+                            for r in results if r.prompt_type == "baseline")
+        total_optimal = sum(1 for results in all_results.values() 
+                            for r in results if r.prompt_type == "optimal")
+        total_cot = sum(1 for results in all_results.values() 
+                        for r in results if r.prompt_type == "cot")
+        
+        # Calculate success rates (total = full + partial)
+        success_baseline = sum(1 for results in all_results.values() 
+                            for r in results if r.prompt_type == "baseline" and r.success)
+        success_optimal = sum(1 for results in all_results.values() 
+                            for r in results if r.prompt_type == "optimal" and r.success)
+        success_cot = sum(1 for results in all_results.values() 
+                        for r in results if r.prompt_type == "cot" and r.success)
+        
+        # 分别统计 full success 和 partial success
+        full_success_baseline = sum(1 for results in all_results.values()
+                                for r in results if r.prompt_type == "baseline" and 
+                                getattr(r, 'success_level', '') == "full_success")
+        partial_success_baseline = sum(1 for results in all_results.values()
+                                    for r in results if r.prompt_type == "baseline" and 
+                                    getattr(r, 'success_level', '') == "partial_success")
+        
+        full_success_optimal = sum(1 for results in all_results.values()
+                                for r in results if r.prompt_type == "optimal" and 
+                                getattr(r, 'success_level', '') == "full_success")
+        partial_success_optimal = sum(1 for results in all_results.values()
+                                    for r in results if r.prompt_type == "optimal" and 
+                                    getattr(r, 'success_level', '') == "partial_success")
+        
+        full_success_cot = sum(1 for results in all_results.values()
+                            for r in results if r.prompt_type == "cot" and 
+                            getattr(r, 'success_level', '') == "full_success")
+        partial_success_cot = sum(1 for results in all_results.values()
+                                for r in results if r.prompt_type == "cot" and 
+                                getattr(r, 'success_level', '') == "partial_success")
+        
+        # Calculate average scores
+        baseline_scores = [r.final_score for results in all_results.values() 
+                        for r in results if r.prompt_type == "baseline"]
+        optimal_scores = [r.final_score for results in all_results.values() 
+                        for r in results if r.prompt_type == "optimal"]
+        cot_scores = [r.final_score for results in all_results.values() 
+                    for r in results if r.prompt_type == "cot"]
+        
+        # Calculate success rates with safety checks
+        baseline_success_rate = success_baseline / total_baseline if total_baseline > 0 else 0
+        optimal_success_rate = success_optimal / total_optimal if total_optimal > 0 else 0
+        cot_success_rate = success_cot / total_cot if total_cot > 0 else 0
+        
+        # 计算分级成功率
+        baseline_full_rate = full_success_baseline / total_baseline if total_baseline > 0 else 0
+        baseline_partial_rate = partial_success_baseline / total_baseline if total_baseline > 0 else 0
+        optimal_full_rate = full_success_optimal / total_optimal if total_optimal > 0 else 0
+        optimal_partial_rate = partial_success_optimal / total_optimal if total_optimal > 0 else 0
+        cot_full_rate = full_success_cot / total_cot if total_cot > 0 else 0
+        cot_partial_rate = partial_success_cot / total_cot if total_cot > 0 else 0
+        
+        # Calculate score improvements
+        avg_baseline_score = np.mean(baseline_scores) if baseline_scores else 0
+        avg_optimal_score = np.mean(optimal_scores) if optimal_scores else 0
+        avg_cot_score = np.mean(cot_scores) if cot_scores else 0
+        
+        # Calculate score stability
+        all_scores = baseline_scores + optimal_scores + cot_scores
+        score_stability = 1.0
+        if all_scores:
+            mean_score = np.mean(all_scores)
+            if mean_score > 0:
+                score_stability = 1.0 - (np.std(all_scores) / mean_score)
+            score_stability = max(0.0, min(1.0, score_stability))
+        
+        # 计算 task_breakdown - 按任务类型分解的统计
+        task_breakdown = {}
+        for key, results in all_results.items():
+            if results:
+                task_type = results[0].task_type
+                if task_type not in task_breakdown:
+                    task_breakdown[task_type] = {
+                        'total': 0,
+                        'success': 0,
+                        'baseline_success': 0,
+                        'optimal_success': 0,
+                        'cot_success': 0,
+                        'avg_score': 0.0
+                    }
+                
+                task_scores = []
+                for r in results:
+                    task_breakdown[task_type]['total'] += 1
+                    if r.success:
+                        task_breakdown[task_type]['success'] += 1
+                        if r.prompt_type == 'baseline':
+                            task_breakdown[task_type]['baseline_success'] += 1
+                        elif r.prompt_type == 'optimal':
+                            task_breakdown[task_type]['optimal_success'] += 1
+                        elif r.prompt_type == 'cot':
+                            task_breakdown[task_type]['cot_success'] += 1
+                    task_scores.append(r.final_score)
+                
+                if task_scores:
+                    task_breakdown[task_type]['avg_score'] = np.mean(task_scores)
+        
+        # Print debug information
+        print(f"Debug: Analyzing {len(all_results)} test groups")
+        print(f"Debug: Baseline tests: {total_baseline}, success: {success_baseline}")
+        print(f"Debug: Optimal tests: {total_optimal}, success: {success_optimal}")
+        print(f"Debug: CoT tests: {total_cot}, success: {success_cot}")
+        
+        return {
+            'total_tests': total_baseline + total_optimal + total_cot,
+            'baseline_success_rate': baseline_success_rate,
+            'optimal_success_rate': optimal_success_rate,
+            'cot_success_rate': cot_success_rate,
+            # 添加分级成功率统计
+            'baseline_full_success_rate': baseline_full_rate,
+            'baseline_partial_success_rate': baseline_partial_rate,
+            'optimal_full_success_rate': optimal_full_rate,
+            'optimal_partial_success_rate': optimal_partial_rate,
+            'cot_full_success_rate': cot_full_rate,
+            'cot_partial_success_rate': cot_partial_rate,
+            'success_rate_improvement': optimal_success_rate - baseline_success_rate,
+            'avg_baseline_score': avg_baseline_score,
+            'avg_optimal_score': avg_optimal_score,
+            'avg_cot_score': avg_cot_score,
+            'score_improvement': avg_optimal_score - avg_baseline_score,
+            'score_stability': score_stability,
+            'task_breakdown': task_breakdown,  # 现在已经正确计算
+            'output_dir': str(self.output_dir)  # 确保转换为字符串
+        }
+
+
+
+    def _analyze_severity_impact(self, all_results: Dict[str, List[ExecutionResult]]) -> Dict[str, Any]:
+        """Analyze the impact of different severity levels on flawed workflows
+        
+        Args:
+            all_results: Dictionary of test results
+            
+        Returns:
+            Dictionary containing severity impact analysis
+        """
+        severity_analysis = {
+            'by_severity': {},
+            'by_flaw_type': {},
+            'severity_trends': {},
+            'recommendations': []
+        }
+        
+        # Group results by severity and flaw type
+        for key, results in all_results.items():
+            if '_flawed_' in key:
+                parts = key.split('_')
+                # Extract flaw type and severity from key
+                # Format: task_type_flawed_flaw_type_severity
+                if len(parts) >= 5:
+                    flaw_type = '_'.join(parts[2:-1])  # Handle multi-word flaw types
+                    severity = parts[-1]
+                    
+                    # Initialize structures
+                    if severity not in severity_analysis['by_severity']:
+                        severity_analysis['by_severity'][severity] = {
+                            'success_rate': [],
+                            'scores': [],
+                            'execution_times': []
+                        }
+                    
+                    if flaw_type not in severity_analysis['by_flaw_type']:
+                        severity_analysis['by_flaw_type'][flaw_type] = {
+                            'light': {'success_rate': [], 'scores': []},
+                            'medium': {'success_rate': [], 'scores': []},
+                            'severe': {'success_rate': [], 'scores': []}
+                        }
+                    
+                    # Aggregate metrics
+                    success_rates = [r.success for r in results]
+                    scores = [r.final_score for r in results]
+                    execution_times = [r.execution_time for r in results]
+                    
+                    severity_analysis['by_severity'][severity]['success_rate'].extend(success_rates)
+                    severity_analysis['by_severity'][severity]['scores'].extend(scores)
+                    severity_analysis['by_severity'][severity]['execution_times'].extend(execution_times)
+                    
+                    if severity in severity_analysis['by_flaw_type'][flaw_type]:
+                        severity_analysis['by_flaw_type'][flaw_type][severity]['success_rate'].extend(success_rates)
+                        severity_analysis['by_flaw_type'][flaw_type][severity]['scores'].extend(scores)
+        
+        # Calculate averages and trends
+        for severity, metrics in severity_analysis['by_severity'].items():
+            if metrics['success_rate']:
+                avg_success = np.mean(metrics['success_rate'])
+                avg_score = np.mean(metrics['scores'])
+                avg_time = np.mean(metrics['execution_times'])
+                
+                severity_analysis['severity_trends'][severity] = {
+                    'avg_success_rate': avg_success,
+                    'avg_score': avg_score,
+                    'avg_execution_time': avg_time,
+                    'num_tests': len(metrics['success_rate'])
+                }
+        
+        # Analyze flaw type sensitivity to severity
+        for flaw_type, severity_data in severity_analysis['by_flaw_type'].items():
+            flaw_sensitivity = {}
+            
+            for severity in ['light', 'medium', 'severe']:
+                if severity_data[severity]['success_rate']:
+                    flaw_sensitivity[severity] = {
+                        'avg_success_rate': np.mean(severity_data[severity]['success_rate']),
+                        'avg_score': np.mean(severity_data[severity]['scores'])
+                    }
+            
+            # Calculate severity impact
+            if 'light' in flaw_sensitivity and 'severe' in flaw_sensitivity:
+                impact = flaw_sensitivity['light']['avg_success_rate'] - flaw_sensitivity['severe']['avg_success_rate']
+                severity_analysis['by_flaw_type'][flaw_type]['severity_impact'] = impact
+                
+                # Generate recommendations
+                if impact > 0.5:
+                    severity_analysis['recommendations'].append(
+                        f"{flaw_type} is highly sensitive to severity (impact: {impact:.2f})"
+                    )
+        
+        # Sort flaw types by severity sensitivity
+        sorted_flaws = sorted(
+            [(ft, data.get('severity_impact', 0)) 
+            for ft, data in severity_analysis['by_flaw_type'].items()],
+            key=lambda x: x[1],
+            reverse=True
+        )
+        severity_analysis['most_sensitive_flaws'] = sorted_flaws[:5]
+        
+        return severity_analysis
+
+
+    def analyze_workflow_quality(self, task_type: str) -> 'WorkflowQuality':
+        """Analyze the quality of generated workflow - 与原版保持一致"""
+        # 获取多个代表性instances进行分析  # <- 修改了这一行
+        instances = self._sample_task_instances(task_type, num_samples=5)  # <- 修改了这一行：分析5个instances
+        if not instances:  # <- 修改了这一行
+            # 如果没有instances，创建默认的  # <- 修改了这一行
+            instances = [{  # <- 修改了这一行
+                'task_type': task_type,  # <- 修改了这一行
+                'description': f'Default {task_type} task',  # <- 修改了这一行
+                'required_tools': []  # <- 修改了这一行
+            }]  # <- 修改了这一行
+        
+        # 分析每个instance的workflow质量  # <- 修改了这一行
+        instance_metrics = []  # <- 修改了这一行
+        for instance in instances:  # <- 修改了这一行
+            workflow = self.generator.generate_workflow(task_type, task_instance=instance)  # <- 修改了这一行：传入instance
+            
+            # 确保workflow不为None  # <- 修改了这一行
+            if workflow is None:  # <- 修改了这一行
+                logger.warning(f"Generated workflow is None for instance: {instance.get('id', 'unknown')}")  # <- 修改了这一行
+                continue  # <- 修改了这一行
+            
+            # 确保 workflow_quality 存在
+            if 'workflow_quality' not in workflow:
+                workflow['workflow_quality'] = self.generator._calculate_workflow_quality(workflow)
+            
+            # 提取并验证error_handling  # <- 修改了这一行
+            has_error_handling = False  # <- 修改了这一行
+            if 'error_handling' in workflow and isinstance(workflow['error_handling'], dict):  # <- 修改了这一行
+                # 检查是否有实际的错误处理策略  # <- 修改了这一行
+                has_error_handling = bool(workflow['error_handling'].get('strategies', []))  # <- 修改了这一行
+            
+            # Extract metrics with better defaults
+            metrics = WorkflowQuality(
+                success_rate=workflow.get('success_probability', 0.5),
+                tool_count=len(workflow.get('optimal_sequence', [])),
+                has_error_handling=has_error_handling,  # <- 修改了这一行：使用验证后的值
+                optimal_sequence_length=len(workflow.get('optimal_sequence', [])),
+                key_tools_identified=len(workflow.get('critical_tools', [])),
+                dag_nodes=workflow.get('workflow_dag', {}).get('nodes', 0),
+                dag_edges=workflow.get('workflow_dag', {}).get('edges', 0)
+            )
+            
+            instance_metrics.append(metrics)  # <- 修改了这一行
+        
+        # 聚合多个instance的指标  # <- 修改了这一行
+        if not instance_metrics:  # <- 修改了这一行
+            # 返回默认值  # <- 修改了这一行
+            aggregated_metrics = WorkflowQuality(  # <- 修改了这一行
+                success_rate=0.0,  # <- 修改了这一行
+                tool_count=0,  # <- 修改了这一行
+                has_error_handling=False,  # <- 修改了这一行
+                optimal_sequence_length=0,  # <- 修改了这一行
+                key_tools_identified=0,  # <- 修改了这一行
+                dag_nodes=0,  # <- 修改了这一行
+                dag_edges=0  # <- 修改了这一行
+            )  # <- 修改了这一行
+        else:  # <- 修改了这一行
+            # 计算平均值和统计量  # <- 修改了这一行
+            aggregated_metrics = WorkflowQuality(  # <- 修改了这一行
+                success_rate=np.mean([m.success_rate for m in instance_metrics]),  # <- 修改了这一行
+                tool_count=int(np.mean([m.tool_count for m in instance_metrics])),  # <- 修改了这一行
+                has_error_handling=any(m.has_error_handling for m in instance_metrics),  # <- 修改了这一行：至少一个有错误处理
+                optimal_sequence_length=int(np.mean([m.optimal_sequence_length for m in instance_metrics])),  # <- 修改了这一行
+                key_tools_identified=int(np.mean([m.key_tools_identified for m in instance_metrics])),  # <- 修改了这一行
+                dag_nodes=int(np.mean([m.dag_nodes for m in instance_metrics])),  # <- 修改了这一行
+                dag_edges=int(np.mean([m.dag_edges for m in instance_metrics]))  # <- 修改了这一行
+            )  # <- 修改了这一行
+            
+            # 记录分析的详细信息（用于调试）  # <- 修改了这一行
+            logger.info(f"Analyzed {len(instance_metrics)} instances for {task_type}")  # <- 修改了这一行
+            logger.info(f"Success rate range: {min(m.success_rate for m in instance_metrics):.2f} - "  # <- 修改了这一行
+                    f"{max(m.success_rate for m in instance_metrics):.2f}")  # <- 修改了这一行
+            logger.info(f"Tool count range: {min(m.tool_count for m in instance_metrics)} - "  # <- 修改了这一行
+                    f"{max(m.tool_count for m in instance_metrics)}")  # <- 修改了这一行
+        
+        # Store workflow
+        self.workflow_metrics[task_type] = aggregated_metrics  # <- 修改了这一行：存储聚合后的指标
+        
+        return aggregated_metrics  # <- 修改了这一行：返回聚合后的指标
+    
+    def analyze_flawed_results(self, results: Dict[str, Any]) -> Dict[str, Any]:
+        """分析flawed workflows的测试结果"""
+        analysis = {
+            'task_type': results['task_type'],
+            'severity': results['severity'],
+            'summary': {},
+            'rag_impact': {},
+            'recommendations': []
+        }
+        
+        # 计算总体统计
+        all_success_rates = []
+        all_scores = []
+        rag_flaws = []
+        non_rag_flaws = []
+        
+        for flaw_type, flaw_data in results['flaw_types'].items():
+            metrics = flaw_data.get('metrics', {})
+            if metrics:
+                all_success_rates.append(metrics['success_rate'])
+                all_scores.append(metrics['avg_score'])
+                
+                if metrics.get('uses_rag', False):
+                    rag_flaws.append((flaw_type, metrics))
+                else:
+                    non_rag_flaws.append((flaw_type, metrics))
+        
+        # 总体统计
+        analysis['summary'] = {
+            'avg_success_rate': np.mean(all_success_rates) if all_success_rates else 0.0,
+            'avg_score': np.mean(all_scores) if all_scores else 0.0,
+            'num_flaw_types': len(results['flaw_types']),
+            'num_rag_flaws': len(rag_flaws),
+            'num_non_rag_flaws': len(non_rag_flaws)
+        }
+        
+        # RAG影响分析
+        if rag_flaws and non_rag_flaws:
+            rag_success_rates = [m['success_rate'] for _, m in rag_flaws]
+            non_rag_success_rates = [m['success_rate'] for _, m in non_rag_flaws]
+            
+            analysis['rag_impact'] = {
+                'rag_flaws_avg_success': np.mean(rag_success_rates),
+                'non_rag_flaws_avg_success': np.mean(non_rag_success_rates),
+                'rag_improvement': np.mean(rag_success_rates) - np.mean(non_rag_success_rates)
+            }
+        
+        # 生成建议
+        worst_flaws = sorted(
+            [(ft, m['success_rate']) for ft, m in 
+             [(ft, fd.get('metrics', {})) for ft, fd in results['flaw_types'].items() if fd.get('metrics')]],
+            key=lambda x: x[1]
+        )[:3]
+        
+        for flaw_type, success_rate in worst_flaws:
+            if success_rate < 0.3:
+                analysis['recommendations'].append(
+                    f"Critical: {flaw_type} has very low success rate ({success_rate:.1%})"
+                )
+        
+        if analysis['rag_impact'].get('rag_improvement', 0) > 0.1:
+            analysis['recommendations'].append(
+                "RAG enhancement shows significant improvement for semantic flaws"
+            )
+        
+        return analysis
+
+    def _prepare_test_tasks(self, task_types: List[str], test_flawed: bool,
+                          instances_per_type: int = 1, test_severity_levels: bool = False,
+                          specific_severity: str = None,
+                          selective_flaws: bool = False,  # 新增参数
+                          flaw_selection: Dict[str, str] = None) -> List[Dict]:  # 新增参数
+        """
+        Prepare all test tasks for parallel execution
+        
+        Args:
+            task_types: List of task types to test
+            test_flawed: Whether to test flawed workflows
+            instances_per_type: Number of instances per task type
+            test_severity_levels: Whether to test different severity levels
+            specific_severity: Test only this severity level
+            selective_flaws: Whether to use selective flaw generation
+            flaw_selection: Custom flaw selection per severity
+        """
+        test_tasks = []
+        
+        # 清除所有缓存的workflows
+        if hasattr(self.generator, 'workflows'):
+            logger.info(f"Clearing {len(self.generator.workflows)} cached workflows")
+            self.generator.workflows.clear()
+        
+        # Handle 'all' task type
+        if 'all' in task_types:
+            task_types = list(self.task_instances.keys())
+            print(self.task_instances)
+            logger.info(f"Testing all task types: {task_types}")
+            
+        for task_type in task_types:
+            # Sample task instances
+            instances = self._sample_task_instances(task_type, instances_per_type)
+            if not instances:
+                raise ValueError(f"No instances found for task type '{task_type}'")
+            print(instances)
+            # sleep(10000)
+            
+            # Create test tasks
+            for instance_idx, task_instance in enumerate(instances):
+                # 为每个任务实例生成特定的workflow
+                workflow = self.generator.generate_workflow(
+                    task_type, 
+                    task_instance=task_instance
+                )
+                
+                for test_idx in range(self.test_config['num_tests_per_task']):
+                    test_id_base = f"{task_type}_inst{instance_idx}_test{test_idx}"
+                    
+                    # Add tests for each prompt type
+                    for prompt_type in ['baseline', 'optimal', 'cot']:
+                        test_tasks.append({
+                            'task_type': task_type,
+                            'test_id': f"{test_id_base}_{prompt_type}",
+                            'workflow': workflow,
+                            'prompt_type': prompt_type,
+                            'fixed_task_instance': task_instance
+                        })
+                    
+                    # Add flawed workflow tests if enabled
+
+
+                    if test_flawed:
+                        logger.debug(f" Generating flawed workflows for {task_type}")
+                        
+                        # 新增：获取required_tools并设置过滤器
+                        required_tools = task_instance.get('required_tools', [])
+                        print(f"[DEBUG] Task instance required_tools: {required_tools}")
+                        
+                        if specific_severity:
+                            # 只测试指定的severity
+                            logger.debug(f" Testing only {specific_severity} severity")
+                            
+                            if selective_flaws:
+                                # 使用选择性缺陷生成
+                                if flaw_selection and specific_severity in flaw_selection:
+                                    # 使用指定的缺陷类型
+                                    selection = {specific_severity: flaw_selection[specific_severity]}
+                                else:
+                                    # 随机选择一种缺陷
+                                    selection = {specific_severity: self._get_random_flaw_type()}
+                                
+                                # 新增：设置required_tools过滤器
+                                self.flawed_generator.set_required_tools_filter(required_tools)
+                                print(f"[DEBUG] Set filter before selective flaws generation (specific severity)")
+                                
+                                flawed_workflows = self.flawed_generator.generate_selective_flaws(
+                                    workflow, flaw_selection=selection
+                                )
+                            else:
+                                # 原有逻辑：生成所有缺陷类型
+                                # 新增：设置required_tools过滤器
+                                self.flawed_generator.set_required_tools_filter(required_tools)
+                                print(f"[DEBUG] Set filter before all flaws generation (specific severity)")
+                                
+                                flawed_workflows = self.flawed_generator.generate_all_flaws(
+                                    workflow, severity=specific_severity
+                                )
+                            
+                            for flaw_key, flawed_workflow in flawed_workflows.items():
+                                # 解析flaw_key获取类型和severity
+                                if '_' in flaw_key:
+                                    parts = flaw_key.rsplit('_', 1)
+                                    flaw_type = parts[0] if len(parts) > 1 else flaw_key
+                                    severity = parts[1] if len(parts) > 1 else specific_severity
+                                else:
+                                    flaw_type = flaw_key
+                                    severity = specific_severity
+                                
+                                test_id = f"{test_id_base}_flawed_{flaw_type}_{severity}"
+                                test_tasks.append({
+                                    'task_type': task_type,
+                                    'test_id': test_id,
+                                    'workflow': flawed_workflow,
+                                    'prompt_type': 'flawed',
+                                    'fixed_task_instance': task_instance,
+                                    'flaw_type': flaw_type,
+                                    'flaw_severity': severity
+                                })
+                                
+                        elif test_severity_levels:
+                            # 测试所有severity级别
+                            severity_levels = ['light', 'medium', 'severe']
+                            
+                            if selective_flaws:
+                                # 使用选择性缺陷生成
+                                if not flaw_selection:
+                                    # 使用推荐的选择
+                                    flaw_selection = self.flawed_generator.get_recommended_flaw_selection()
+                                
+                                # 新增：设置required_tools过滤器
+                                self.flawed_generator.set_required_tools_filter(required_tools)
+                                print(f"[DEBUG] Set filter before selective flaws generation (all severities)")
+                                
+                                flawed_workflows = self.flawed_generator.generate_selective_flaws(
+                                    workflow, flaw_selection=flaw_selection
+                                )
+                                
+                                # 处理生成的缺陷
+                                for flaw_key, flawed_workflow in flawed_workflows.items():
+                                    parts = flaw_key.rsplit('_', 1)
+                                    flaw_type = parts[0]
+                                    severity = parts[1]
+                                    
+                                    test_id = f"{test_id_base}_flawed_{flaw_type}_{severity}"
+                                    test_tasks.append({
+                                        'task_type': task_type,
+                                        'test_id': test_id,
+                                        'workflow': flawed_workflow,
+                                        'prompt_type': 'flawed',
+                                        'fixed_task_instance': task_instance,
+                                        'flaw_type': flaw_type,
+                                        'flaw_severity': severity
+                                    })
+                                    logger.debug(f" Added selective flawed test: {flaw_type} with severity {severity}")
+                            else:
+                                # 原有逻辑：为每个severity生成所有缺陷
+                                for severity in severity_levels:
+                                    # 新增：每次循环都设置required_tools过滤器
+                                    self.flawed_generator.set_required_tools_filter(required_tools)
+                                    print(f"[DEBUG] Set filter before all flaws generation (severity: {severity})")
+                                    
+                                    flawed_workflows = self.flawed_generator.generate_all_flaws(
+                                        workflow, severity=severity
+                                    )
+                                    
+                                    for flaw_type, flawed_workflow in flawed_workflows.items():
+                                        test_id = f"{test_id_base}_flawed_{flaw_type}_{severity}"
+                                        test_tasks.append({
+                                            'task_type': task_type,
+                                            'test_id': test_id,
+                                            'workflow': flawed_workflow,
+                                            'prompt_type': 'flawed',
+                                            'fixed_task_instance': task_instance,
+                                            'flaw_type': flaw_type,
+                                            'flaw_severity': severity
+                                        })
+                        else:
+                            # Original behavior: test with default severity (medium)
+                            if selective_flaws:
+                                # 只生成一种缺陷
+                                selection = {'medium': self._get_random_flaw_type()}
+                                
+                                # 新增：设置required_tools过滤器
+                                self.flawed_generator.set_required_tools_filter(required_tools)
+                                print(f"[DEBUG] Set filter before selective flaws generation (default severity)")
+                                
+                                flawed_workflows = self.flawed_generator.generate_selective_flaws(
+                                    workflow, flaw_selection=selection
+                                )
+                            else:
+                                # 新增：设置required_tools过滤器
+                                self.flawed_generator.set_required_tools_filter(required_tools)
+                                print(f"[DEBUG] Set filter before all flaws generation (default severity)")
+                                
+                                flawed_workflows = self.flawed_generator.generate_all_flaws(workflow)
+                            
+                            for flaw_type, flawed_workflow in flawed_workflows.items():
+                                test_id = f"{test_id_base}_flawed_{flaw_type}"
+                                test_tasks.append({
+                                    'task_type': task_type,
+                                    'test_id': test_id,
+                                    'workflow': flawed_workflow,
+                                    'prompt_type': 'flawed',
+                                    'fixed_task_instance': task_instance,
+                                    'flaw_type': flaw_type,
+                                    'flaw_severity': 'medium'
+                                })
+        
+        logger.info(f"Prepared {len(test_tasks)} test tasks")
+        if test_flawed and selective_flaws:
+            flawed_count = sum(1 for task in test_tasks if task['prompt_type'] == 'flawed')
+            logger.info(f"Including {flawed_count} selective flawed workflow tests")
+        
+        return test_tasks
+    
+    def _get_random_flaw_type(self) -> str:
+        """随机选择一种缺陷类型"""
+        all_flaw_types = []
+        for category_flaws in self.flawed_generator.get_available_flaw_types().values():
+            all_flaw_types.extend(category_flaws)
+        
+        # 如果没有embedding，排除semantic类型
+        if not self.flawed_generator.embedding_manager:
+            all_flaw_types = [f for f in all_flaw_types if not f.startswith('semantic_')]
+        
+        return random.choice(all_flaw_types)
+    
+    def _execute_test_task_with_rate_limit(self, task: Dict) -> ExecutionResult:
+        """Execute a single test task with rate limiting"""
+        with self.rate_limiter:
+            # 确保workflow包含必要的元数据
+            workflow = task['workflow']
+            
+            # 如果是flawed类型，确保workflow字典包含flaw_severity
+            if task['prompt_type'] == 'flawed' and 'flaw_severity' in task:
+                # 打印调试信息
+                logger.debug(f" Setting flaw_severity in workflow: {task.get('flaw_severity')}")
+                workflow = workflow.copy()  # 创建副本以避免修改原始数据
+                workflow['flaw_severity'] = task['flaw_severity']
+            
+            return self._execute_single_test(
+                task['task_type'],
+                task['test_id'],
+                workflow,  # 传递可能修改过的workflow
+                task['prompt_type'],
+                task.get('fixed_task_instance'),
+                task.get('flaw_type')  # 保留原有的flaw_type参数
+            )
+            
+
+    def _save_test_log(self, log_data: Dict, result: ExecutionResult = None):
+        """保存测试日志到文件 - 完全恢复旧版本格式"""
+        if not self.save_logs:
+            return
+            
+        log_dir = self.output_dir / "test_logs"
+        log_dir.mkdir(exist_ok=True)
+        
+        # 使用test_id作为文件名
+        test_id = log_data.get('test_id', 'unknown')
+        log_file = log_dir / f"{test_id}_log.json"
+        
+        # 添加结果信息（如果有）
+        if result:
+            log_data['result'] = {
+                'success': result.success,
+                'final_score': result.final_score,
+                'execution_time': result.execution_time,
+                'workflow_score': result.workflow_score,
+                'adherence_scores': result.adherence_scores,
+                'tool_calls': result.tool_calls,
+                'error': result.error,
+                'phase2_score': result.phase2_score if hasattr(result, 'phase2_score') else None,
+                'quality_score': result.quality_score if hasattr(result, 'quality_score') else None,
+                'metrics': result.metrics if hasattr(result, 'metrics') else None
+            }
+        
+        # 定义自定义序列化函数  # <- 修改了这一行：添加了自定义序列化函数
+        def custom_serializer(obj):  # <- 修改了这一行
+            """处理不可JSON序列化的对象"""  # <- 修改了这一行
+            # 处理dataclass  # <- 修改了这一行
+            if hasattr(obj, '__dataclass_fields__'):  # <- 修改了这一行
+                return {k: getattr(obj, k) for k in obj.__dataclass_fields__}  # <- 修改了这一行
+            # 处理枚举  # <- 修改了这一行
+            elif hasattr(obj, 'name') and hasattr(obj, 'value'):  # <- 修改了这一行
+                return obj.name  # <- 修改了这一行
+            # 处理Path对象  # <- 修改了这一行
+            elif isinstance(obj, Path):  # <- 修改了这一行
+                return str(obj)  # <- 修改了这一行
+            # 默认转换为字符串  # <- 修改了这一行
+            return str(obj)  # <- 修改了这一行
+        
+        # 保存为格式化的JSON
+        with open(log_file, 'w', encoding='utf-8') as f:
+            json.dump(log_data, f, indent=2, ensure_ascii=False, default=custom_serializer)  # <- 修改了这一行：添加default参数
+        
+        # 同时保存一份人类可读的文本版本
+        text_file = log_dir / f"{test_id}_log.txt"
+        with open(text_file, 'w', encoding='utf-8') as f:
+            f.write(f"Test Log: {test_id}\n")
+            f.write("=" * 80 + "\n\n")
+            
+            f.write(f"Task Type: {log_data['task_type']}\n")
+            f.write(f"Prompt Type: {log_data['prompt_type']}\n")
+            f.write(f"Timestamp: {log_data['timestamp']}\n\n")
+            
+            f.write("Task Instance:\n")
+            f.write("-" * 40 + "\n")
+            if log_data['task_instance']:
+                f.write(f"Required Tools: {log_data['task_instance'].get('required_tools', [])}\n")
+                f.write(f"Description: {log_data['task_instance'].get('description', 'N/A')}\n")
+                if not log_data['task_instance'].get('required_tools'):
+                    raise ValueError(
+                        f"Task instance for {log_data['task_type']} has no required tools defined."
+                    )
+            f.write("\n")
+            
+            f.write("Prompt:\n")
+            f.write("-" * 40 + "\n")
+            f.write(log_data['prompt'] + "\n\n")
+            
+            f.write("LLM Response:\n")
+            f.write("-" * 40 + "\n")
+            f.write(log_data['llm_response'] + "\n\n")
+            
+            f.write("Extracted Tool Calls:\n")
+            f.write("-" * 40 + "\n")
+            f.write(str(log_data['extracted_tool_calls']) + "\n\n")
+
+
+    def _execute_single_test(self, task_type: str, test_id: str, 
+                            workflow: Dict, prompt_type: str,
+                            fixed_task_instance: Optional[Dict] = None,
+                            flaw_type: Optional[str] = None) -> ExecutionResult:
+        """执行单个测试（支持flawed workflows）"""
+        start_time = time.time()
+        
+        # 准备日志数据结构
+        log_data = {
+            'test_id': test_id,
+            'task_type': task_type,
+            'prompt_type': prompt_type,
+            'timestamp': datetime.now().isoformat(),
+            'task_instance': fixed_task_instance,
+            'workflow': workflow,
+            'execution_mode': 'interactive'
+        }
+        
+        # 根据prompt类型生成prompt
+        if prompt_type == "baseline":
+            prompt = self._create_baseline_prompt(task_type, fixed_task_instance)
+        elif prompt_type == "optimal":
+            prompt = self._create_optimal_prompt(task_type, workflow, fixed_task_instance)
+        elif prompt_type == "cot":
+            prompt = self._create_cot_prompt(task_type, workflow, fixed_task_instance)
+        elif prompt_type == "flawed":
+            prompt = self._create_flawed_prompt(
+                task_type, workflow, flaw_type or workflow.get('flaw_type', 'unknown'),
+                fixed_task_instance
+            )
+            log_data['flaw_type'] = flaw_type or workflow.get('flaw_type', 'unknown')
+            log_data['flaw_severity'] = workflow.get('flaw_severity', 'medium')
+            
+            # 添加更详细的flawed workflow信息到日志
+            logger.debug(f" Executing flawed test:")
+            print(f"  - Flaw type: {log_data['flaw_type']}")
+            print(f"  - Severity: {log_data['flaw_severity']}")
+            print(f"  - Workflow sequence: {workflow.get('optimal_sequence', [])[:5]}...")  # 显示前5个工具
+        else:
+            raise ValueError(f"Unknown prompt type: {prompt_type}")
+        
+        log_data['prompt'] = prompt
+        
+        # Create interactive executor
+        interactive_executor = InteractiveExecutor(
+            tool_registry=self.verifier.tool_registry,
+            llm_client=self.client,
+            max_turns=10,
+            success_rate=0.8,
+            model=self.model  # <- 新增了这一行
+        )
+        
+        # Execute interactive flow
+        execution_result = interactive_executor.execute_interactive(
+            initial_prompt=prompt,
+            task_instance=fixed_task_instance or {},
+            workflow=workflow,
+            prompt_type=prompt_type
+        )
+        
+        # 保存交互历史
+        log_data['conversation_history'] = execution_result.get('conversation_history', [])
+        log_data['execution_history'] = [
+            {
+                'tool': h.tool_name,
+                'success': h.success,
+                'output': str(h.output) if h.output else None,
+                'error': h.error,
+                'execution_time': h.execution_time
+            }
+            for h in execution_result.get('execution_history', [])
+        ]
+        log_data['execution_summary'] = json.dumps(
+            execution_result.get('final_outputs', {}).get('summary', 'No summary available'),
+            indent=2
+        )
+        
+        # Extract results
+        state = execution_result['state']
+        tool_calls = execution_result['tool_calls']
+        execution_time = execution_result['execution_time']
+        
+        # 使用字符串而不是枚举
+        success_level = execution_result.get('success_level', 'failure')  # <- 修改：使用字符串
+        evaluation_details = execution_result.get('evaluation_details', {})
+        
+        # 判断任务成功（兼容旧逻辑）
+        success = execution_result['success']
+        
+        # 在Phase 2评分中使用成功级别
+        if self.use_phase2_scoring:
+            # 根据成功级别调整评分
+            execution_data = {
+                'tool_calls': tool_calls,
+                'execution_time': execution_time,
+                'output_generated': execution_result.get('output_generated', False),
+                'error_message': None if success else "Task failed",
+                'execution_history': execution_result.get('execution_history', []),
+                'success': success,
+                'success_level': success_level,  # 传递成功级别
+                'evaluation_details': evaluation_details  # 传递评估细节
+            }
+        
+        # 将完整对话保存为llm_response（用于日志）
+        llm_response = json.dumps({
+            'conversation': execution_result.get('conversation_history', []),
+            'final_state': {
+                'task_completed': state.task_completed,
+                'tools_executed': state.executed_tools,
+                'total_turns': len([h for h in execution_result.get('conversation_history', []) 
+                                if h['role'] == 'assistant'])
+            }
+        }, indent=2)
+        
+        log_data['llm_response'] = llm_response
+        log_data['extracted_tool_calls'] = tool_calls
+        
+        # ... 评分逻辑部分保持不变 ...
+        
+        # 判断任务成功
+        success = execution_result['success']
+        if self.use_phase2_scoring:
+            success = (
+                state.task_completed and 
+                len(tool_calls) > 0 and
+                (not fixed_task_instance or 
+                len(set(extract_tool_names(tool_calls)) & set(fixed_task_instance.get('required_tools', []))) > 0)
+            )
+        
+        # Calculate workflow adherence for ALL prompt types
+        adherence_scores = {}
+        
+        # 为所有prompt types计算基于任务完成质量的adherence
+        if workflow and tool_calls:
+            # 使用execution_history获取更准确的执行信息
+            execution_history = execution_result.get('execution_history', [])
+            
+            # 创建基于任务完成的评估上下文
+            evaluation_context = {
+                'task_type': task_type,
+                'task_instance': fixed_task_instance,
+                'workflow': workflow,
+                'execution_sequence': tool_calls,
+                'execution_history': execution_history,
+                'state': execution_result.get('state'),
+                'success': execution_result.get('success', False)
+            }
+            
+            # 计算基于任务完成质量的adherence（而非序列匹配）
+            adherence_scores = self._calculate_task_based_adherence(
+                evaluation_context
+            )
+            
+            # 如果有RAG增强信息，进行调整
+            rag_adjustments = self._calculate_rag_adjustments(
+                tool_calls, 
+                task_type,
+                fixed_task_instance
+            )
+            adherence_scores['rag_boost'] = rag_adjustments.get('semantic_score', 0.0)
+            adherence_scores['overall_adherence'] = min(1.0, 
+                adherence_scores['overall_adherence'] * 0.8 + 
+                rag_adjustments.get('semantic_score', 0.0) * 0.2
+            )
+            
+            print(f"[ADHERENCE] {prompt_type} - Overall: {adherence_scores.get('overall_adherence', 0.0):.3f}")
+
+        # Phase 2 scoring
+        phase2_score = 0.0
+        quality_score = 0.0
+        
+        if self.use_phase2_scoring:
+            # 添加调试信息
+            logger.debug(f" Phase2 scoring for {test_id}")
+            logger.debug(f" execution_result keys: {list(execution_result.keys())}")
+            
+            # 检查execution_history是否存在
+            execution_history = execution_result.get('execution_history', [])
+            if not execution_history and state.execution_history:
+                # 如果execution_result中没有，从state中获取
+                logger.debug(f" Using execution_history from state")
+                execution_history = state.execution_history
+                execution_result['execution_history'] = execution_history
+            
+            logger.debug(f" execution_history length: {len(execution_history)}")
+            logger.debug(f" tool_calls: {tool_calls}")
+            
+            # 使用verifier的output_tools集合，而不是硬编码
+            has_output = False
+            
+            for exec_result in execution_history:
+                if exec_result.success and exec_result.tool_name in self.verifier.output_tools:
+                    has_output = True
+                    logger.debug(f" Found output tool: {exec_result.tool_name}")
+                    break
+            
+            # 如果verifier没有检测到，再使用embedding检测
+            if not has_output and self.embedding_manager:
+                successful_tools = [h.tool_name for h in execution_history if h.success]
+                for tool_name in successful_tools:
+                    if self._is_output_tool_semantic(tool_name):
+                        has_output = True
+                        logger.debug(f" Found output tool via semantic: {tool_name}")
+                        break
+            
+            # 确保output_generated字段存在
+            if 'output_generated' not in execution_result:
+                execution_result['output_generated'] = has_output
+                logger.debug(f" Set output_generated to {has_output}")
+            
+            execution_data = {
+                'tool_calls': tool_calls,
+                'execution_time': execution_time,
+                'output_generated': execution_result.get('output_generated', False),
+                'error_message': None if success else "Task failed",
+                'execution_history': execution_history,
+                'success': success,
+                'success_level': execution_result.get('success_level', 'failure')
+            }
+            
+            evaluation_context = {
+                'workflow': workflow,
+                'required_tools': fixed_task_instance.get('required_tools', []) if fixed_task_instance else [],
+                'expected_time': 10.0,
+                'adherence_scores': adherence_scores
+            }
+            
+            logger.debug(f" Calling calculate_stable_score")
+            logger.debug(f" execution_data keys: {list(execution_data.keys())}")
+            logger.debug(f" evaluation_context keys: {list(evaluation_context.keys())}")
+            
+            phase2_score, score_breakdown = self.stable_scorer.calculate_stable_score(
+                execution_data, evaluation_context
+            )
+            
+            logger.debug(f" phase2_score: {phase2_score}")
+            logger.debug(f" score_breakdown: {score_breakdown}")
+            
+            quality_score = score_breakdown['execution_quality']
+            
+            # 额外检查：如果分数仍然是0，打印更多信息
+            if phase2_score == 0.0:
+                print(f"[WARNING] phase2_score is 0 for {test_id}")
+                print(f"[WARNING] task_achievement: {score_breakdown.get('task_achievement', 'N/A')}")
+                print(f"[WARNING] execution_quality: {score_breakdown.get('execution_quality', 'N/A')}")
+                print(f"[WARNING] success_level: {execution_data['success_level']}")
+        
+        # Create result
+
+        # 定义workflow_score（从adherence_scores中提取）
+        workflow_score = adherence_scores.get('overall_adherence', 0.0)
+        logger.debug(f" workflow_score extracted: {workflow_score}")
+        
+        # 定义final_score（根据use_phase2_scoring选择）
+        final_score = phase2_score if self.use_phase2_scoring else workflow_score
+        logger.debug(f" final_score calculated: {final_score}")
+        
+        # 定义error（如果没有从execution_result中获取）
+        error = execution_result.get('error') if not success else None
+        
+        # Create result
+        result = ExecutionResult(
+            test_id=test_id,
+            task_type=task_type,
+            prompt_type=prompt_type,
+            success=success,
+            workflow_score=workflow_score,
+            adherence_scores=adherence_scores,
+            tool_calls=tool_calls,
+            execution_time=execution_time,
+            phase2_score=phase2_score,
+            quality_score=quality_score,
+            final_score=final_score,
+            error=error,
+            success_level=execution_result.get('success_level', 'failure'),  # <- 添加了这一行
+            flaw_severity=workflow.get('flaw_severity') if prompt_type == 'flawed' else None,
+            flaw_type=flaw_type if prompt_type == 'flawed' else None
+        )
+        
+        # 添加最终检查
+        logger.debug(f" Created ExecutionResult for {test_id}:")
+        logger.debug(f"   success: {result.success}")
+        logger.debug(f"   phase2_score: {result.phase2_score}")
+        logger.debug(f"   quality_score: {result.quality_score}")
+        logger.debug(f"   final_score: {result.final_score}")
+        
+        
+        # 保存详细日志（使用旧版本格式）
+        if self.save_logs:
+            self._save_test_log(log_data, result)
+        
+        return result
+
+
+
+    # 3. 可选：添加评分详情追加方法（如果需要后续追加评分信息）
+    def _append_score_to_log(self, test_id: str, scoring_data: Dict):
+        """追加评分信息到已有的日志"""
+        log_dir = self.output_dir / "test_logs"
+        log_file = log_dir / f"{test_id}_log.json"
+        
+        if log_file.exists():
+            with open(log_file, 'r') as f:
+                data = json.load(f)
+            data['scoring'] = scoring_data
+            with open(log_file, 'w') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+                
+            # 同时更新文本文件
+            text_file = log_dir / f"{test_id}_log.txt"
+            if text_file.exists():
+                with open(text_file, 'a') as f:
+                    f.write("\n\nScoring Details (Appended):\n")
+                    f.write("-" * 40 + "\n")
+                    f.write(json.dumps(scoring_data, indent=2) + "\n")
+
+    def _summarize_data(self, data: Dict) -> str:
+        """Summarize data structure for prompt"""
+        if 'data' in data and isinstance(data['data'], list):
+            return f"numeric array with {len(data['data'])} values"
+        elif 'values' in data and isinstance(data['values'], list):
+            return f"integer array with {len(data['values'])} values"
+        elif 'file_paths' in data:
+            return f"{len(data['file_paths'])} file paths"
+        elif 'api_endpoints' in data:
+            return f"{len(data['api_endpoints'])} API endpoints"
+        else:
+            # 返回数据结构的简要描述
+            keys = list(data.keys())[:3]  # 前3个键
+            return f"structured data with fields: {', '.join(keys)}"
+
+    def _describe_output(self, key: str, value: Dict) -> str:
+        """Describe expected output format"""
+        if key == 'processed_data':
+            return "processed data with success status"
+        elif key == 'pipeline_result':
+            return "pipeline execution result with completion status"
+        elif key == 'api_response':
+            return "API response with status code and data"
+        elif key == 'file_contents':
+            return "file content with encoding information"
+        else:
+            return f"structured output of type '{key}'"
+
+    def _get_task_goals(self, task_type: str, task_instance: Dict) -> str:
+        """Get task-specific goals based on type and instance"""
+        goals = []
+        
+        # 从任务描述中提取具体信息  # <- 新增
+        task_desc = task_instance.get('description', '').lower()  # <- 新增
+        required_tools = task_instance.get('required_tools', [])  # <- 新增
+        
+        if task_type == 'simple_task':
+            if 'data' in task_instance.get('test_input', {}):
+                goals.append("1. Read the input data")
+                goals.append("2. Process or transform the data as needed")
+                goals.append("3. Generate the processed output")
+        
+        elif task_type == 'basic_task':  # <- 新增basic_task的处理
+            if required_tools:  # <- 基于required_tools生成目标
+                goals.append(f"1. Use {required_tools[0]} to begin processing")
+                if len(required_tools) > 1:
+                    goals.append(f"2. Apply {required_tools[1]} for data transformation")
+                if len(required_tools) > 2:
+                    goals.append(f"3. Complete with {required_tools[2]} for final output")
+                goals.append(f"{len(required_tools)+1}. Generate the structured output")
+        
+        elif task_type == 'data_pipeline':
+            goals.append("1. Read data from the input source")
+            goals.append("2. Parse and validate the data")
+            goals.append("3. Transform the data through pipeline stages")
+            goals.append("4. Write the final result")
+        
+        elif task_type == 'api_integration':
+            if 'api_endpoints' in task_instance.get('test_input', {}):  # <- 使用实际数据
+                endpoints = task_instance['test_input']['api_endpoints']
+                goals.append(f"1. Authenticate with the API")
+                goals.append(f"2. Fetch data from {len(endpoints)} endpoints")
+                goals.append("3. Validate the response")
+                goals.append("4. Process and return the data")
+        
+        elif task_type == 'multi_stage_pipeline':
+            if 'pipeline_config' in task_instance.get('test_input', {}):
+                stages = task_instance['test_input']['pipeline_config'].get('stages', 3)
+                goals.append(f"1. Execute {stages} pipeline stages sequentially")
+                goals.append("2. Pass data between stages correctly")
+                goals.append("3. Ensure all stages complete successfully")
+        
+        return '\n'.join(goals) if goals else ""
+    
+
+
+
+    def _get_tools_for_task_type(self, task_type: str, fixed_task_instance: Optional[Dict] = None) -> List[str]:
+        """根据任务类型返回相关的工具子集（基于工具注册表动态生成）"""
+        
+        # 如果不使用筛选，直接返回所有工具  # <- 新增了这部分
+        if not self.use_filtered_tools:  # <- 新增了这一行
+            return sorted(self.verifier.tool_names)  # <- 新增了这一行
+        
+        # 首先，如果有固定任务实例，确保包含其required_tools
+        required_tools = []
+        if fixed_task_instance and 'required_tools' in fixed_task_instance:
+            required_tools = fixed_task_instance['required_tools']
+        
+        # 利用已有的类别信息（从verifier中获取）
+        available_categories = self.verifier.categories
+        
+        # 定义任务类型与工具类别的映射关系
+        task_category_mapping = {
+            'simple_task': {
+                'primary': ['file_operations', 'data_processing'],
+                'secondary': ['utility', 'network'],
+                'operations': ['reader', 'transformer', 'writer', 'tracker', 'fetcher']
+            },
+            'basic_task': {
+                'primary': ['data_processing', 'computation'],
+                'secondary': ['utility'],
+                'operations': ['parser', 'analyzer', 'logger']
+            },
+            'data_pipeline': {
+                'primary': ['file_operations', 'data_processing'],
+                'secondary': ['computation'],
+                'operations': ['reader', 'parser', 'transformer', 'validator', 'writer', 'aggregator']
+            },
+            'api_integration': {
+                'primary': ['network', 'data_processing'],
+                'secondary': ['integration'],
+                'operations': ['fetcher', 'parser', 'transformer', 'poster']
+            },
+            'multi_stage_pipeline': {
+                'primary': ['file_operations', 'data_processing', 'computation'],
+                'secondary': ['integration', 'utility'],
+                'operations': ['reader', 'parser', 'transformer', 'aggregator', 'validator', 'writer']
+            }
+        }
+        
+        # 获取任务类型的配置
+        config = task_category_mapping.get(task_type, {
+            'primary': list(available_categories.keys()),
+            'secondary': [],
+            'operations': []
+        })
+        
+        filtered_tools = []
+        
+        # 1. 首先添加required_tools（最高优先级）
+        for tool in required_tools:
+            if tool in self.verifier.tool_names:
+                filtered_tools.append(tool)
+        
+        # 2. 添加主要类别的工具
+        for category in config['primary']:
+            if category in available_categories:
+                category_tools = available_categories[category]
+                
+                # 如果指定了操作，只选择匹配的工具
+                if config['operations']:
+                    for tool in category_tools:
+                        if tool in filtered_tools:  # 避免重复
+                            continue
+                            
+                        # 检查工具名是否包含任何指定的操作
+                        tool_parts = tool.split('_')
+                        tool_operation = tool_parts[-1] if len(tool_parts) > 1 else ''
+                        # 如果最后一部分是数字，取倒数第二部分
+                        if tool_operation.isdigit() and len(tool_parts) > 2:
+                            tool_operation = tool_parts[-2]
+                        
+                        if any(op in tool_operation for op in config['operations']):
+                            filtered_tools.append(tool)
+                else:
+                    # 没有指定操作，添加类别下的工具（但限制数量）
+                    for tool in category_tools[:5]:
+                        if tool not in filtered_tools:
+                            filtered_tools.append(tool)
+        
+        # 后续筛选逻辑省略...
+        
+        # 去重并排序
+        filtered_tools = sorted(list(set(filtered_tools)))
+        
+        return filtered_tools
+
+    def _filter_duplicate_tools(self, tools: List[str]) -> List[str]:
+        """过滤重复编号的工具，保留基础版本"""
+        base_tools = {}
+        numbered_tools = {}
+        
+        for tool in tools:
+            # 检查是否是编号工具
+            match = re.match(r'(.+?)_(\d+)$', tool)
+            if match:
+                base_name = match.group(1)
+                number = int(match.group(2))
+                if base_name not in numbered_tools:
+                    numbered_tools[base_name] = []
+                numbered_tools[base_name].append((number, tool))
+            else:
+                # 基础工具
+                base_tools[tool] = tool
+        
+        # 对于每个有编号版本的工具，只保留基础版本（如果存在）或最小编号
+        filtered = list(base_tools.values())
+        
+        for base_name, numbered_list in numbered_tools.items():
+            full_base_name = base_name
+            if full_base_name in base_tools:
+                # 如果有基础版本，优先使用
+                continue
+            else:
+                # 否则使用最小编号的版本
+                numbered_list.sort()
+                filtered.append(numbered_list[0][1])
+        
+        return filtered
+    
+    def _create_baseline_prompt(self, task_type: str, 
+                            fixed_task_instance: Optional[Dict] = None) -> str:
+        """Create baseline prompt with tool search capability"""
+        # 使用实际任务实例的描述
+        if fixed_task_instance and 'description' in fixed_task_instance:
+            task_description = fixed_task_instance['description']
+        else:
+            task_description = self._get_task_description(task_type)
+        
+        # 构建详细的任务描述
+        detailed_description = task_description
+        if fixed_task_instance:
+            # 添加输入数据的描述
+            if 'test_input' in fixed_task_instance:
+                inputs = fixed_task_instance['test_input']
+                if inputs:
+                    detailed_description += "\n\nInput Data:"
+                    for key, value in inputs.items():
+                        if isinstance(value, dict):
+                            detailed_description += f"\n- {key}: {self._summarize_data(value)}"
+                        else:
+                            detailed_description += f"\n- {key}: {value}"
+            
+            # 添加期望输出的描述
+            if 'expected_output' in fixed_task_instance:
+                outputs = fixed_task_instance['expected_output']
+                if outputs:
+                    detailed_description += "\n\nExpected Output:"
+                    for key, value in outputs.items():
+                        detailed_description += f"\n- {key}: {self._describe_output(key, value)}"
+            
+            # 添加任务目标
+            task_goals = self._get_task_goals(task_type, fixed_task_instance)
+            if task_goals:
+                detailed_description += f"\n\nTask Goals:\n{task_goals}"
+        
+        # Baseline prompt - 纯任务描述，无workflow指导
+        prompt = f"""Execute a {task_type.replace('_', ' ')} task.
+
+    Task: {detailed_description}
+
+    Tool Search Available:
+    You have access to a comprehensive tool library with specialized tools for various operations.
+    To find relevant tools, use the search command: <tool_search>your search query</tool_search>
+
+    Examples of tool searches:
+    - <tool_search>file reader writer</tool_search>
+    - <tool_search>data validation parser</tool_search>
+    - <tool_search>network api fetch</tool_search>
+
+    After finding the tools you need, execute them using: <tool_call>tool_name</tool_call>
+
+    IMPORTANT - DEFAULT PARAMETERS:
+    Since this is an automated test environment, use these default values when executing tools:
+    - For 'source' or file paths: use "data/input.json"
+    - For 'destination' or output paths: use "data/output.json"
+    - For 'format': use "json"
+    - For 'url' or API endpoints: use "https://api.example.com/data"
+    - For any other parameters: use reasonable defaults based on the context
+
+    DO NOT ask for any clarification or additional information. Proceed with the task using the defaults above.
+
+    EXECUTION MODE:
+    - Execute ONE tool at a time
+    - Wait for feedback after each tool execution
+    - Based on the feedback, decide what to do next
+    - Do NOT list multiple tools to execute - just execute the next one
+
+    Instructions:
+    1. Analyze the task requirements
+    2. Search for appropriate tools based on what you need to do
+    3. Execute the FIRST tool in your workflow
+    4. Wait for feedback
+    5. Based on the result, execute the NEXT tool
+    6. Continue until the task is complete
+    7. Indicate when finished
+
+    Begin by searching for the first tool you need."""
+        
+        if self.include_required_tools and fixed_task_instance:
+            required_tools = fixed_task_instance.get('required_tools', [])
+            if required_tools:
+                prompt += f"\n\nRequired Tools: {', '.join(required_tools)}"
+        
+        return prompt
+    def _get_total_tools_count(self) -> int:
+        """获取工具总数"""
+        if hasattr(self, 'tool_registry'):
+            return len(self.tool_registry)
+        return 100  # 默认值
+
+
+    def _create_optimal_prompt(self, task_type: str, workflow: Dict,
+                            fixed_task_instance: Optional[Dict] = None) -> str:
+        """Create optimal prompt with workflow guidance"""
+        
+        # 不再重新生成 workflow，直接使用传入的 workflow
+        baseline = self._create_baseline_prompt(task_type, fixed_task_instance)
+        
+        # 检查 workflow 是否有智能信息
+        if 'smart_actions' in workflow and workflow['smart_actions']:
+            # 使用 RAG 增强的执行计划
+            execution_plan = self.generator._generate_smart_execution_plan(workflow['smart_actions'])
+            
+            workflow_guidance = f"""
+
+    ## Workflow Execution Plan
+
+    {execution_plan}
+
+    ### Analysis Results:
+    - Tools selected using: {'Semantic search' if workflow.get('used_embeddings') else 'Pattern matching'}
+    - Critical tools identified: {', '.join(workflow.get('critical_tools', [])) or 'None'}
+
+    ### Execution Strategy:
+    1. Follow the recommended sequence for optimal results
+    2. Use alternatives if primary tools fail
+    3. Pay special attention to critical tools
+    4. ALWAYS use default parameters - never ask for user input
+    5. Execute ONE tool at a time and wait for feedback
+
+    REMINDER: This is an automated test. Execute one tool, wait for its result, then proceed to the next.
+    """
+        else:
+            # 使用简单的 workflow 指导
+            workflow_guidance = self._generate_simple_workflow_guidance(workflow)
+            workflow_guidance += "\n\nREMINDER: Execute ONE tool at a time. Wait for feedback before proceeding to the next tool."
+        
+        # 在"Begin by searching for the first tool you need."之前插入workflow guidance
+        insertion_point = "Begin by searching for the first tool you need."
+        if insertion_point in baseline:
+            return baseline.replace(
+                insertion_point,
+                workflow_guidance + "\n\n" + insertion_point
+            )
+        else:
+            # 如果找不到插入点，就在末尾添加
+            return baseline + workflow_guidance
+
+    def _create_flawed_prompt(self, task_type: str, workflow: Dict, 
+                            flaw_type: str, fixed_task_instance: Optional[Dict] = None) -> str:
+        """创建带缺陷的prompt - 不透露缺陷信息以确保公平性"""
+        baseline = self._create_baseline_prompt(task_type, fixed_task_instance)
+        
+        # 使用与optimal prompt完全相同的格式，只是workflow序列是flawed的
+        flawed_sequence = workflow.get('optimal_sequence', [])
+        
+        # 检查 workflow 是否有智能信息（与optimal prompt保持一致）
+        if 'smart_actions' in workflow and workflow['smart_actions']:
+            # 使用 RAG 增强的执行计划
+            execution_plan = self.generator._generate_smart_execution_plan(workflow['smart_actions'])
+            
+            workflow_guidance = f"""
+
+    ## Workflow Execution Plan
+
+    {execution_plan}
+
+    ### Analysis Results:
+    - Tools selected using: {'Semantic search' if workflow.get('used_embeddings') else 'Pattern matching'}
+    - Critical tools identified: {', '.join(workflow.get('critical_tools', [])) or 'None'}
+
+    ### Execution Strategy:
+    1. Follow the recommended sequence for optimal results
+    2. Use alternatives if primary tools fail
+    3. Pay special attention to critical tools
+    4. ALWAYS use default parameters - never ask for user input
+    5. Execute ONE tool at a time and wait for feedback
+
+    IMPORTANT: Execute tools one by one. After each tool execution, wait for feedback before proceeding.
+
+    REMINDER: This is an automated test. Use the default parameters specified earlier for all tool executions.
+    """
+        else:
+            # 使用简单的 workflow 指导（与optimal prompt完全一致）
+            workflow_guidance = f"""
+
+    ## Workflow Execution Plan
+
+    ### Recommended Tool Sequence:
+    {self._format_workflow_sequence(flawed_sequence)}
+
+    ### Key Considerations:
+    - Tools are arranged in logical order
+    - Each tool output feeds into the next step
+    - Handle errors gracefully
+
+    ### Execution Strategy:
+    1. Follow the recommended sequence for optimal results
+    2. Use alternatives if primary tools fail
+    3. Validate outputs at each step
+    4. ALWAYS use default parameters - never ask for user input
+    5. Execute ONE tool at a time and wait for feedback
+
+    IMPORTANT: Execute tools one by one. After each tool execution, wait for feedback before proceeding.
+
+    REMINDER: This is an automated test. Use the default parameters specified earlier for all tool executions.
+    """
+        
+        # 在"Begin by searching for the first tool you need."之前插入workflow guidance
+        insertion_point = "Begin by searching for the first tool you need."
+        if insertion_point in baseline:
+            return baseline.replace(
+                insertion_point,
+                workflow_guidance + "\n\n" + insertion_point
+            )
+        else:
+            # 如果找不到插入点，就在末尾添加
+            return baseline + workflow_guidance
+
+    def _format_workflow_sequence(self, sequence: List[str]) -> str:
+        """格式化工具序列 - 不添加任何缺陷标记"""
+        formatted = []
+        
+        for i, tool in enumerate(sequence):
+            formatted.append(f"{i+1}. {tool}")
+        
+        return '\n'.join(formatted)
+
+    def _create_cot_prompt(self, task_type: str, workflow: Dict,
+                        fixed_task_instance: Optional[Dict] = None) -> str:
+        """Create Chain of Thought prompt"""
+        baseline = self._create_baseline_prompt(task_type, fixed_task_instance)
+        
+        cot_enhancement = """
+
+    **Think step by step about which tools to use and why.**
+
+    Please:
+    1. First explain your reasoning about which tools to use
+    2. Then execute the tools in the order you determined
+    3. Format tool calls as: <tool_call>tool_name</tool_call>
+    4. Use the default parameters specified earlier - do not ask for any user input
+    5. Execute ONE tool at a time and wait for feedback before proceeding
+
+    IMPORTANT EXECUTION RULES:
+    - After explaining your reasoning, execute only the FIRST tool
+    - Wait for the execution result
+    - Based on the feedback, reason about the next step
+    - Execute the next tool
+    - Continue this pattern until task completion
+
+    REMINDER: This is an automated test environment. Always use default values for parameters:
+    - File paths: 'data/input.json' (source), 'data/output.json' (destination)
+    - Format: 'json'
+    - URLs: 'https://api.example.com/data'
+
+    Begin with "Reasoning:" followed by your thought process, then execute the first tool."""
+        
+        # 在"Begin by searching for the first tool you need."之前插入cot enhancement
+        insertion_point = "Begin by searching for the first tool you need."
+        if insertion_point in baseline:
+            return baseline.replace(
+                insertion_point,
+                cot_enhancement + "\n\n" + insertion_point
+            )
+        else:
+            # 如果找不到插入点，就在末尾添加
+            return baseline + cot_enhancement
+
+
+    def _generate_simple_workflow_guidance(self, workflow: Dict) -> str:
+        """生成简单的workflow指导（后备方案）"""
+        raise ValueError("Using backup")
+        optimal_sequence = workflow.get('optimal_sequence', [])
+        critical_tools = workflow.get('critical_tools', [])
+        
+        if not optimal_sequence:
+            return "\n\n## No specific workflow guidance available."
+        
+        guidance_parts = ["\n\n## Workflow Guidance"]
+        
+        # 生成步骤列表
+        guidance_parts.append("\n### Recommended Execution Order:")
+        for i, tool in enumerate(optimal_sequence, 1):
+            if tool in critical_tools:
+                guidance_parts.append(f"{i}. {tool} (CRITICAL - do not skip)")
+            else:
+                guidance_parts.append(f"{i}. {tool}")
+        
+        # 添加关键工具说明
+        if critical_tools:
+            guidance_parts.append(f"\n### Critical Tools: {', '.join(critical_tools)}")
+            guidance_parts.append("These tools are essential for task success and should be executed with care.")
+        
+        # 添加执行建议
+        guidance_parts.append("\n### Execution Tips:")
+        guidance_parts.append("- Follow the recommended order for best results")
+        guidance_parts.append("- Each tool's output typically feeds into the next")
+        guidance_parts.append("- Handle errors gracefully and consider alternatives")
+        guidance_parts.append("- ALWAYS use default parameters - never ask for user input")
+        
+        # 添加参数提醒
+        guidance_parts.append("\n### IMPORTANT - DEFAULT PARAMETERS:")
+        guidance_parts.append("This is an automated test environment. Use these default values:")
+        guidance_parts.append("- For 'source' or file paths: use 'data/input.json'")
+        guidance_parts.append("- For 'destination' or output paths: use 'data/output.json'")
+        guidance_parts.append("- For 'format': use 'json'")
+        guidance_parts.append("- For 'url' or API endpoints: use 'https://api.example.com/data'")
+        
+        return '\n'.join(guidance_parts)
+
+    def _calculate_avg_semantic_score(self, workflow: Dict) -> float:
+        """计算平均语义得分"""
+        if 'smart_actions' not in workflow:
+            return 0.0
+        
+        scores = [action.get('semantic_score', 0.0) for action in workflow['smart_actions']]
+        return sum(scores) / len(scores) if scores else 0.0
+
+    def _has_alternatives(self, workflow: Dict) -> bool:
+        """检查是否有替代工具"""
+        if 'smart_actions' not in workflow:
+            return False
+        
+        for action in workflow['smart_actions']:
+            if action.get('alternatives'):
+                return True
+        return False
+
+
+    def _get_tool_semantic_info(self, tool_name: str, task_description: str) -> Optional[Dict]:
+        """获取工具的语义信息（简化版）"""
+        if not hasattr(self.generator, 'embedding_manager') or not self.generator.embedding_manager:
+            return None
+        
+        try:
+            # 这是一个简化的实现，实际应该调用generator的方法
+            return {
+                'score': 0.75,  # 模拟得分
+                'reasoning': f"Tool {tool_name} semantically matches task requirements",
+                'alternatives': []
+            }
+        except:
+            return None
+
+    def _is_critical_tool_semantic(self, tool_name: str) -> bool:
+        """基于语义判断工具是否关键（不依赖required_tools）"""
+        # 如果有embedding manager，使用语义判断  # <- 新增语义判断
+        if self.embedding_manager:
+            critical_queries = [
+                "read input data",
+                "write output data",
+                "fetch external data",
+                "save results",
+                "export file",
+                "load configuration"
+            ]
+            
+            for query in critical_queries:
+                try:
+                    results = self.embedding_manager.search(
+                        query=query,
+                        k=10,
+                        return_scores=True
+                    )
+                    for result in results:
+                        if result.tool_name == tool_name and result.score > 0.75:
+                            return True
+                except Exception as e:
+                    logger.debug(f"Semantic search failed: {e}")
+                    break
+        
+        # Fallback: 原有的关键词匹配
+        critical_keywords = ['read', 'write', 'fetch', 'save', 'export', 'load', 'writer', 'reader']
+        return any(keyword in tool_name.lower() for keyword in critical_keywords)
+        
+    def _is_output_tool_semantic(self, tool_name: str) -> bool:
+        """使用语义方法判断是否为输出工具 - 完全基于RAG"""
+        # 优先使用embedding进行语义判断
+        if self.embedding_manager:
+            try:
+                # 定义输出工具的语义查询
+                output_queries = [
+                    "tool that produces final output or results",
+                    "tool for writing or saving data persistently",
+                    "tool that exports or delivers processed information"
+                ]
+                
+                # 对每个查询进行语义搜索
+                max_score = 0.0
+                for query in output_queries:
+                    results = self.embedding_manager.search(
+                        query=query,
+                        k=20,
+                        return_scores=True
+                    )
+                    
+                    # 检查目标工具是否在结果中
+                    for result in results:
+                        if result.tool_name == tool_name:
+                            max_score = max(max_score, result.score)
+                            if result.score > self.thresholds.output_tool_threshold:
+                                logger.debug(f" {tool_name} identified as output tool via RAG (score: {result.score:.3f})")
+                                return True
+                
+                # 如果有中等相似度，也考虑工具的具体能力
+                if max_score > 0.6 and hasattr(self, 'stable_scorer') and self.stable_scorer.tool_capability_manager:
+                    # 获取工具能力
+                    if hasattr(self.stable_scorer.mdp_generator, 'mdp') and hasattr(self.stable_scorer.mdp_generator.mdp, 'tool_capabilities'):
+                        capability = self.stable_scorer.mdp_generator.mdp.tool_capabilities.get(tool_name)
+                        if capability and capability.semantic_operations:
+                            # 检查语义操作
+                            output_operations = ['write', 'export', 'save', 'output', 'persist', 'store']
+                            for op in capability.semantic_operations:
+                                if any(out_op in op.lower() for out_op in output_operations):
+                                    logger.debug(f" {tool_name} confirmed as output tool via semantic operations")
+                                    return True
+                
+                logger.debug(f" {tool_name} not identified as output tool (max score: {max_score:.3f})")
+                return False
+                
+            except Exception as e:
+                print(f"[ERROR] Semantic output detection failed: {e}")
+                # 如果语义搜索失败，使用tool_capability_manager
+                if hasattr(self, 'stable_scorer') and self.stable_scorer.tool_capability_manager:
+                    return self.stable_scorer.tool_capability_manager.is_output_tool(tool_name)
+        
+        # 最后的fallback：使用tool_capability_manager
+        if hasattr(self, 'stable_scorer') and self.stable_scorer.tool_capability_manager:
+            return self.stable_scorer.tool_capability_manager.is_output_tool(tool_name)
+        
+        # 如果所有方法都失败，返回False而不是使用硬编码
+        print(f"[WARNING] Unable to determine if {tool_name} is output tool - no embedding manager or capability manager available")
+        return False
+
+    def _get_task_description(self, task_type: str) -> str:
+        """Get task description"""
+        if task_type in self.task_instances and self.task_instances[task_type]:
+            return self.task_instances[task_type][0].get('description', 'Complete the task efficiently')
+        
+        descriptions = {
+            'basic_task': 'Process the input data using appropriate tools',
+            'simple_task': 'Complete a simple processing task',
+            'data_pipeline': 'Execute a data processing pipeline',
+            'api_integration': 'Integrate with external APIs to complete the task',
+            'multi_stage_pipeline': 'Execute a multi-stage processing pipeline'
+        }
+        
+        return descriptions.get(task_type, 'Complete the task efficiently')
+    
+    def _calculate_workflow_adherence(self, expected: List[str], 
+                                    actual: List[str],
+                                    execution_history: Optional[List] = None) -> Dict[str, float]:
+        """Calculate workflow adherence scores - 与原版保持一致"""
+        if not expected or not actual:
+            return {'overall_adherence': 0.0}
+        
+        # 1. 序列覆盖度
+        expected_set = set(expected)
+        actual_set = set(actual)
+        coverage = len(expected_set & actual_set) / len(expected_set)
+        
+        # 2. 顺序相似度 (LCS)
+        lcs_length = self._longest_common_subsequence(expected, actual)
+        order_similarity = lcs_length / len(expected) if expected else 0.0
+        
+        # 3. 执行成功率（如果有执行历史）
+        execution_success_rate = 1.0
+        if execution_history:
+            successful_executions = sum(1 for ex in execution_history if ex.success)
+            execution_success_rate = successful_executions / len(execution_history) if execution_history else 0.0
+        
+        # 4. 完全匹配奖励
+        exact_match_bonus = 0.2 if actual == expected else 0.0
+        
+        # 综合得分计算 - 与原版保持一致的权重
+        overall_adherence = (
+            coverage * 0.4 +
+            order_similarity * 0.3 +
+            execution_success_rate * 0.2 +
+            exact_match_bonus * 0.1
+        )
+        
+        return {
+            'overall_adherence': min(overall_adherence, 1.0),
+            'coverage': coverage,
+            'order_similarity': order_similarity,
+            'execution_success_rate': execution_success_rate,
+            'exact_match': actual == expected
+        }
+    
+
+
+    def _calculate_task_based_adherence(self, evaluation_context: Dict) -> Dict[str, float]:
+        """Calculate adherence based on task completion quality rather than sequence matching"""
+        
+        tool_calls = evaluation_context.get('execution_sequence', [])
+        execution_history = evaluation_context.get('execution_history', [])
+        task_instance = evaluation_context.get('task_instance', {})
+        success = evaluation_context.get('success', False)
+        
+        # 1. 执行成功率（最重要的质量指标）
+        execution_success_rate = 0.0
+        if execution_history:
+            success_count = sum(1 for h in execution_history if h.success)
+            total_attempts = len(execution_history)
+            execution_success_rate = success_count / total_attempts if total_attempts > 0 else 0.0
+        else:
+            # Fallback：假设所有tool_calls都成功
+            execution_success_rate = 0.8 if tool_calls else 0.0
+        
+        # 2. 任务完成度
+        task_completion = 0.0
+        if success:
+            task_completion = 1.0
+        elif tool_calls:
+            # 部分完成的情况
+            required_tools = set(task_instance.get('required_tools', []))
+            if required_tools:
+                used_required = set(extract_tool_names(tool_calls)) & required_tools
+                task_completion = len(used_required) / len(required_tools)
+            else:
+                # 没有required_tools时，基于是否产生输出
+                output_tools = {'data_exporter', 'json_writer', 'csv_writer', 'api_caller'}
+                has_output = any(tool in output_tools for tool in tool_calls)
+                task_completion = 0.7 if has_output else 0.3
+        
+        # 3. 工具多样性（合理使用不同类型的工具）
+        tool_diversity = 0.0
+        if tool_calls:
+            unique_tools = set(extract_tool_names(tool_calls))
+            # 合理的多样性范围是3-7个不同工具
+            if 3 <= len(unique_tools) <= 7:
+                tool_diversity = 1.0
+            elif 2 <= len(unique_tools) <= 10:
+                tool_diversity = 0.7
+            else:
+                tool_diversity = 0.4
+        
+        # 4. 执行效率（避免过度冗余）
+        efficiency = 0.0
+        if tool_calls:
+            unique_count = len(set(extract_tool_names(tool_calls)))
+            total_count = len(tool_calls)
+            if total_count > 0:
+                redundancy_ratio = unique_count / total_count
+                # 允许合理的重试（每个工具最多2次）
+                if total_count <= unique_count * 2:
+                    efficiency = min(1.0, redundancy_ratio * 1.2)
+                else:
+                    efficiency = redundancy_ratio * 0.8
+        
+        # 5. 合理的序列长度
+        sequence_length_score = 0.0
+        if tool_calls:
+            tool_count = len(tool_calls)
+            if 3 <= tool_count <= 15:
+                sequence_length_score = 1.0
+            elif 2 <= tool_count <= 20:
+                sequence_length_score = 0.7
+            else:
+                sequence_length_score = 0.4
+        
+        # 6. 总体遵从度评分 - 基于任务完成质量
+        overall_adherence = (
+            task_completion * 0.4 +           # 40%：任务完成
+            execution_success_rate * 0.3 +    # 30%：执行成功率
+            efficiency * 0.15 +               # 15%：执行效率
+            tool_diversity * 0.1 +            # 10%：工具多样性
+            sequence_length_score * 0.05      # 5%：合理长度
+        )
+        
+        return {
+            'overall_adherence': overall_adherence,
+            'task_completion': task_completion,
+            'execution_success_rate': execution_success_rate,
+            'efficiency': efficiency,
+            'tool_diversity': tool_diversity,
+            'sequence_length_score': sequence_length_score
+        }
+    
+    def _calculate_rag_adjustments(self, tool_calls: List[str], 
+                                task_type: str,
+                                task_instance: Optional[Dict] = None) -> Dict[str, float]:
+        """Calculate RAG-based adjustments to adherence score"""
+        
+        # 构建查询
+        task_desc = task_instance.get('description', '') if task_instance else ''
+        query = f"{task_type} {task_desc}"
+        
+        # 搜索语义相似的工具
+        search_results = self.embedding_manager.search(
+            query=query,
+            k=20,
+            return_scores=True
+        )
+        
+        # 计算使用的工具的语义得分
+        tool_scores = {}
+        for result in search_results:
+            tool_scores[result.tool_name] = result.score
+        
+        # 计算实际使用工具的平均语义得分
+        used_scores = []
+        for tool in tool_calls:
+            if tool in tool_scores:
+                used_scores.append(tool_scores[tool])
+            else:
+                # 未在搜索结果中的工具给予低分
+                used_scores.append(0.3)
+        
+        semantic_score = np.mean(used_scores) if used_scores else 0.0
+        
+        # 检查是否使用了高相关性的工具
+        top_tools = [r.tool_name for r in search_results[:5]]
+        top_tool_usage = sum(1 for t in tool_calls if t in top_tools)
+        top_tool_ratio = top_tool_usage / len(tool_calls) if tool_calls else 0.0
+        
+        return {
+            'semantic_score': semantic_score,
+            'top_tool_ratio': top_tool_ratio,
+            'average_tool_score': np.mean(used_scores) if used_scores else 0.0
+        }
+
+    
+    def _longest_common_subsequence(self, seq1: List[str], seq2: List[str]) -> int:
+        """Calculate longest common subsequence length"""
+        m, n = len(seq1), len(seq2)
+        dp = [[0] * (n + 1) for _ in range(m + 1)]
+        
+        for i in range(1, m + 1):
+            for j in range(1, n + 1):
+                if seq1[i-1] == seq2[j-1]:
+                    dp[i][j] = dp[i-1][j-1] + 1
+                else:
+                    dp[i][j] = max(dp[i-1][j], dp[i][j-1])
+        
+        return dp[m][n]
+    
+    def _sample_task_instances(self, task_type: str, num_samples: int = 1) -> List[Dict]:
+        """Sample task instances"""
+        if task_type not in self.task_instances:
+            return []
+        
+        instances = self.task_instances[task_type]
+        if len(instances) <= num_samples:
+            return instances
+        
+        return random.sample(instances, num_samples)
+    
+    def _calculate_summary_statistics(self, all_results: Dict[str, List[ExecutionResult]]) -> Dict:
+        """Calculate summary statistics"""
+        # Count tests by type
+        total_baseline = sum(1 for results in all_results.values() 
+                        for r in results if r.prompt_type == "baseline")
+        total_optimal = sum(1 for results in all_results.values() 
+                        for r in results if r.prompt_type == "optimal")
+        total_cot = sum(1 for results in all_results.values() 
+                    for r in results if r.prompt_type == "cot")
+        
+        # Calculate success rates
+        success_baseline = sum(1 for results in all_results.values() 
+                            for r in results if r.prompt_type == "baseline" and r.success)
+        success_optimal = sum(1 for results in all_results.values() 
+                            for r in results if r.prompt_type == "optimal" and r.success)
+        success_cot = sum(1 for results in all_results.values() 
+                        for r in results if r.prompt_type == "cot" and r.success)
+        
+        # Calculate average scores
+        baseline_scores = [r.final_score for results in all_results.values() 
+                        for r in results if r.prompt_type == "baseline"]
+        optimal_scores = [r.final_score for results in all_results.values() 
+                        for r in results if r.prompt_type == "optimal"]
+        cot_scores = [r.final_score for results in all_results.values() 
+                    for r in results if r.prompt_type == "cot"]
+        
+        return {
+            'total_tests': total_baseline + total_optimal + total_cot,
+            'baseline_success_rate': success_baseline / total_baseline if total_baseline > 0 else 0,
+            'optimal_success_rate': success_optimal / total_optimal if total_optimal > 0 else 0,
+            'cot_success_rate': success_cot / total_cot if total_cot > 0 else 0,
+            'success_rate_improvement': (success_optimal / total_optimal if total_optimal > 0 else 0) - 
+                                    (success_baseline / total_baseline if total_baseline > 0 else 0),
+            'avg_baseline_score': np.mean(baseline_scores) if baseline_scores else 0,
+            'avg_optimal_score': np.mean(optimal_scores) if optimal_scores else 0,
+            'avg_cot_score': np.mean(cot_scores) if cot_scores else 0,
+            'score_improvement': (np.mean(optimal_scores) if optimal_scores else 0) - 
+                            (np.mean(baseline_scores) if baseline_scores else 0),
+            'score_stability': 1.0 - np.std(baseline_scores + optimal_scores + cot_scores) / 
+                            (np.mean(baseline_scores + optimal_scores + cot_scores) + 1e-10),
+            'output_dir': str(self.output_dir)
+        }
+    
+    def _save_results(self, results: Dict):
+        """Save test results"""
+        results_path = self.output_dir / "test_results.json"
+        with open(results_path, 'w') as f:
+            json.dump(results, f, indent=2, default=str)
+        logger.info(f"Results saved to {results_path}")
+
+    def generate_report(self, results: Dict):
+        """Generate comprehensive multi-level markdown report using unified ReportGenerator
+        
+        Args:
+            results: Test results dictionary containing:
+                - timestamp: When the test was run
+                - summary: Overall summary statistics
+                - all_results or test_results: Detailed results by test key
+        """
+        print(f"Debug: Generating report with keys: {results.keys()}")
+        print(f"Debug: Using ReportGenerator from visualization_utils")
+        
+        # 创建ReportGenerator实例，使用相同的输出目录
+        report_generator = ReportGenerator(self.output_dir)
+        
+        # 调用统一的报告生成方法
+        # 确保数据结构兼容性：results已经包含所需的所有字段
+        report_path = report_generator.generate_workflow_quality_report(
+            results=results,
+            output_filename="workflow_quality_report.md"
+        )
+        
+        logger.info(f"Comprehensive report generated using ReportGenerator: {report_path}")
+        print(f"Debug: Report generated at {report_path}")
+
+
+
+    def _generate_visualizations(self, results: Dict[str, List[ExecutionResult]]):
+        """Generate visualization plots using the WorkflowVisualizationManager
+        
+        Args:
+            results: Dictionary mapping test keys to lists of ExecutionResult objects
+        """
+        logger.debug(f" Starting visualization generation with WorkflowVisualizationManager")
+        logger.debug(f" Output directory: {self.output_dir}")
+        logger.debug(f" Number of result keys: {len(results)}")
+        
+        # 创建可视化管理器实例
+        # 使用已有的self.output_dir作为输出目录
+        viz_manager = WorkflowVisualizationManager(self.output_dir)
+        
+        # 调用可视化管理器的generate_all_visualizations方法
+        # 该方法会自动调用所有的_plot_*方法
+        logger.debug(f" Calling viz_manager.generate_all_visualizations")
+        viz_manager.generate_all_visualizations(results)
+        
+        # 保留原有的调试检查功能
+        has_flawed = self._debug_check_flawed_data(results)
+        if not has_flawed:
+            print("[WARNING] No flawed data found in results!")
+        
+        logger.debug(f" Visualizations completed and saved to {self.output_dir}")
+        logger.info(f"Visualizations saved to {self.output_dir}")
+
+
+    def _debug_check_flawed_data(self, results: Dict[str, List[ExecutionResult]]):
+        """Debug function to check if flawed data exists in results"""
+        print("\n[DEBUG] Checking for flawed data in results...")
+        flawed_count = 0
+        flawed_keys = []
+        
+        for key, task_results in results.items():
+            if '_flawed' in key:
+                flawed_keys.append(key)
+            for result in task_results:
+                if result.prompt_type == 'flawed':
+                    flawed_count += 1
+                    logger.debug(f" Found flawed result in key '{key}': severity={getattr(result, 'flaw_severity', 'unknown')}, test_id={getattr(result, 'test_id', 'unknown')}")
+        
+        logger.debug(f" Total keys with '_flawed': {len(flawed_keys)}")
+        logger.debug(f" Total flawed results: {flawed_count}")
+        logger.debug(f" Flawed keys: {flawed_keys[:5]}...")  # 只打印前5个
+        return flawed_count > 0
+
+#!/usr/bin/env python3
+"""
+在workflow_quality_test_flawed.py文件末尾添加这些内容
+修正了导入错误 - 所有类都在同一个文件中定义
+"""
+
+# 在workflow_quality_test_flawed.py文件的末尾添加以下函数
+# （在main函数定义之前）
+
+def load_scoring_config(preset: str):  # 移除类型注解，避免前向引用问题
+    """
+    加载评分配置
+    
+    Args:
+        preset: 预设名称 - 'task_focused', 'balanced', 'technical', 'semantic', 'custom'
+        
+    Returns:
+        SimplifiedScoringConfig 实例
+    """
+    # SimplifiedScoringConfig 是在本文件中定义的，不需要导入
+    print(f"[INFO] Loading scoring configuration: {preset}")
+    
+    # 映射命令行参数到 SimplifiedScoringConfig.create_simple 的 focus 参数
+    preset_mapping = {
+        'task_focused': 'task_focused',
+        'balanced': 'balanced',
+        'technical': 'quality_focused',
+        'semantic': 'quality_focused',
+        'custom': 'balanced'
+    }
+    
+    focus = preset_mapping.get(preset, 'balanced')
+    config = SimplifiedScoringConfig.create_simple(focus)
+    
+    print(f"[INFO] Scoring config loaded: {config.describe()}")
+    return config
+
+
+def load_threshold_config(preset: str):  # 移除类型注解，避免前向引用问题
+    """
+    加载阈值配置
+    
+    Args:
+        preset: 预设名称 - 'strict', 'standard', 'lenient', 'custom'
+        
+    Returns:
+        ScoringThresholds 实例
+    """
+    # ScoringThresholds 也是在本文件中定义的，不需要导入
+    print(f"[INFO] Loading threshold configuration: {preset}")
+    
+    if preset == 'strict':
+        thresholds = ScoringThresholds.create_strict()
+    elif preset == 'lenient':
+        thresholds = ScoringThresholds.create_lenient()
+    else:  # 'standard' 或 'custom'
+        thresholds = ScoringThresholds()  # 使用默认值
+    
+    print(f"[INFO] Threshold config loaded: semantic_match={thresholds.semantic_match_threshold}, "
+          f"partial_success={thresholds.partial_success_coverage}, "
+          f"efficiency_penalty={thresholds.efficiency_penalty_threshold}")
+    
+    return thresholds
+
+
+# 然后是完整的main函数
+def main():
+    """Main entry point for workflow quality testing"""
+    parser = argparse.ArgumentParser(description='Test workflow quality with different prompt strategies')
+    
+    # 所有现有参数
+    parser.add_argument('--task-types', type=str, default='all',
+                        help='Comma-separated list of task types to test or "all"')
+    parser.add_argument('--num-tests', type=int, default=3,
+                        help='Number of tests per task type')
+    parser.add_argument('--max-workers', type=int, default=5,
+                        help='Maximum number of parallel workers')
+    parser.add_argument('--instances-per-type', type=int, default=1,
+                        help='Number of instances per task type to test')
+    parser.add_argument('--output-dir', type=str, default='workflow_quality_results',
+                        help='Output directory for results')
+    parser.add_argument('--test-flawed', action='store_true',
+                        help='Test with flawed workflows')
+    parser.add_argument('--save-logs', action='store_true', default=False,
+                        help='Save detailed execution logs')
+    parser.add_argument('--include-required-tools', action='store_true',
+                        help='Include required tools from task instances')
+    parser.add_argument('--use-filtered-tools', action='store_true',
+                        help='Use filtered tools based on semantic relevance')
+    parser.add_argument('--severity', type=str, choices=['light', 'medium', 'severe'],
+                        help='Severity level for flawed workflows (only used if --test-flawed)')
+    parser.add_argument('--test-severity-levels', action='store_true',
+                        help='Test all severity levels for flawed workflows')
+    parser.add_argument('--scoring-preset', type=str, default='task_focused',
+                        choices=['task_focused', 'balanced', 'technical', 'semantic', 'custom'],
+                        help='Scoring configuration preset')
+    parser.add_argument('--use-phase2', action='store_true', default=True,
+                        help='Use Phase 2 stable scoring system')
+    parser.add_argument('--threshold-preset', type=str, default='standard',
+                        choices=['strict', 'standard', 'lenient', 'custom'],
+                        help='Threshold configuration preset')
+    parser.add_argument('--use-all-tools', action='store_true',
+                        help='Use all available tools (no filtering)')
+    parser.add_argument('--model', type=str, 
+                        choices=['gpt-4o-mini'],
+                        default='gpt-4o-mini',
+                        help='Model to use for testing')
+    parser.add_argument('--resume', action='store_true',
+                        help='Resume from previous test results and accumulate statistics')
+    
+    
+    # 新增参数：选择性缺陷测试
+    parser.add_argument('--selective-flaws', action='store_true',
+                        help='Use selective flaw generation (one flaw type per severity)')
+    parser.add_argument('--flaw-selection', type=str,
+                        help='Custom flaw selection as JSON string, e.g. \'{"light": "order_flaw_swap", "medium": "tool_misuse_similar", "severe": "missing_middle"}\'')
+    parser.add_argument('--random-flaws', action='store_true',
+                        help='Randomly select one flaw type per severity (implies --selective-flaws)')
+    parser.add_argument('--recommended-flaws', action='store_true',
+                        help='Use recommended flaw selection (implies --selective-flaws)')
+    
+    # 新增：外部配置文件参数
+    parser.add_argument('--config-path', type=str, default=None,
+                        help='Path to external network configuration JSON file (overrides checkpoint config)')
+    parser.add_argument('--model-path', type=str, default=None,
+                        help='Path to model checkpoint (default: checkpoints/best_model.pt)')
+    
+    args = parser.parse_args()
+    
+    # Convert task types
+    if args.task_types == 'all':
+        task_types = ['basic_task', 'simple_task', 'data_pipeline', 
+                      'multi_stage_pipeline', 'api_integration']
+    else:
+        task_types = [t.strip() for t in args.task_types.split(',')]
+    
+    # Set tool selection mode
+    if args.use_all_tools:
+        args.include_required_tools = False
+        args.use_filtered_tools = False
+        logger.info("Using ALL available tools (no filtering)")
+    elif args.use_filtered_tools:
+        args.include_required_tools = True
+        logger.info("Using filtered tools based on semantic relevance")
+    elif args.include_required_tools:
+        logger.info("Using required tools from task instances")
+    
+    # 处理缺陷选择逻辑
+    # 处理缺陷选择逻辑
+    selective_flaws = args.selective_flaws or args.random_flaws or args.recommended_flaws
+    flaw_selection = None
+    
+    if args.flaw_selection:
+        try:
+            import json
+            flaw_selection = json.loads(args.flaw_selection)
+            selective_flaws = True
+            print(f"Using custom flaw selection: {flaw_selection}")
+        except json.JSONDecodeError as e:
+            print(f"Error parsing flaw selection JSON: {e}")
+            print("Expected format: '{\"light\": \"order_flaw_swap\", \"medium\": \"tool_misuse_similar\", \"severe\": \"missing_middle\"}'")
+            return
+    elif args.recommended_flaws:
+        print("Using recommended flaw selection")
+    elif args.random_flaws:
+        print("Using random flaw selection")
+    
+    # Load scoring configuration
+    scoring_config = load_scoring_config(args.scoring_preset)
+    
+    # Load threshold configuration
+    thresholds = load_threshold_config(args.threshold_preset)
+    
+    # Load task instances
+    logger.info("Loading task instances...")
+
+    generator_kwargs = {
+        "tools_path": "mcp_generated_library/tool_registry_consolidated.json",
+        "use_embeddings": True,
+        "thresholds": thresholds
+    }
+
+    if args.model_path:
+        generator_kwargs["model_path"] = args.model_path
+    else:
+        # 使用默认路径
+        generator_kwargs["model_path"] = "checkpoints/best_model.pt"
+    
+    if args.config_path:
+        generator_kwargs["config_path"] = args.config_path
+        logger.info(f"Using external network config from: {args.config_path}")
+
+    # Initialize generator
+    logger.info("Initializing workflow generator...")
+    generator = MDPWorkflowGenerator(**generator_kwargs)
+    
+    # Initialize tester with custom scoring config and thresholds
+    tester = WorkflowQualityTester(
+        generator, 
+        args.output_dir, 
+        use_phase2_scoring=args.use_phase2,
+        max_workers=args.max_workers,
+        save_logs=args.save_logs,
+        include_required_tools=args.include_required_tools,
+        use_filtered_tools=args.use_filtered_tools,
+        thresholds=thresholds,
+        model=args.model,
+        resume=args.resume  # 传递resume参数
+    )
+    
+    # 设置自定义评分配置
+    if tester.use_phase2_scoring:
+        tester.stable_scorer.config = scoring_config
+    
+    # Configure test parameters
+    tester.test_config['num_tests_per_task'] = args.num_tests
+    
+    # 显示测试配置
+    print("\n=== Test Configuration ===")
+    print(f"Task types: {task_types}")
+    print(f"Instances per type: {args.instances_per_type}")
+    print(f"Tests per instance: {args.num_tests}")
+    print(f"Model: {args.model}")
+    print(f"Output directory: {args.output_dir}")
+    print(f"Phase 2 scoring: {args.use_phase2}")
+    print(f"Scoring preset: {args.scoring_preset}")
+    print(f"Threshold preset: {args.threshold_preset}")
+    print(f"Save logs: {args.save_logs}")
+    print(f"Max workers: {args.max_workers}")
+    
+    # 工具选择模式
+    if args.use_all_tools:
+        print("Tool selection: ALL tools (no filtering)")
+    elif args.use_filtered_tools:
+        print("Tool selection: Filtered tools (semantic relevance)")
+    elif args.include_required_tools:
+        print("Tool selection: Required tools only")
+    else:
+        print("Tool selection: Default (no special filtering)")
+    
+    # 缺陷测试配置
+    if args.test_flawed:
+        print(f"\nFlawed workflow testing: ENABLED")
+        if selective_flaws:
+            print(f"Selective flaw generation: ENABLED")
+            if flaw_selection:
+                print(f"Custom flaw selection: {flaw_selection}")
+            elif args.recommended_flaws:
+                # 修复：现在 tester 已经创建，可以安全访问 flawed_generator
+                # 获取并显示推荐的缺陷选择
+                print("[DEBUG] Accessing flawed_generator after tester is created")
+                if hasattr(tester, 'flawed_generator') and tester.flawed_generator is not None:
+                    recommendations = tester.flawed_generator.get_recommended_flaw_selection()
+                    print(f"Recommended flaw selection: {recommendations}")
+                    # 如果用户选择了推荐模式但没有指定具体选择，使用推荐值
+                    if not flaw_selection:
+                        flaw_selection = recommendations
+                        print(f"[INFO] Using recommended flaw selection: {flaw_selection}")
+                else:
+                    print("[ERROR] FlawedWorkflowGenerator not initialized properly")
+                    print("[INFO] Falling back to random flaw selection")
+            else:
+                print("Using random flaw selection")
+        else:
+            print("Testing ALL flaw types (12 types)")
+        
+        if args.severity:
+            print(f"Testing only {args.severity} severity")
+        elif args.test_severity_levels:
+            print("Testing all severity levels")
+        else:
+            print("Testing default severity (medium)")
+    else:
+        print("\nFlawed workflow testing: DISABLED")
+    
+    print("========================\n")
+    
+    # Run tests
+    logger.info("Starting workflow quality tests...")
+    # 检查run_comprehensive_test_parallel是否支持新参数
+    test_params = {
+        'task_types': task_types,
+        'test_flawed': args.test_flawed,
+        'instances_per_type': args.instances_per_type,
+        'test_severity_levels': args.test_severity_levels
+    }
+    
+    # 添加可选参数
+    if args.test_flawed and not args.test_severity_levels and args.severity:
+        test_params['specific_severity'] = args.severity
+    
+    # 添加选择性缺陷参数（仅在修改了方法签名后）
+    # 注意：这需要您先按照前面的说明修改run_comprehensive_test_parallel方法
+    try:
+        import inspect
+        sig = inspect.signature(tester.run_comprehensive_test_parallel)
+        if 'selective_flaws' in sig.parameters:
+            test_params['selective_flaws'] = selective_flaws
+            test_params['flaw_selection'] = flaw_selection
+        else:
+            if selective_flaws:
+                print("[WARNING] selective_flaws parameters not yet implemented in run_comprehensive_test_parallel")
+                print("[WARNING] Falling back to standard flaw generation")
+    except:
+        pass
+    
+    # 运行测试
+    results = tester.run_comprehensive_test_parallel(**test_params)
+    
+    # 生成Markdown报告
+    print("\n📝 Generating workflow quality report...")
+    report_data = {
+        'timestamp': datetime.now().isoformat(),
+        'summary': results['summary'],
+        'test_results': {}
+    }
+    
+    # 重组数据结构以适应generate_report的期望格式
+    if 'all_results' in results:
+        # 按task_type组织结果
+        for key, execution_results in results['all_results'].items():
+            # 从key中提取task_type
+            task_type = key.split('_')[0]
+            if task_type not in report_data['test_results']:
+                report_data['test_results'][task_type] = []
+            report_data['test_results'][task_type].extend(execution_results)
+    
+    # 调用generate_report方法生成Markdown报告
+    tester.generate_report(report_data)
+    print(f"✅ Report generated: {args.output_dir}/workflow_quality_report.md")
+    
+    # Print summary
+    print(f"\n✅ Test completed! Results saved to {results['summary']['output_dir']}")
+    print(f"Overall success rate improvement: {results['summary']['success_rate_improvement']:+.2%}")
+    print(f"Overall score improvement: {results['summary']['score_improvement']:+.3f}")
+    print(f"Score stability: {results['summary']['score_stability']:.3f}")
+    
+    if 'execution_time' in results['summary']:
+        print(f"Execution time: {results['summary']['execution_time']:.1f} seconds")
+        print(f"Tests per second: {results['summary']['tests_per_second']:.1f}")
+    
+    # 如果使用了选择性缺陷，显示额外的统计信息
+    if args.test_flawed and selective_flaws and 'all_results' in results:
+        print("\n=== Selective Flaw Test Summary ===")
+        tested_flaws = {}
+        
+        # 从结果中提取实际测试的缺陷类型
+        for key, results_list in results['all_results'].items():
+            if '_flawed_' in key:
+                parts = key.split('_flawed_')
+                if len(parts) > 1:
+                    flaw_info = parts[1]
+                    # 尝试分离缺陷类型和严重程度
+                    flaw_parts = flaw_info.rsplit('_', 1)
+                    if len(flaw_parts) == 2 and flaw_parts[1] in ['light', 'medium', 'severe']:
+                        flaw_type = flaw_parts[0]
+                        severity = flaw_parts[1]
+                        tested_flaws[severity] = flaw_type
+        
+        if tested_flaws:
+            print("Tested flaw types by severity:")
+            for severity in ['light', 'medium', 'severe']:
+                if severity in tested_flaws:
+                    print(f"  {severity}: {tested_flaws[severity]}")
+            
+            # 计算测试数量减少
+            total_flawed_tests = sum(1 for k in results['all_results'].keys() if '_flawed_' in k)
+            original_test_count = len(task_types) * args.instances_per_type * args.num_tests * 12 * 3  # 12 flaw types × 3 severities
+            
+            if args.test_severity_levels:
+                expected_selective_count = len(task_types) * args.instances_per_type * args.num_tests * 3  # 3 severities only
+            else:
+                expected_selective_count = len(task_types) * args.instances_per_type * args.num_tests * 1  # 1 severity only
+            
+            print(f"\nTotal flawed tests executed: {total_flawed_tests}")
+            print(f"Traditional approach would run: {original_test_count} tests")
+            print(f"Test reduction: {(1 - total_flawed_tests/original_test_count)*100:.1f}%")
+
+    if args.config_path:
+        print(f"\n📋 Used external config: {args.config_path}")
+        try:
+            with open(args.config_path, 'r') as f:
+                config = json.load(f)
+                print(f"  Network: {config.get('hidden_dim', 'N/A')} hidden dim, "
+                      f"{config.get('num_layers', 'N/A')} layers, "
+                      f"{config.get('num_heads', 'N/A')} heads")
+        except Exception as e:
+            print(f"  (Could not read config: {e})")
+
+# 最后确保main函数被调用
+if __name__ == "__main__":
+    main()

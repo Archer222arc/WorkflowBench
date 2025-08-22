@@ -1,0 +1,4312 @@
+# 相同位置的修复代码
+# 修改的行用注释标注：# <- 修改了这一行
+
+#!/usr/bin/env python3
+"""
+Unified Training Manager - Refactored for Better Structure
+==========================================================
+重构后的版本，解决了类职责不清和方法缺失的问题
+"""
+
+import os
+import sys
+import json
+import logging
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+from torch.distributions import Categorical  # <- 新增这一行：导入Categorical
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+import numpy as np
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Any, Union
+from collections import defaultdict, deque
+from collections import deque
+from datetime import datetime
+import random
+import uuid
+import re
+
+from workflow_reasoning_generator import WorkflowReasoningGenerator
+from tool_capability_manager import ToolCapabilityManager  # <- 修改了这一行：添加导入
+from interactive_executor import ToolExecutionResult
+
+
+# Configure logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# 创建文件处理器
+log_filename = f"logs/debug__unified_training_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+file_handler = logging.FileHandler(log_filename)
+file_handler.setLevel(logging.DEBUG)
+
+# Device configuration
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+logger.info(f"Using device: {device}")
+
+# Import ScoringThresholds for type annotation  # <- 修改了这一行
+from workflow_quality_test_flawed import ScoringThresholds  # <- 修改了这一行
+
+# ===========================
+# Neural Network Architectures
+# ===========================
+
+class DuelingDQN(nn.Module):
+    """Dueling DQN architecture with separate value and advantage streams"""
+    
+    def __init__(self, state_dim: int, action_dim: int, hidden_dim: int = 256):
+        super(DuelingDQN, self).__init__()
+        
+        # Shared layers
+        self.fc1 = nn.Linear(state_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+        
+        # Value stream
+        self.value_fc = nn.Linear(hidden_dim, hidden_dim)
+        self.value_head = nn.Linear(hidden_dim, 1)
+        
+        # Advantage stream
+        self.advantage_fc = nn.Linear(hidden_dim, hidden_dim)
+        self.advantage_head = nn.Linear(hidden_dim, action_dim)
+        
+        # Initialization
+        self._initialize_weights()
+    
+    def _initialize_weights(self):
+        """Initialize network weights using Xavier initialization"""
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                nn.init.constant_(m.bias, 0)
+    
+    def forward(self, x):
+        """Forward pass through the network"""
+        # Shared layers with ReLU activation
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        
+        # Value stream
+        value = F.relu(self.value_fc(x))
+        value = self.value_head(value)
+        
+        # Advantage stream
+        advantage = F.relu(self.advantage_fc(x))
+        advantage = self.advantage_head(advantage)
+        
+        # Combine streams: Q(s,a) = V(s) + (A(s,a) - mean(A(s,a)))
+        q_values = value + (advantage - advantage.mean(dim=1, keepdim=True))
+        
+        return q_values
+
+# 文件：unified_training_manager.py
+# 在DuelingDQN类后添加（约第100行）
+
+# 文件：unified_training_manager.py  
+# 类：ActorCriticNetwork
+# 位置：约第100-165行
+
+# class ActorCriticNetwork(nn.Module):
+#     """Enhanced Actor-Critic network for PPO with attention and RAG support"""
+    
+#     def __init__(self, state_dim: int, action_dim: int, hidden_dim: int = 256, 
+#                  num_heads: int = 4, num_layers: int = 3, dropout: float = 0.1,  # <- 新增参数
+#                  rag_dim: int = 64, use_mac_optimization: bool = True):  # <- 新增参数
+#         super(ActorCriticNetwork, self).__init__()
+        
+#         # 保存维度信息用于兼容性
+#         self.state_dim = state_dim
+#         self.action_dim = action_dim
+#         self.hidden_dim = hidden_dim
+#         self.use_mac_optimization = use_mac_optimization
+        
+#         # Input projection with optional RAG context  # <- 新增部分
+#         self.state_projection = nn.Linear(state_dim, hidden_dim)
+#         self.rag_projection = nn.Linear(rag_dim, hidden_dim)
+        
+#         # Multi-head self-attention layers  # <- 新增部分
+#         self.attention_layers = nn.ModuleList([
+#             nn.MultiheadAttention(hidden_dim, num_heads, dropout=dropout, 
+#                                 batch_first=True)
+#             for _ in range(num_layers)
+#         ])
+        
+#         # Layer normalization  # <- 新增部分
+#         self.layer_norms = nn.ModuleList([
+#             nn.LayerNorm(hidden_dim) for _ in range(num_layers)
+#         ])
+        
+#         # Residual feed-forward blocks  # <- 新增部分
+#         self.ff_blocks = nn.ModuleList([
+#             nn.Sequential(
+#                 nn.Linear(hidden_dim, hidden_dim * 2),
+#                 nn.GELU(),  # <- 使用GELU代替ReLU
+#                 nn.Dropout(dropout),
+#                 nn.Linear(hidden_dim * 2, hidden_dim)
+#             ) for _ in range(num_layers)
+#         ])
+        
+#         # 保持原有的actor和critic头部结构以确保兼容性
+#         self.actor_fc = nn.Linear(hidden_dim, hidden_dim)
+#         self.actor_head = nn.Linear(hidden_dim, action_dim)
+        
+#         self.critic_fc = nn.Linear(hidden_dim, hidden_dim)
+#         self.critic_head = nn.Linear(hidden_dim, 1)
+        
+#         # Mac M1优化：使用float32  # <- 新增部分
+#         if use_mac_optimization:
+#             self.to(torch.float32)
+        
+#         # Initialize weights
+#         self._initialize_weights()
+    
+#     def _initialize_weights(self):
+#         """Initialize network weights with improved scheme"""
+#         for m in self.modules():
+#             if isinstance(m, nn.Linear):
+#                 nn.init.orthogonal_(m.weight, gain=np.sqrt(2))
+#                 nn.init.constant_(m.bias, 0)
+#             elif isinstance(m, nn.LayerNorm):  # <- 新增
+#                 nn.init.constant_(m.weight, 1)
+#                 nn.init.constant_(m.bias, 0)
+        
+#         # Special initialization for output layers (保持不变)
+#         nn.init.orthogonal_(self.actor_head.weight, gain=0.01)
+#         nn.init.orthogonal_(self.critic_head.weight, gain=1.0)
+    
+#     def forward(self, state, rag_context=None):  # <- 修改：添加可选的rag_context参数
+#         """Forward pass with attention mechanism and optional RAG context"""
+#         # Mac M1优化：确保使用float32  # <- 新增
+#         if self.use_mac_optimization:
+#             state = state.float()
+#             if rag_context is not None:
+#                 rag_context = rag_context.float()
+        
+#         # Project state to hidden dimension
+#         x = self.state_projection(state)
+        
+#         # Add batch dimension if needed  # <- 新增
+#         if x.dim() == 2:
+#             x = x.unsqueeze(1)  # [batch, 1, hidden]
+        
+#         # Incorporate RAG context if provided  # <- 新增部分
+#         if rag_context is not None:
+#             rag_features = self.rag_projection(rag_context)
+#             if rag_features.dim() == 2:
+#                 rag_features = rag_features.unsqueeze(1)
+#             # Concatenate state and RAG features
+#             x = torch.cat([x, rag_features], dim=1)  # [batch, seq_len, hidden]
+        
+#         # Apply attention layers with residual connections  # <- 新增部分
+#         for i, (attn, norm, ff) in enumerate(zip(self.attention_layers, 
+#                                                 self.layer_norms, 
+#                                                 self.ff_blocks)):
+#             # Self-attention with residual
+#             attn_out, _ = attn(x, x, x)
+#             x = norm(x + attn_out)
+            
+#             # Feed-forward with residual
+#             ff_out = ff(x)
+#             x = x + ff_out
+        
+#         # Global pooling (mean over sequence dimension)  # <- 新增
+#         if x.dim() == 3:
+#             x = x.mean(dim=1)  # [batch, hidden]
+        
+#         # Actor path (保持原有结构)
+#         actor_features = F.relu(self.actor_fc(x))
+#         logits = self.actor_head(actor_features)
+        
+#         # Critic path (保持原有结构)
+#         critic_features = F.relu(self.critic_fc(x))
+#         value = self.critic_head(critic_features)
+        
+#         return logits, value
+    
+#     def get_action_and_value(self, state, action=None, rag_context=None):  # <- 修改：添加rag_context
+#         """Get action distribution, sampled action, log prob, and value"""
+#         logits, value = self(state, rag_context)  # <- 修改：传递rag_context
+        
+#         # Create categorical distribution (保持不变)
+#         probs = F.softmax(logits, dim=-1)
+#         dist = torch.distributions.Categorical(probs)
+        
+#         if action is None:
+#             action = dist.sample()
+        
+#         return action, dist.log_prob(action), dist.entropy(), value.squeeze(-1)
+    
+#     def load_from_simple_network(self, old_state_dict):  # <- 新增方法
+#         """Load weights from old simple network for backward compatibility"""
+#         new_state_dict = self.state_dict()
+        
+#         # Map old fc1/fc2 weights to state projection
+#         if 'fc1.weight' in old_state_dict:
+#             # Use old fc1 weights for state projection
+#             weight = old_state_dict['fc1.weight']
+#             bias = old_state_dict['fc1.bias']
+#             # Resize if dimensions don't match
+#             if weight.shape != new_state_dict['state_projection.weight'].shape:
+#                 # Initialize with old weights where possible
+#                 min_in = min(weight.shape[1], new_state_dict['state_projection.weight'].shape[1])
+#                 min_out = min(weight.shape[0], new_state_dict['state_projection.weight'].shape[0])
+#                 new_state_dict['state_projection.weight'][:min_out, :min_in] = weight[:min_out, :min_in]
+#                 new_state_dict['state_projection.bias'][:min_out] = bias[:min_out]
+#             else:
+#                 new_state_dict['state_projection.weight'] = weight
+#                 new_state_dict['state_projection.bias'] = bias
+        
+#         # Copy actor and critic heads directly (保持兼容性)
+#         for key in ['actor_fc.weight', 'actor_fc.bias', 'actor_head.weight', 'actor_head.bias',
+#                    'critic_fc.weight', 'critic_fc.bias', 'critic_head.weight', 'critic_head.bias']:
+#             if key in old_state_dict:
+#                 new_state_dict[key] = old_state_dict[key]
+        
+#         self.load_state_dict(new_state_dict)
+#         logger.info("Loaded weights from simple network with compatibility mapping")
+
+
+class ActorCriticNetwork(nn.Module):
+    """超级增强的Actor-Critic网络，包含最新的深度学习技术、RAG支持和required_tools输入"""
+    
+    def __init__(self, state_dim: int, action_dim: int, config: Dict[str, Any]):
+        super().__init__()
+        
+        self.state_dim = state_dim
+        self.action_dim = action_dim
+        self.hidden_dim = config.get('hidden_dim', 1024)
+        self.num_layers = config.get('num_layers', 6)
+        self.num_heads = config.get('num_heads', 16)
+        self.dropout = config.get('dropout', 0.1)
+        self.use_pre_norm = config.get('use_pre_norm', True)
+        self.use_rag_enhancement = config.get('use_rag_enhancement', True)
+        self.rag_dim = config.get('rag_dim', 64)
+        self.use_tools_input = config.get('use_tools_input', True)  # 新增：是否使用tools输入
+        self.num_tools = config.get('num_tools', action_dim)  # 新增：工具总数，默认等于action_dim
+        
+        # 输入投影
+        self.input_projection = nn.Sequential(
+            nn.Linear(state_dim, self.hidden_dim),
+            nn.LayerNorm(self.hidden_dim),
+            nn.GELU(),
+            nn.Dropout(self.dropout)
+        )
+        
+        # RAG投影层（条件创建）
+        if self.use_rag_enhancement:
+            self.rag_projection = nn.Sequential(
+                nn.Linear(self.rag_dim, self.hidden_dim),
+                nn.LayerNorm(self.hidden_dim),
+                nn.GELU(),
+                nn.Dropout(self.dropout)
+            )
+            print(f"[ActorCriticNetwork] RAG enhancement enabled with dim={self.rag_dim}")
+        else:
+            print("[ActorCriticNetwork] RAG enhancement disabled")
+        
+        # 新增：Tools投影层（条件创建）
+        if self.use_tools_input:
+            self.tools_dim = config.get('tools_dim', 64)  # 默认64维，与RAG保持一致
+            self.tools_projection = nn.Sequential(
+                nn.Linear(self.tools_dim, self.hidden_dim),
+                nn.LayerNorm(self.hidden_dim),
+                nn.GELU(),
+                nn.Dropout(self.dropout)
+            )
+            print(f"[ActorCriticNetwork] Tools input enabled with dim={self.tools_dim}")
+        else:
+            print("[ActorCriticNetwork] Tools input disabled")
+        
+        # Transformer编码器层
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=self.hidden_dim,
+            nhead=self.num_heads,
+            dim_feedforward=self.hidden_dim * 4,
+            dropout=self.dropout,
+            activation='gelu',
+            norm_first=self.use_pre_norm,
+            batch_first=True
+        )
+        
+        self.transformer_encoder = nn.TransformerEncoder(
+            encoder_layer,
+            num_layers=self.num_layers,
+            norm=nn.LayerNorm(self.hidden_dim) if self.use_pre_norm else None
+        )
+        
+        # 位置编码（可学习）
+        self.pos_encoding = nn.Parameter(torch.randn(1, 128, self.hidden_dim))
+        
+        # Actor和Critic头部（使用更深的MLP）
+        self.actor_head = nn.Sequential(
+            nn.Linear(self.hidden_dim, self.hidden_dim),
+            nn.LayerNorm(self.hidden_dim),
+            nn.GELU(),
+            nn.Dropout(self.dropout),
+            nn.Linear(self.hidden_dim, self.hidden_dim // 2),
+            nn.LayerNorm(self.hidden_dim // 2),
+            nn.GELU(),
+            nn.Linear(self.hidden_dim // 2, action_dim)
+        )
+        
+        self.critic_head = nn.Sequential(
+            nn.Linear(self.hidden_dim, self.hidden_dim),
+            nn.LayerNorm(self.hidden_dim),
+            nn.GELU(),
+            nn.Dropout(self.dropout),
+            nn.Linear(self.hidden_dim, self.hidden_dim // 2),
+            nn.LayerNorm(self.hidden_dim // 2),
+            nn.GELU(),
+            nn.Linear(self.hidden_dim // 2, 1)
+        )
+        
+        # Auxiliary heads（如果启用）
+        if config.get('use_auxiliary_tasks', False):
+            # 逆动力学模型：预测动作
+            self.inverse_dynamics_head = nn.Sequential(
+                nn.Linear(self.hidden_dim * 2, self.hidden_dim),
+                nn.ReLU(),
+                nn.Linear(self.hidden_dim, action_dim)
+            )
+            
+            # 前向动力学模型：预测下一状态特征
+            self.forward_dynamics_head = nn.Sequential(
+                nn.Linear(self.hidden_dim + action_dim, self.hidden_dim),
+                nn.ReLU(),
+                nn.Linear(self.hidden_dim, self.hidden_dim)
+            )
+        
+        # Curiosity模块（ICM）
+        if config.get('use_curiosity', False):
+            self.feature_encoder = nn.Sequential(
+                nn.Linear(state_dim, self.hidden_dim // 2),
+                nn.ReLU(),
+                nn.Linear(self.hidden_dim // 2, self.hidden_dim // 4)
+            )
+        
+        # 初始化权重
+        self._init_weights()
+        
+        # 谱归一化（如果启用）
+        if config.get('spectral_norm', False):
+            self._apply_spectral_norm()
+    
+    def _init_weights(self):
+        """改进的权重初始化"""
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.orthogonal_(m.weight, gain=np.sqrt(2))
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.LayerNorm):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.TransformerEncoderLayer):
+                # Transformer层的特殊初始化
+                for p in m.parameters():
+                    if p.dim() > 1:
+                        nn.init.xavier_uniform_(p)
+    
+    def _apply_spectral_norm(self):
+        """应用谱归一化"""
+        for m in self.modules():
+            if isinstance(m, nn.Linear) and m.out_features > 1:
+                nn.utils.spectral_norm(m)
+    
+    def forward(self, state, rag_context=None, required_tools=None, return_features=False):
+        """增强的前向传播，支持RAG上下文和required_tools输入"""
+        # 输入投影
+        x = self.input_projection(state)
+        
+        # 准备序列元素列表
+        sequence_elements = [x.unsqueeze(1) if x.dim() == 2 else x]
+        
+        # RAG上下文融合（如果提供）
+        if rag_context is not None and hasattr(self, 'rag_projection'):
+            rag_features = self.rag_projection(rag_context)
+            if rag_features.dim() == 2:
+                rag_features = rag_features.unsqueeze(1)
+            sequence_elements.append(rag_features)
+            logger.debug(f\"Added RAG features to seque\"nce)
+        
+        # 新增：Required tools融合（如果提供）
+        if required_tools is not None and hasattr(self, 'tools_projection'):
+            tools_features = self.tools_projection(required_tools)
+            if tools_features.dim() == 2:
+                tools_features = tools_features.unsqueeze(1)
+            sequence_elements.append(tools_features)
+            logger.debug(f\"Added required_tools features to seque\"nce)
+        
+        # 拼接所有序列元素
+        x = torch.cat(sequence_elements, dim=1)
+        
+        # 添加位置编码
+        seq_len = x.size(1)
+        if seq_len > self.pos_encoding.size(1):
+            # 如果序列太长，扩展位置编码
+            extra_pos = torch.randn(1, seq_len - self.pos_encoding.size(1), self.hidden_dim).to(x.device)
+            pos_encoding = torch.cat([self.pos_encoding, extra_pos], dim=1)
+        else:
+            pos_encoding = self.pos_encoding[:, :seq_len, :]
+        
+        x = x + pos_encoding
+        
+        # Transformer编码
+        x = self.transformer_encoder(x)
+        
+        # 全局池化（对序列维度取平均）
+        features = x.mean(dim=1)
+        
+        # Actor和Critic输出
+        actor_logits = self.actor_head(features)
+        critic_value = self.critic_head(features)
+        
+        if return_features:
+            return actor_logits, critic_value.squeeze(-1), features
+        else:
+            return actor_logits, critic_value.squeeze(-1)
+    
+    def get_action_and_value(self, state, action=None, rag_context=None, required_tools=None):
+        """获取动作分布、采样动作、对数概率和价值"""
+        logits, value = self(state, rag_context, required_tools)
+        
+        # 创建分类分布
+        probs = F.softmax(logits, dim=-1)
+        dist = torch.distributions.Categorical(probs)
+        
+        if action is None:
+            action = dist.sample()
+        
+        return action, dist.log_prob(action), dist.entropy(), value
+    
+    def load_from_old_version(self, old_state_dict):
+        """从旧版本模型加载权重的兼容性方法"""
+        new_state_dict = self.state_dict()
+        
+        # 复制匹配的键
+        for key in old_state_dict:
+            if key in new_state_dict and old_state_dict[key].shape == new_state_dict[key].shape:
+                new_state_dict[key] = old_state_dict[key]
+                print(f"[INFO] Loaded weights for {key}")
+            else:
+                print(f"[WARNING] Skipping {key} (not found or shape mismatch)")
+        
+        # 加载更新后的状态字典
+        self.load_state_dict(new_state_dict, strict=False)
+        print("[INFO] Loaded weights from old version with compatibility mapping")
+
+
+
+def encode_required_tools_embedding(required_tools: List[str], embedding_manager=None) -> np.ndarray:
+    """
+    将required_tools列表编码为固定大小的embedding向量
+    使用与RAG相同的编码方式保持一致性
+    
+    Args:
+        required_tools: 需要的工具名称列表
+        embedding_manager: embedding管理器实例
+        
+    Returns:
+        固定大小的embedding向量（默认64维）
+    """
+    embedding_dim = 64  # 与RAG embedding保持一致
+    tools_embedding = np.zeros(embedding_dim)
+    
+    if not required_tools:
+        return tools_embedding
+    
+    # 如果有embedding_manager，使用真实的工具embeddings
+    all_embeddings = []
+    all_scores = []
+    
+    for tool_name in required_tools:
+        if tool_name in embedding_manager.tool_embeddings:
+            tool_emb = embedding_manager.tool_embeddings[tool_name]
+            # 使用combined_embedding（综合了描述、参数、功能）
+            if hasattr(tool_emb, 'combined_embedding'):
+                all_embeddings.append(tool_emb.combined_embedding)
+                all_scores.append(1.0)  # required tools都是同等重要的
+            else:
+                print(f"[WARNING] Tool {tool_name} has no combined_embedding")
+    
+    if all_embeddings:
+        # 计算平均embedding
+        avg_embedding = np.mean(all_embeddings, axis=0)
+        
+        # 降维或截断到目标维度
+        if len(avg_embedding) > embedding_dim:
+            # 使用PCA或简单截断
+            tools_embedding = avg_embedding[:embedding_dim]
+        else:
+            tools_embedding[:len(avg_embedding)] = avg_embedding
+        
+        # 归一化
+        norm = np.linalg.norm(tools_embedding)
+        if norm > 0:
+            tools_embedding = tools_embedding / norm
+
+    
+    # 添加元信息
+    tools_embedding[0] = min(1.0, len(required_tools) / 5.0)  # 归一化的工具数量
+    tools_embedding[1] = 1.0  # 标记这是required_tools embedding
+    
+    return tools_embedding
+# ===========================
+# Base Trainer Interface
+# ===========================
+
+# 文件：unified_training_manager.py
+# 类：BaseTrainer（进一步增强版本）
+# 位置：约310-500行
+
+from abc import ABC, abstractmethod
+
+class BaseTrainer(ABC):
+    """Enhanced abstract base class for all training algorithms"""
+    
+    def __init__(self, env: 'MDPEnvironment', config: Dict[str, Any]):
+        """Initialize common trainer attributes"""
+        self.env = env
+        self.config = config
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.training_steps = 0
+        self.eval_mode = False
+        self.total_timesteps = 0  # <- 新增：统一的时间步计数
+        
+    @abstractmethod
+    def select_action(self, state: np.ndarray, valid_actions: Optional[List[int]] = None) -> int:
+        """Select an action given the current state"""
+        pass
+    
+    @abstractmethod
+    def train_step(self) -> float:
+        """Perform one training step and return loss"""
+        pass
+    
+    @abstractmethod
+    def update_exploration(self):
+        """Update exploration parameters (e.g., epsilon for DQN)"""
+        pass
+    
+    @abstractmethod  # <- 新增：统一的经验存储接口
+    def store_experience(self, state: np.ndarray, action: int, reward: float, 
+                        next_state: np.ndarray, done: bool, **kwargs) -> None:
+        """Store experience/transition - unified interface for all algorithms"""
+        pass
+    
+    @abstractmethod  # <- 新增：判断是否应该训练
+    def should_train(self) -> bool:
+        """Check if training should be performed"""
+        pass
+    
+    @abstractmethod  # <- 新增：episode结束时的清理
+    def on_episode_end(self) -> None:
+        """Called when an episode ends - for algorithm-specific cleanup"""
+        pass
+    
+    def step_completed(self) -> None:  # <- 新增：每步完成后调用
+        """Called after each environment step"""
+        self.total_timesteps += 1
+    
+    def set_eval_mode(self, eval_mode: bool):
+        """Set evaluation mode for the trainer"""
+        self.eval_mode = eval_mode
+        
+    def apply_action_mask(self, action_values: torch.Tensor, 
+                         valid_actions: Optional[List[int]]) -> torch.Tensor:
+        """Apply action masking to action values/probabilities"""
+        if valid_actions is not None:
+            mask = torch.full_like(action_values, float('-inf'))
+            mask[valid_actions] = 0
+            return action_values + mask
+        return action_values
+    
+    @staticmethod
+    def stabilize_logits(logits: torch.Tensor, 
+                        clamp_min: float = -10.0, 
+                        clamp_max: float = 10.0) -> torch.Tensor:
+        """Stabilize logits for numerical stability"""
+        if torch.isnan(logits).any():
+            logger.warning("NaN detected in logits, replacing with zeros")
+            logits = torch.nan_to_num(logits, nan=0.0)
+        
+        logits = torch.clamp(logits, min=clamp_min, max=clamp_max)
+        logits = logits - logits.max(dim=-1, keepdim=True)[0]
+        
+        return logits
+    
+    def save_checkpoint_base(self, path: str, 
+                            state_dicts: Dict[str, Any],
+                            additional_data: Dict[str, Any] = None) -> None:
+        """Base checkpoint saving functionality"""
+        checkpoint = {
+            'algorithm': self.__class__.__name__.replace('Trainer', '').lower(),
+            'training_steps': self.training_steps,
+            'total_timesteps': self.total_timesteps,  # <- 新增
+            'config': self.config,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        checkpoint.update(state_dicts)
+        
+        if additional_data:
+            checkpoint.update(additional_data)
+        
+        torch.save(checkpoint, path)
+        logger.info(f"Checkpoint saved to {path}")
+    
+    def load_checkpoint_base(self, path: str) -> Dict[str, Any]:
+        """Base checkpoint loading functionality"""
+        checkpoint = torch.load(path, map_location=self.device, weights_only=False)
+        
+        self.training_steps = checkpoint.get('training_steps', 0)
+        self.total_timesteps = checkpoint.get('total_timesteps', 0)  # <- 新增
+        
+        if 'config' in checkpoint:
+            self.config.update(checkpoint['config'])
+        
+        return checkpoint
+    
+    @abstractmethod
+    def save_checkpoint(self, path: str, additional_data: Dict[str, Any] = None):
+        """Save model checkpoint - must be implemented by subclasses"""
+        pass
+    
+    @abstractmethod
+    def load_checkpoint(self, path: str) -> Dict[str, Any]:
+        """Load model checkpoint - must be implemented by subclasses"""
+        pass
+    
+    def get_device(self) -> torch.device:
+        """Get the device being used"""
+        return self.device
+    
+    def get_training_info(self) -> Dict[str, Any]:  # <- 新增：获取训练信息
+        """Get current training information for logging"""
+        return {
+            'training_steps': self.training_steps,
+            'total_timesteps': self.total_timesteps
+        }
+
+
+# 文件：unified_training_manager.py
+# 在DQNTrainer类后添加（约第350行）
+
+# ===========================
+# PPO Trainer
+# ===========================
+
+
+class RolloutBuffer:
+    """Base buffer for storing trajectories in PPO with RAG support"""
+    
+    def __init__(self, gamma: float = 0.99):
+        """Initialize rollout buffer with discount factor
+        
+        Args:
+            gamma: Discount factor for computing returns
+        """
+        self.states = []
+        self.actions = []
+        self.rewards = []
+        self.values = []
+        self.log_probs = []
+        self.dones = []
+        self.rag_embeddings = []  # 新增：存储RAG embeddings
+        self.gamma = gamma  # 存储gamma参数
+        print(f"[RolloutBuffer.__init__] gamma={gamma}")
+    
+    def add(self, state, action, reward, value, log_prob, done, rag_embedding=None, **kwargs):
+        """Add transition with optional RAG embedding"""
+        self.states.append(state)
+        self.actions.append(action)
+        self.rewards.append(reward)
+        self.values.append(value)
+        self.log_probs.append(log_prob)
+        self.dones.append(done)
+        
+        # 存储RAG embedding，如果没有则存储零向量
+        if rag_embedding is not None:
+            self.rag_embeddings.append(rag_embedding)
+        else:
+            self.rag_embeddings.append(np.zeros(64))  # 默认64维
+    
+    def get(self):
+        """Get all data and compute advantages"""
+        if not self.states:
+            return None
+        
+        states = torch.FloatTensor(np.array(self.states)).to(device)
+        actions = torch.LongTensor(self.actions).to(device)
+        rewards = torch.FloatTensor(self.rewards).to(device)
+        values = torch.FloatTensor(self.values).to(device)
+        log_probs = torch.FloatTensor(self.log_probs).to(device)
+        dones = torch.FloatTensor(self.dones).to(device)
+        rag_embeddings = torch.FloatTensor(np.array(self.rag_embeddings)).to(device)
+        
+        # Compute returns and advantages
+        returns = self._compute_returns(rewards, values, dones)
+        advantages = returns - values
+        
+        return states, actions, log_probs, returns, advantages, rag_embeddings
+    
+    def _compute_returns(self, rewards: torch.Tensor, values: torch.Tensor, dones: torch.Tensor) -> torch.Tensor:
+        """Compute discounted returns
+        
+        Args:
+            rewards: Tensor of rewards
+            values: Tensor of value estimates
+            dones: Tensor of done flags
+            
+        Returns:
+            Tensor of discounted returns
+        """
+        print(f"[RolloutBuffer._compute_returns] Computing returns with gamma={self.gamma}")
+        returns = torch.zeros_like(rewards)
+        running_return = 0
+        
+        # 从后向前计算折扣回报
+        for t in reversed(range(len(rewards))):
+            if dones[t]:
+                running_return = 0
+            running_return = rewards[t] + self.gamma * running_return
+            returns[t] = running_return
+            
+        return returns
+    
+    @staticmethod
+    def _compute_advantages(rewards: torch.Tensor, values: torch.Tensor, dones: torch.Tensor, gamma: float = 0.99) -> torch.Tensor:
+        """Compute advantages as returns - values
+        
+        Args:
+            rewards: Tensor of rewards
+            values: Tensor of value estimates  
+            dones: Tensor of done flags
+            gamma: Discount factor
+            
+        Returns:
+            Tensor of advantages
+        """
+        print(f"[RolloutBuffer._compute_advantages] Computing advantages with gamma={gamma}")
+        # 计算折扣回报
+        returns = torch.zeros_like(rewards)
+        running_return = 0
+        
+        for t in reversed(range(len(rewards))):
+            if dones[t]:
+                running_return = 0
+            running_return = rewards[t] + gamma * running_return
+            returns[t] = running_return
+        
+        # 计算优势
+        advantages = returns - values
+        return advantages
+    
+    def clear(self):
+        """Clear buffer"""
+        self.states.clear()
+        self.actions.clear()
+        self.rewards.clear()
+        self.values.clear()
+        self.log_probs.clear()
+        self.dones.clear()
+        self.rag_embeddings.clear()
+        
+    def __len__(self):  # <- 新增：支持len()操作
+        return len(self.states)
+
+
+class TaskAwareRolloutBuffer(RolloutBuffer):  # <- 修改了这一行：继承自RolloutBuffer
+    """Task-aware buffer for PPO with experience replay capability"""
+    
+    def __init__(self, capacity_per_task: int = 10000, min_episodes_per_task: int = 10):
+        super().__init__()  # <- 新增：调用父类构造函数
+        
+        # 任务特定的经验存储
+        self.task_buffers = {}  # task_type -> list of episodes
+        self.capacity_per_task = capacity_per_task
+        self.min_episodes_per_task = min_episodes_per_task
+        
+        # 当前episode的临时存储（扩展父类功能）
+        self.current_episode = {
+            'states': [],
+            'actions': [],
+            'rewards': [],
+            'values': [],
+            'log_probs': [],
+            'dones': [],
+            'task_type': None,
+            'rag_contexts': [],  
+            'action_infos': []   
+        }
+        
+        # 全局统计
+        self.task_counts = defaultdict(int)
+        self.total_episodes = 0
+        
+    def add(self, state, action, reward, value, log_prob, done, 
+            rag_embedding=None, action_info=None):  # 修改：统一使用rag_embedding参数名
+        """添加单步经验（扩展父类功能）"""
+        print(f"[TaskAwareRolloutBuffer.add] Storing experience with rag_embedding shape: {rag_embedding.shape if rag_embedding is not None else None}")
+        
+        # 调用父类的add方法处理基础数据，传递所有参数
+        super().add(state, action, reward, value, log_prob, done, 
+                   rag_embedding=rag_embedding)  # 修改：正确传递rag_embedding参数
+        
+        # 处理扩展数据
+        self.current_episode['states'].append(state)
+        self.current_episode['actions'].append(action)
+        self.current_episode['rewards'].append(reward)
+        self.current_episode['values'].append(value)
+        self.current_episode['log_probs'].append(log_prob)
+        self.current_episode['dones'].append(done)
+        
+        # 修改：将rag_embedding存储为rag_contexts（保持向后兼容）
+        # 如果action_info中包含rag_context信息，优先使用
+        if action_info and 'rag_context' in action_info:
+            self.current_episode['rag_contexts'].append(action_info['rag_context'])
+        else:
+            # 否则存储rag_embedding作为context
+            self.current_episode['rag_contexts'].append(rag_embedding)
+            
+        self.current_episode['action_infos'].append(action_info)
+        
+        # 调试信息
+        if done:
+            print(f"[TaskAwareRolloutBuffer.add] Episode complete. Total steps: {len(self.current_episode['states'])}")
+    
+    def set_task_type(self, task_type: str):
+        """设置当前episode的任务类型"""
+        self.current_episode['task_type'] = task_type
+    
+    def store_episode(self):
+        """存储完整的episode到任务buffer"""
+        task_type = self.current_episode['task_type'] or 'default'
+        
+        if task_type not in self.task_buffers:
+            self.task_buffers[task_type] = deque(maxlen=self.capacity_per_task)
+        
+        # 深拷贝当前episode数据
+        episode_copy = {
+            k: list(v) if isinstance(v, list) else v
+            for k, v in self.current_episode.items()
+        }
+        
+        # 计算episode总奖励
+        episode_copy['total_reward'] = sum(self.current_episode['rewards'])
+        
+        self.task_buffers[task_type].append(episode_copy)
+        self.task_counts[task_type] += 1
+        self.total_episodes += 1
+    
+    def get(self, current_task_type=None, mix_ratio=0.7):
+        """获取训练数据，支持任务感知的采样策略"""
+        # 如果没有task buffer，使用父类的get方法  # <- 新增
+        if not self.task_buffers:
+            return super().get()
+            
+        episodes_to_process = []
+        
+        if current_task_type and current_task_type in self.task_buffers:
+            # 混合采样策略
+            current_task_episodes = int(mix_ratio * self.min_episodes_per_task)
+            other_episodes = self.min_episodes_per_task - current_task_episodes
+            
+            # 从当前任务采样
+            current_buffer = list(self.task_buffers[current_task_type])
+            if current_buffer:
+                sorted_episodes = sorted(current_buffer, 
+                                       key=lambda ep: abs(ep.get('total_reward', 0) - 5.0))
+                n_current = min(current_task_episodes, len(sorted_episodes))
+                episodes_to_process.extend(sorted_episodes[:n_current])
+            
+            # 从其他任务采样
+            other_tasks = [t for t in self.task_buffers if t != current_task_type]
+            if other_tasks and other_episodes > 0:
+                task_avg_rewards = {}
+                for task in other_tasks:
+                    task_buffer = self.task_buffers[task]
+                    if task_buffer:
+                        avg_reward = np.mean([ep.get('total_reward', 0) for ep in task_buffer])
+                        task_avg_rewards[task] = avg_reward
+                
+                # 按平均奖励排序，优先采样困难任务
+                sorted_tasks = sorted(other_tasks, key=lambda t: task_avg_rewards.get(t, 0))
+                
+                episodes_per_task = max(1, other_episodes // len(other_tasks))
+                for task in sorted_tasks:
+                    task_buffer = list(self.task_buffers[task])
+                    if task_buffer:
+                        # 同样优先选择中等奖励的episodes
+                        sorted_task_episodes = sorted(task_buffer,
+                                                    key=lambda ep: abs(ep.get('total_reward', 0) - 5.0))
+                        n_select = min(episodes_per_task, len(sorted_task_episodes))
+                        episodes_to_process.extend(sorted_task_episodes[:n_select])
+        else:
+            # 均衡采样所有任务
+            for task_type, buffer in self.task_buffers.items():
+                if buffer:
+                    task_buffer = list(buffer)
+                    sampled = np.random.choice(
+                        len(task_buffer),
+                        min(self.min_episodes_per_task, len(task_buffer)),
+                        replace=False
+                    )
+                    episodes_to_process.extend([task_buffer[i] for i in sampled])
+        
+        # 合并所有episodes的数据
+        if not episodes_to_process:  # <- 新增：空数据检查
+            return None
+        return self._merge_episodes(episodes_to_process)
+
+
+    def _merge_episodes(self, episodes):
+        """合并多个episodes的数据"""
+        all_states = []
+        all_actions = []
+        all_log_probs = []
+        all_returns = []
+        all_advantages = []
+        all_rag_embeddings = []
+        
+        for episode in episodes:
+            # _process_episode_data 现在返回6个值
+            states, actions, log_probs, returns, advantages, rag_embeddings = self._process_episode_data(episode)
+            all_states.append(states)
+            all_actions.append(actions)
+            all_log_probs.append(log_probs)
+            all_returns.append(returns)
+            all_advantages.append(advantages)
+            all_rag_embeddings.append(rag_embeddings)
+        
+        # 连接所有数据
+        if not all_states:
+            return None
+            
+        return (
+            torch.cat(all_states),
+            torch.cat(all_actions),
+            torch.cat(all_log_probs),
+            torch.cat(all_returns),
+            torch.cat(all_advantages),
+            torch.cat(all_rag_embeddings)
+        )    
+
+
+    def _process_episode_data(self, episode):
+        """处理单个episode数据"""
+        states = torch.FloatTensor(np.array(episode['states'])).to(device)
+        actions = torch.LongTensor(episode['actions']).to(device)
+        rewards = torch.FloatTensor(episode['rewards']).to(device)
+        values = torch.FloatTensor(episode['values']).to(device)
+        log_probs = torch.FloatTensor(episode['log_probs']).to(device)
+        dones = torch.FloatTensor(episode['dones']).to(device)
+        
+        # 使用父类的静态方法计算advantages  # <- 修改了这一行
+        advantages = RolloutBuffer._compute_advantages(rewards, values, dones)
+        returns = advantages + values
+        
+        return states, actions, log_probs, returns, advantages
+    
+
+    def _process_episode_data(self, episode):
+        """处理单个episode数据"""
+        states = torch.FloatTensor(np.array(episode['states'])).to(device)
+        actions = torch.LongTensor(episode['actions']).to(device)
+        rewards = torch.FloatTensor(episode['rewards']).to(device)
+        values = torch.FloatTensor(episode['values']).to(device)
+        log_probs = torch.FloatTensor(episode['log_probs']).to(device)
+        dones = torch.FloatTensor(episode['dones']).to(device)
+        
+        # 处理RAG contexts/embeddings
+        rag_contexts = episode.get('rag_contexts', [])
+        if rag_contexts:
+            # 处理存储的rag_contexts
+            rag_embeddings_list = []
+            for rag_data in rag_contexts:
+                if isinstance(rag_data, np.ndarray):
+                    # 已经是embedding
+                    rag_embeddings_list.append(rag_data)
+                elif rag_data is None:
+                    # 使用零向量
+                    rag_embeddings_list.append(np.zeros(64))
+                else:
+                    # 其他情况也使用零向量
+                    rag_embeddings_list.append(np.zeros(64))
+            rag_embeddings = torch.FloatTensor(np.array(rag_embeddings_list)).to(device)
+        else:
+            # 如果没有rag_contexts，创建与states相同长度的零向量
+            print(f"[TaskAwareRolloutBuffer._process_episode_data] No rag_contexts found, using zero embeddings")
+            rag_embeddings = torch.zeros(len(states), 64).to(device)
+        
+        # 使用父类的静态方法计算advantages
+        advantages = RolloutBuffer._compute_advantages(rewards, values, dones)
+        returns = advantages + values
+        
+        return states, actions, log_probs, returns, advantages, rag_embeddings
+    
+    def clear(self):
+        """清空当前episode buffer"""
+        super().clear()  # <- 新增：调用父类的clear
+        
+        # 清空扩展数据
+        self.current_episode = {
+            'states': [],
+            'actions': [],
+            'rewards': [],
+            'values': [],
+            'log_probs': [],
+            'dones': [],
+            'task_type': None,
+            'rag_contexts': [],
+            'action_infos': []
+        }
+    
+    def get_task_statistics(self):
+        """获取任务分布统计"""
+        return {
+            task_type: {
+                'episodes': len(buffer),
+                'total_collected': self.task_counts[task_type]
+            }
+            for task_type, buffer in self.task_buffers.items()
+        }
+
+
+class PPOTrainer(BaseTrainer):
+    """PPO trainer implementation"""
+    
+    def __init__(self, env: 'MDPEnvironment', config: Dict[str, Any]):
+        super().__init__(env, config)
+        
+        # Network
+        state_dim = env.get_state_dim()
+        action_dim = env.num_actions
+        
+        # 创建网络配置
+        network_config = {
+            'hidden_dim': config.get('hidden_dim', 256),
+            'num_layers': config.get('num_layers', 3),
+            'num_heads': config.get('num_heads', 4),
+            'dropout': config.get('dropout', 0.1),
+            'use_pre_norm': config.get('use_pre_norm', True),
+            'use_auxiliary_tasks': config.get('use_auxiliary_tasks', False),
+            'use_curiosity': config.get('use_curiosity', False),
+            'spectral_norm': config.get('spectral_norm', False),
+            'rag_dim': config.get('rag_dim', 64),
+            'use_mac_optimization': config.get('use_mac_optimization', False),
+            'use_rag_enhancement': config.get('use_rag_enhancement', True)
+        }
+        
+        print(f"[PPOTrainer.__init__] Creating ActorCriticNetwork with config: use_rag_enhancement={network_config['use_rag_enhancement']}")
+        
+        # 创建ActorCriticNetwork实例
+        self.network = ActorCriticNetwork(state_dim, action_dim, network_config)
+        self.network.to(self.device)
+        
+        # Optimizer
+        self.optimizer = optim.Adam(self.network.parameters(), lr=config.get('learning_rate', 3e-4))
+        
+        # PPO specific parameters（后续代码保持不变）
+        # PPO specific parameters（后续代码保持不变）
+        use_task_aware_buffer = config.get('use_task_aware_buffer', True)
+        if use_task_aware_buffer:
+            self.rollout_buffer = TaskAwareRolloutBuffer(
+                capacity_per_task=config.get('buffer_capacity_per_task', 100),
+                min_episodes_per_task=config.get('min_episodes_per_task', 5)
+            )
+        else:
+            self.rollout_buffer = RolloutBuffer(gamma=self.gamma)  # 传递gamma参数
+            
+        self.n_steps = config.get('n_steps', 2048)
+        self.n_epochs = config.get('n_epochs', 10)
+        self.batch_size = config.get('batch_size', 64)
+        self.clip_range = config.get('clip_range', 0.2)
+        self.clip_range_vf = config.get('clip_range_vf', None)
+        self.ent_coef = config.get('ent_coef', 0.01)
+        self.vf_coef = config.get('vf_coef', 0.5)
+        self.max_grad_norm = config.get('max_grad_norm', 0.5)
+        self.gamma = config.get('gamma', 0.99)
+        self.gae_lambda = config.get('gae_lambda', 0.95)
+        
+        # Tracking
+        self.current_learning_rate = config.get('learning_rate', 3e-4)
+        self.current_task_type = None
+        
+        # 增强的Teacher guidance参数
+        self.use_teacher_guidance = config.get('use_teacher_guidance', False)
+        self.teacher_guidance_prob = config.get('teacher_guidance_start_prob', 0.3)
+        self.teacher_guidance_decay = config.get('teacher_guidance_decay', 0.99)
+        self.teacher_guidance_min_prob = config.get('teacher_guidance_min_prob', 0.01)
+        
+        # 新增：Soft guidance参数
+        self.use_soft_guidance = config.get('use_soft_guidance', True)
+        self.guidance_temperature = config.get('guidance_temperature', 0.5)
+        self.guidance_blend_factor = config.get('guidance_blend_factor', 0.7)
+        
+        # 新增：自适应guidance
+        self.adaptive_guidance = config.get('adaptive_guidance', True)
+        self.task_difficulty_scores = {}
+        self.model_confidence_threshold = 0.8
+        self.llm_client = None
+        
+        # Episode-level guidance
+        self.episode_guidance_mode = config.get('episode_guidance_mode', True)
+        self.current_episode_workflow = None
+        self.workflow_cache = {}
+        self.max_cache_size = 100
+        
+        # 初始化LLM客户端（如果启用teacher guidance）
+        if self.use_teacher_guidance:
+            self._init_llm_client()
+
+    def store_experience(self, state: np.ndarray, action: int, reward: float,  # <- 新增：实现统一接口
+                        next_state: np.ndarray, done: bool, **kwargs) -> None:
+        """Store experience using store_transition"""
+        # PPO不需要next_state，直接调用原有的store_transition
+        self.store_transition(state, action, reward, done)
+    
+    def should_train(self) -> bool:  # <- 新增：判断是否应该训练
+        """PPO trains every n_steps"""
+        return self.total_timesteps > 0 and self.total_timesteps % self.n_steps == 0
+    
+    def on_episode_end(self) -> None:  # <- 新增：episode结束处理
+        """PPO needs to handle episode end for TaskAwareRolloutBuffer"""
+        if isinstance(self.rollout_buffer, TaskAwareRolloutBuffer):
+            self.rollout_buffer.store_episode()
+    
+    def _init_llm_client(self):
+        """Initialize LLM client for teacher guidance"""
+        try:
+            api_key = os.getenv('OPENAI_API_KEY')
+            if api_key:
+                from openai import OpenAI
+                self.llm_client = OpenAI(api_key=api_key)
+                logger.info("LLM client initialized for teacher guidance")
+            else:
+                logger.warning("No OpenAI API key found, teacher guidance disabled")
+                self.use_teacher_guidance = False
+        except Exception as e:
+            logger.warning(f"Failed to initialize LLM client: {e}")
+            self.use_teacher_guidance = False
+    
+    def set_eval_mode(self, eval_mode: bool):  # <- 新增：重写基类方法
+        """Set evaluation mode - disable teacher guidance"""
+        super().set_eval_mode(eval_mode)
+        if eval_mode:
+            self.stored_teacher_prob = self.teacher_guidance_prob
+            self.teacher_guidance_prob = 0.0
+        else:
+            if hasattr(self, 'stored_teacher_prob'):
+                self.teacher_guidance_prob = self.stored_teacher_prob
+
+
+    def select_action(self, state: np.ndarray, valid_actions: Optional[List[int]] = None) -> int:
+        """Select action using policy network with RAG enhancement and required_tools"""
+        # Episode-level workflow guidance
+        if (self.use_teacher_guidance and 
+            self.episode_guidance_mode and 
+            not self.eval_mode and
+            hasattr(self.env, 'episode_steps') and 
+            self.env.episode_steps == 0):
+            self._get_episode_workflow_guidance()
+        
+        # Get teacher action if using guidance
+        teacher_action = None
+        if self.use_teacher_guidance and not self.eval_mode and random.random() < self.teacher_guidance_prob:
+            print("使用教师指导模式")
+            if self.episode_guidance_mode and self.current_episode_workflow:
+                teacher_action = self._get_next_workflow_action(valid_actions)
+            if teacher_action is None:
+                teacher_action = self._get_teacher_action(state, valid_actions)
+        
+        # 准备RAG embedding
+        rag_embedding = None
+        if hasattr(self.env, 'last_rag_context') and self.env.last_rag_context:
+            rag_embedding = self.env._encode_rag_embedding(self.env.last_rag_context)
+            rag_tensor = torch.FloatTensor(rag_embedding).unsqueeze(0).to(self.device)
+        else:
+            rag_tensor = torch.zeros(1, self.config.get('rag_dim', 64)).to(self.device)
+        
+        # 准备required_tools embedding
+        required_tools_tensor = None
+        if hasattr(self.env, 'current_task_info') and self.env.current_task_info:
+            required_tools = self.env.current_task_info.get('required_tools', [])
+            if required_tools and hasattr(self.network, 'tools_projection'):
+                # 获取embedding_manager
+                embedding_manager = None
+                if hasattr(self.env, 'mdp') and hasattr(self.env.mdp, 'embedding_manager'):
+                    embedding_manager = self.env.mdp.embedding_manager
+                
+                # 使用embedding方法编码required_tools
+                required_tools_embedding = encode_required_tools_embedding(
+                    required_tools,
+                    embedding_manager
+                )
+                required_tools_tensor = torch.FloatTensor(required_tools_embedding).unsqueeze(0).to(self.device)
+                logger.debug(f\"E\"ncoded {len(required_tools)} required tools using embeddings)
+        else:
+            logger.debug( No required tools found, using zero vector)
+        
+        # 如果网络支持tools输入但没有required_tools，创建零向量
+        if required_tools_tensor is None and hasattr(self.network, 'tools_projection'):
+            raise ValueError("Network supports tools input but no required_tools provided")
+            logger.debug( No required tools provided, using zero vector for tools input)
+            required_tools_tensor = torch.zeros(1, getattr(self.network, 'tools_dim', 64)).to(self.device)
+        
+        # 如果网络支持tools输入但没有required_tools，创建零向量
+
+        # Get policy action with RAG and required_tools
+        with torch.no_grad():
+            state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
+            
+            # 根据网络能力调用forward
+            if hasattr(self.network, 'tools_projection') and required_tools_tensor is not None:
+                # 新版网络，支持三个输入
+                logits, value = self.network(state_tensor, rag_tensor, required_tools_tensor)
+                logger.debug( Using network with RAG and tools embedding input)
+            elif hasattr(self.network, 'rag_projection'):
+                # 中版网络，只支持RAG
+                logits, value = self.network(state_tensor, rag_tensor)
+                logger.debug( Using network with RAG input only)
+            else:
+                # 旧版网络，只支持state
+                logits, value = self.network(state_tensor)
+                print("[WARNING] Network doesn't support RAG or tools input")
+            
+            # 使用基类的数值稳定化
+            if hasattr(self, '_stabilize_logits'):
+                logits = self._stabilize_logits(logits)
+            
+            # Apply action masking if provided
+            if valid_actions is not None:
+                mask = torch.ones_like(logits[0]) * float('-inf')
+                mask[valid_actions] = 0
+                logits = logits + mask.unsqueeze(0)
+            
+            # 创建动作分布
+            probs = F.softmax(logits, dim=-1)
+            dist = torch.distributions.Categorical(probs)
+            
+            # 采样或使用教师动作
+            if teacher_action is not None:
+                action = teacher_action
+            else:
+                # 普通的动作选择逻辑
+                with torch.no_grad():
+                    # 调用网络前向传播
+                    if hasattr(self.network, 'tools_projection'):
+                        logits, value = self.network(state_tensor, rag_tensor, required_tools_tensor)
+                    elif hasattr(self.network, 'rag_projection'):
+                        logits, value = self.network(state_tensor, rag_tensor)
+                    else:
+                        logits, value = self.network(state_tensor)
+                    
+                    # 应用动作掩码并选择动作
+                    if valid_actions is not None:
+                        mask = torch.zeros_like(logits[0])
+                        mask[valid_actions] = 1
+                        masked_logits = logits[0] + (mask - 1) * 1e8
+                        probs = torch.softmax(masked_logits, dim=0)
+                    else:
+                        probs = torch.softmax(logits[0], dim=0)
+                    
+                    dist = torch.distributions.Categorical(probs)
+                    action = dist.sample().item()
+                    log_prob = dist.log_prob(torch.tensor(action, device=self.device))
+
+                    
+                    # 存储value和log_prob供后续使用
+                    self.last_value = value.item() if value.dim() == 0 else value[0].item()
+                    self.last_log_prob = log_prob.item()
+                    self.last_rag_embedding = rag_embedding
+                
+            return action  # 只返回选择的动作
+
+    def _get_episode_workflow_guidance(self):
+        """获取整个episode的workflow指导"""
+        if not self.llm_client or not hasattr(self.env, 'current_task'):
+            return
+        
+        current_task = self.env.current_task
+        # 使用getattr安全访问，优先使用description
+        task_description = getattr(current_task, 'description', getattr(current_task, 'task_objective', 'Unknown task'))
+        task_key = f"{current_task.task_type}_{task_description[:50]}"
+        
+        # 检查缓存
+        if task_key in self.workflow_cache:
+            self.current_episode_workflow = self.workflow_cache[task_key].copy()
+            self.env.workflow_position = 0
+            return
+        
+        # 构建prompt
+        prompt = f"""Given this task, provide an optimal tool execution sequence.
+
+    Task Type: {current_task.task_type}
+    Task Objective: {task_description}
+
+    Available tools: {list(self.env.tool_registry.keys())}
+
+    Return ONLY a JSON list of tool names in the optimal execution order.
+    Example: ["data_reader", "validator", "transformer", "csv_writer"]
+
+    Consider:
+    1. Tool dependencies and data flow
+    2. Logical workflow progression
+    3. Task requirements
+    """
+        
+        response = self.llm_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are an expert in workflow optimization."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.3,
+            max_tokens=200
+        )
+        
+        # 解析响应
+        content = response.choices[0].message.content.strip()
+        
+        # 添加调试日志
+        # logger.debug(f"LLM response for workflow guidance: {content[:200]}...")
+        # logger.debug(f\"LLM workflow respo\"nse: {content[:100]}...)
+        
+        # 验证响应内容
+        if not content:
+            # logger.warning("Empty response from LLM for workflow guidance")
+            # print("[WARNING] Empty LLM response, using empty workflow")
+            print("FFFFFFFFFFFFFFFFFFFFFFFFF\n\n\n")
+            workflow = []
+        else:
+
+            
+            # 查找JSON数组模式 - 匹配 [...] 格式
+            json_pattern = r'\[\s*(?:"[^"]+"\s*(?:,\s*"[^"]+"\s*)*)?\]'
+            json_match = re.search(json_pattern, content)
+            
+            if json_match:
+                json_str = json_match.group(0)
+                # 再次验证是否为有效JSON
+                if json_str.startswith('[') and json_str.endswith(']'):
+                    # 解析JSON
+                    workflow = json.loads(json_str)
+                    logger.debug(f\"Extracted workflow: {workflow}\")
+                else:
+                    logger.warning(f"Invalid JSON format in LLM response: {json_str}")
+                    print(f"[WARNING] Invalid JSON format: {json_str}")
+                    workflow = []
+            else:
+                logger.warning(f"No JSON array found in LLM response: {content}")
+                print(f"[WARNING] No JSON array found in response")
+                workflow = []
+        
+        # 确保workflow是列表
+        if not isinstance(workflow, list):
+            logger.warning(f"Workflow is not a list: {type(workflow)}")
+            print(f"[WARNING] Workflow is not a list, converting to empty list")
+            workflow = []
+        
+        # 验证工具名称
+        valid_tools = set(self.env.tool_registry.keys())
+        validated_workflow = []
+        for tool in workflow:
+            if isinstance(tool, str) and tool in valid_tools:
+                validated_workflow.append(tool)
+            else:
+                logger.debug(f"Skipping invalid tool: {tool}")
+                logger.debug(f\"Skippi\"ng invalid tool: {tool})
+        
+        workflow = validated_workflow
+        
+        # 缓存结果
+        if len(self.workflow_cache) >= self.max_cache_size:
+            # 移除最旧的条目
+            self.workflow_cache.pop(next(iter(self.workflow_cache)))
+        
+        self.workflow_cache[task_key] = workflow
+        self.current_episode_workflow = workflow.copy()
+        self.env.workflow_position = 0
+        
+        logger.debug(f"Generated workflow guidance: {workflow}")
+        logger.debug(f\"Fi\"nal workflow guidance: {workflow})
+        
+    
+    def _get_next_workflow_action(self, valid_actions: Optional[List[int]]) -> Optional[int]:
+        """根据workflow建议获取下一个动作"""
+        if not self.current_episode_workflow or not hasattr(self.env, 'workflow_position'):
+            return None
+        
+        # 检查是否还有建议的工具
+        if self.env.workflow_position >= len(self.current_episode_workflow):
+            return None
+        
+        # 获取下一个建议的工具
+        suggested_tool = self.current_episode_workflow[self.env.workflow_position]
+        
+        # 查找对应的动作
+        for idx, action in enumerate(self.env.action_space):
+            if (hasattr(action, 'tool_name') and 
+                action.tool_name == suggested_tool and
+                action.action_type.value == 'invoke_tool'):
+                
+                # 验证动作有效性
+                if valid_actions is None or idx in valid_actions:
+                    self.env.workflow_position += 1  # 移动到下一个工具
+                    return idx
+        
+        # 如果建议的工具不可用，跳过
+        self.env.workflow_position += 1
+        return self._get_next_workflow_action(valid_actions)  # 递归尝试下一个
+    
+    def _get_teacher_action(self, state: np.ndarray, valid_actions: Optional[List[int]] = None) -> Optional[int]:
+        """获取RAG增强的LLM教师动作建议"""
+        if not self.llm_client or not hasattr(self.env, 'current_state'):
+            return None
+        
+        # 构建当前状态的描述
+        current_state = self.env.current_state
+        task_desc = current_state.task_objective if hasattr(current_state, 'task_objective') else "Complete the task"
+        
+        # 获取已执行的工具
+        executed_tools = []
+        if hasattr(current_state, 'execution_sequence'):
+            for item in current_state.execution_sequence:
+                if isinstance(item, str):
+                    executed_tools.append(item)
+                elif hasattr(item, 'tool_name'):
+                    executed_tools.append(item.tool_name)
+        
+        # 获取当前任务类型
+        task_type = getattr(current_state, 'task_type', 'general')
+        
+        # 初始化RAG增强部分
+        rag_enhancement = ""
+        
+        # 1. 语义搜索相关工具
+        if hasattr(self.env, 'mdp') and hasattr(self.env.mdp, 'embedding_manager') and self.env.mdp.embedding_manager:
+            # 构建搜索查询 - 基于任务目标和当前上下文
+            search_query = f"{task_desc}"
+            if executed_tools:
+                search_query += f" after {executed_tools[-1]}"
+            
+            # 执行语义搜索
+            search_results = self.env.mdp.embedding_manager.search(
+                query=search_query,
+                k=10,
+                return_scores=True
+            )
+            
+            # 构建RAG上下文
+            if search_results:
+                rag_enhancement += "\n\nSemantically similar tools based on current context:"
+                seen_tools = set()
+                for i, result in enumerate(search_results[:5]):
+                    if result.tool_name not in seen_tools:
+                        seen_tools.add(result.tool_name)
+                        rag_enhancement += f"\n- {result.tool_name} (similarity score: {result.score:.3f})"
+                        # 添加工具的简短描述（如果可用）
+                        if hasattr(self.env.mdp, 'tool_capabilities') and result.tool_name in self.env.mdp.tool_capabilities:
+                            capability = self.env.mdp.tool_capabilities[result.tool_name]
+                            ops = ', '.join(capability.semantic_operations[:2])  # 前两个操作
+                            rag_enhancement += f" - {ops}"
+        
+        # 2. 历史成功模式
+        if hasattr(self.env, 'mdp') and hasattr(self.env.mdp, 'successful_patterns') and executed_tools:
+            relevant_patterns = []
+            # 查找包含最近工具的成功模式
+            for pattern, success_rate in self.env.mdp.successful_patterns.items():
+                pattern_tools = pattern.split('->')
+                # 检查模式是否与当前执行序列匹配
+                if len(executed_tools) >= len(pattern_tools) - 1:
+                    # 检查已执行部分是否匹配
+                    match = True
+                    for i, tool in enumerate(pattern_tools[:-1]):
+                        if i < len(executed_tools) and executed_tools[-(len(pattern_tools)-1-i)] != tool:
+                            match = False
+                            break
+                    if match and success_rate > 0.5:  # 只考虑成功率高的模式
+                        next_tool = pattern_tools[-1]
+                        relevant_patterns.append((pattern, next_tool, success_rate))
+            
+            if relevant_patterns:
+                rag_enhancement += "\n\nSuccessful historical patterns:"
+                # 按成功率排序
+                relevant_patterns.sort(key=lambda x: x[2], reverse=True)
+                for pattern, next_tool, success_rate in relevant_patterns[:3]:
+                    rag_enhancement += f"\n- Pattern: {pattern} (success rate: {success_rate:.2f})"
+                    rag_enhancement += f"\n  Suggests next tool: {next_tool}"
+        
+        # 3. 工具依赖关系
+        dependency_info = ""
+        if hasattr(self.env.mdp, 'tool_capabilities'):
+            available_tools_with_deps = []
+            for idx, action in enumerate(self.env.action_space):
+                if hasattr(action, 'tool_name') and action.tool_name:
+                    if action.tool_name in self.env.mdp.tool_capabilities:
+                        capability = self.env.mdp.tool_capabilities[action.tool_name]
+                        if capability.dependencies:
+                            # 检查依赖是否满足
+                            deps_met = all(dep in executed_tools for dep in capability.dependencies)
+                            if not deps_met:
+                                unmet_deps = [dep for dep in capability.dependencies if dep not in executed_tools]
+                                dependency_info += f"\n- {action.tool_name} requires: {', '.join(unmet_deps)}"
+        
+        if dependency_info:
+            rag_enhancement += f"\n\nTool dependency constraints:{dependency_info}"
+        
+        # 4. 任务特定的工具偏好
+        task_preferences = ""
+        if hasattr(self.env.mdp, 'task_tool_preferences') and task_type in self.env.mdp.task_tool_preferences:
+            preferences = self.env.mdp.task_tool_preferences[task_type]
+            if preferences:
+                task_preferences = "\n\nTask-specific tool preferences:"
+                # 获取前5个最常用的工具
+                sorted_prefs = sorted(preferences.items(), key=lambda x: x[1], reverse=True)[:5]
+                for tool, score in sorted_prefs:
+                    if score > 0.1:  # 只显示有意义的偏好
+                        task_preferences += f"\n- {tool} (preference score: {score:.2f})"
+        
+        if task_preferences:
+            rag_enhancement += task_preferences
+        
+        # 构建完整的prompt
+        prompt = f"""You are helping to select the next action in a tool execution workflow.
+
+    Task Type: {task_type}
+    Task Objective: {task_desc}
+
+    Currently executed tools: {executed_tools if executed_tools else 'None'}
+
+    Available actions:
+    """
+        
+        # 添加可用动作列表
+        for idx, action in enumerate(self.env.action_space):
+            if valid_actions is None or idx in valid_actions:
+                action_desc = str(action)
+                if hasattr(action, 'tool_name') and action.tool_name:
+                    action_desc = f"{action.action_type.value}({action.tool_name})"
+                prompt += f"\n{idx}. {action_desc}"
+        
+        # 添加RAG增强信息
+        prompt += rag_enhancement
+        
+        # 添加决策指导
+        prompt += """
+
+    Consider:
+    1. Tool dependencies (e.g., reader before transformer, transformer before writer)
+    2. Logical workflow order
+    3. Avoiding redundant tool calls
+    4. Semantic similarity scores and historical success patterns
+    5. Task-specific tool preferences
+
+    Return ONLY the action index number."""
+
+        # 调用LLM
+        response = self.llm_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are an expert in workflow optimization with access to semantic search and historical pattern analysis."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.3,
+            max_tokens=10
+        )
+        
+        # 解析响应
+        content = response.choices[0].message.content.strip()
+        # 提取数字
+        match = re.search(r'\d+', content)
+        if not match:
+            logger.debug("No valid action index found in teacher response")
+            return None
+        
+        action_idx = int(match.group())
+        
+        # 验证动作有效性
+        if valid_actions and action_idx not in valid_actions:
+            logger.debug(f"Teacher suggested invalid action {action_idx}, not in {valid_actions}")
+            return None
+        if action_idx >= len(self.env.action_space):
+            logger.debug(f"Teacher suggested out-of-range action {action_idx}")
+            return None
+        
+        # 记录RAG增强的teacher guidance
+        if rag_enhancement:
+            logger.debug(f"Teacher guidance enhanced with RAG context, selected action {action_idx}")
+        
+        return action_idx
+
+    def store_transition(self, state: np.ndarray, action: int, reward: float, done: bool):
+        """Store transition in rollout buffer with RAG embedding"""
+        # 设置任务类型（如果是TaskAwareRolloutBuffer）
+        if isinstance(self.rollout_buffer, TaskAwareRolloutBuffer) and hasattr(self.env, 'current_task'):
+            if self.env.episode_steps == 0:
+                task_type = getattr(self.env.current_task, 'task_type', 'default')
+                self.rollout_buffer.set_task_type(task_type)
+                self.current_task_type = task_type
+        
+        # 获取RAG embedding
+        rag_embedding = None
+        if hasattr(self, 'last_rag_embedding'):
+            rag_embedding = self.last_rag_embedding
+        elif hasattr(self.env, 'last_rag_context'):
+            # 如果没有预计算的embedding，现场计算
+            rag_embedding = self.env._encode_rag_embedding(self.env.last_rag_context)
+        
+        # 获取动作信息
+        action_info = None
+        if hasattr(self.env, 'action_space') and action < len(self.env.action_space):
+            action_obj = self.env.action_space[action]
+            if hasattr(action_obj, '__dict__'):
+                action_info = {
+                    'tool_name': getattr(action_obj, 'tool_name', None),
+                    'semantic_score': getattr(action_obj, 'semantic_score', 0.0),
+                    'search_source': getattr(action_obj, 'search_source', 'rule_based'),
+                    'confidence': getattr(action_obj, 'confidence', 1.0)
+                }
+        
+        # Store the transition with RAG embedding
+        if hasattr(self, 'last_value') and hasattr(self, 'last_log_prob'):
+            self.rollout_buffer.add(
+                state=state,
+                action=action,
+                reward=reward,
+                value=self.last_value,
+                log_prob=self.last_log_prob,
+                done=done,
+                rag_embedding=rag_embedding,  # 添加RAG embedding
+                action_info=action_info
+            )
+        
+        # 如果episode结束且使用TaskAwareRolloutBuffer，存储整个episode
+        if done and isinstance(self.rollout_buffer, TaskAwareRolloutBuffer):
+            self.rollout_buffer.store_episode()
+    
+
+
+    def train_step(self) -> float:
+        """增强的PPO训练步骤，包含RAG支持"""
+        # Get data from rollout buffer
+        if isinstance(self.rollout_buffer, TaskAwareRolloutBuffer):
+            rollout_data = self.rollout_buffer.get(
+                current_task_type=self.current_task_type,
+                mix_ratio=self.config.get('task_mix_ratio', 0.7)
+            )
+        else:
+            rollout_data = self.rollout_buffer.get()
+        
+        if not rollout_data:
+            print("[PPOTrainer.train_step] No rollout data available")
+            return 0.0
+        
+        # 解包数据，包含RAG embeddings
+        states, actions, old_log_probs, returns, advantages, rag_embeddings = rollout_data
+        
+        # 验证数据长度
+        if len(states) < self.batch_size:
+            print(f"[PPOTrainer.train_step] Insufficient data: {len(states)} < {self.batch_size}")
+            return 0.0
+        
+        # Normalize advantages
+        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+        
+        # 追踪统计
+        total_loss = 0
+        num_updates = 0
+        early_stop = False
+        kl_divergences = []
+        
+        # 自适应参数
+        current_clip_range = self.clip_range
+        current_ent_coef = self.ent_coef
+        
+        for epoch in range(self.n_epochs):
+            # 早停检查
+            if early_stop and self.config.get('adaptive_kl_ctrl', False):
+                print(f"Early stopping at epoch {epoch} due to KL divergence")
+                break
+            
+            # Create random indices for minibatches
+            indices = torch.randperm(len(states))
+            
+            for start in range(0, len(states), self.batch_size):
+                end = start + self.batch_size
+                if end > len(states):
+                    continue
+                
+                batch_indices = indices[start:end]
+                batch_states = states[batch_indices]
+                batch_actions = actions[batch_indices]
+                batch_advantages = advantages[batch_indices]
+                batch_returns = returns[batch_indices]
+                batch_old_log_probs = old_log_probs[batch_indices]
+                batch_rag_embeddings = rag_embeddings[batch_indices]  # 获取RAG embeddings
+                
+                # Forward pass with RAG
+                if hasattr(self.network, 'rag_projection'):
+                    logits, values = self.network(batch_states, batch_rag_embeddings)
+                else:
+                    logits, values = self.network(batch_states)
+                
+                dist = Categorical(logits=logits)
+                
+                # Calculate ratios
+                new_log_probs = dist.log_prob(batch_actions)
+                ratio = torch.exp(new_log_probs - batch_old_log_probs)
+                
+                # KL散度计算
+                with torch.no_grad():
+                    old_dist = Categorical(logits=logits.detach())
+                    kl = torch.distributions.kl_divergence(dist, old_dist).mean()
+                    kl_divergences.append(kl.item())
+                    
+                    # 自适应早停
+                    if kl > self.config.get('target_kl', 0.03):
+                        early_stop = True
+                
+                # Policy loss
+                surr1 = ratio * batch_advantages
+                surr2 = torch.clamp(ratio, 1 - current_clip_range, 1 + current_clip_range) * batch_advantages
+                policy_loss = -torch.min(surr1, surr2).mean()
+                
+                # Value loss
+                values_clipped = batch_old_log_probs + torch.clamp(
+                    values.squeeze() - batch_old_log_probs,
+                    -current_clip_range,
+                    current_clip_range
+                ) if self.clip_range_vf else values.squeeze()
+                
+                value_loss = F.mse_loss(values_clipped, batch_returns)
+                
+                # Entropy bonus
+                entropy = dist.entropy().mean()
+                
+                # Total loss
+                loss = policy_loss + self.vf_coef * value_loss - current_ent_coef * entropy
+                
+                # Backward and optimize
+                self.optimizer.zero_grad()
+                loss.backward()
+                
+                # Gradient clipping
+                if self.max_grad_norm is not None:
+                    torch.nn.utils.clip_grad_norm_(self.network.parameters(), self.max_grad_norm)
+                
+                self.optimizer.step()
+                
+                total_loss += loss.item()
+                num_updates += 1
+                
+                # 记录详细统计
+                if num_updates % 10 == 0:
+                    print(f"[PPOTrainer] Epoch {epoch}, Update {num_updates}: "
+                        f"loss={loss.item():.4f}, policy_loss={policy_loss.item():.4f}, "
+                        f"value_loss={value_loss.item():.4f}, entropy={entropy.item():.4f}")
+        
+        # Clear rollout buffer
+        self.rollout_buffer.clear()
+        self.training_steps += 1
+        
+        # 更新统计
+        if kl_divergences:
+            avg_kl = np.mean(kl_divergences)
+            logger.info(f"Average KL divergence: {avg_kl:.4f}, Clip range: {current_clip_range:.3f}")
+        
+        # 返回平均损失
+        if num_updates > 0:
+            avg_loss = total_loss / num_updates
+            print(f"[PPOTrainer.train_step] Training completed: {num_updates} updates, avg_loss={avg_loss:.4f}")
+            return avg_loss
+        else:
+            print("[PPOTrainer.train_step] No updates performed")
+            return 0.0
+    
+
+    def update_exploration(self):
+        """PPO doesn't use explicit exploration parameters, but update teacher guidance"""
+        if self.use_teacher_guidance:
+            self.teacher_guidance_prob = max(
+                self.teacher_guidance_min_prob,
+                self.teacher_guidance_prob * self.teacher_guidance_decay
+            )
+    
+    def save_checkpoint(self, path: str, additional_data: Dict[str, Any] = None):
+        """Save PPO checkpoint"""
+        state_dicts = {
+            'network_state_dict': self.network.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict()
+        }
+        
+        # 保存任务分布统计
+        extra_data = {}
+        if isinstance(self.rollout_buffer, TaskAwareRolloutBuffer):
+            extra_data['task_statistics'] = self.rollout_buffer.get_task_statistics()
+            extra_data['task_counts'] = dict(self.rollout_buffer.task_counts)
+        
+        if additional_data:
+            extra_data.update(additional_data)
+        
+        self.save_checkpoint_base(path, state_dicts, extra_data)
+    
+    def load_checkpoint(self, path: str) -> Dict[str, Any]:
+        """Load model checkpoint and return additional data"""
+        checkpoint = self.load_checkpoint_base(path)
+        
+        self.network.load_state_dict(checkpoint['network_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        
+        return checkpoint
+# ===========================
+# Import Required Components
+# ===========================
+
+def import_mdp_components():
+    from generalized_mdp_framework import (
+        GeneralizedMDP, GeneralizedMDPState, GeneralizedAction,
+        ActionType, ToolExecutionStatus, ErrorCategory,
+        DataFlowState, TaskDomain, TaskComplexity,
+        TaskFeatures, ToolCapability, load_tool_capabilities
+    )
+    return True, locals()
+
+def import_phase2_scoring():
+    """Import Phase 2 scoring components"""
+    logger.debug( Importing Phase 2 scoring components...)
+    from workflow_quality_test_flawed import StableScorer, SimplifiedScoringConfig
+    logger.debug( Phase 2 scoring components imported successfully)
+    return True, StableScorer, SimplifiedScoringConfig
+
+
+def import_workflow_generator():
+    """Import workflow generator for enforcement"""
+    logger.debug( Importing workflow generator...)
+    # Avoid circular import by importing here
+    import mdp_workflow_generator
+    logger.debug( Workflow generator imported successfully)
+    return True, mdp_workflow_generator.MDPWorkflowGenerator
+
+
+# Import components
+MDP_AVAILABLE, mdp_components = import_mdp_components()
+if MDP_AVAILABLE:
+    globals().update(mdp_components)
+
+PHASE2_AVAILABLE, StableScorer, SimplifiedScoringConfig = import_phase2_scoring()
+WORKFLOW_AVAILABLE, MDPWorkflowGenerator = import_workflow_generator()
+
+
+# ===========================
+# Task Loading and Management
+# ===========================
+
+class TaskManager:
+    """Manages task loading and organization"""
+    
+    def __init__(self, task_path: Optional[str] = None, task_types: Optional[List[str]] = None):  # <- 修改了这一行
+        # self.task_path = task_path or "mcp_generated_library/task_library_enhanced_v3.json"
+        self.task_path = task_path or "mcp_generated_library/task_library_all_difficulties.json"
+        self.tasks = []
+        self.tasks_by_type = defaultdict(list)
+        self.tasks_by_complexity = defaultdict(list)
+        self.target_task_types = task_types  # <- 新增了这一行
+        self._load_tasks()
+    
+    def _load_tasks(self):
+        """Load tasks from file or create samples"""
+        task_paths = [
+            # Path("mcp_generated_library/task_library_enhanced_v3.json"),  # 优先使用增强版
+            Path("mcp_generated_library/task_library_all_difficulties.json")
+            # Path(self.task_path),
+            # Path("mcp_generated_library/task_library.json"),
+            # Path("task_library.json"),
+        ]
+        
+        for path in task_paths:
+            if path.exists():
+                logger.debug(f\"Attempti\"ng to load tasks from {path})
+                with open(path, 'r') as f:
+                    data = json.load(f)
+                
+                # Handle different formats
+                if isinstance(data, dict):
+                    if 'tasks' in data:
+                        self._process_task_list(data['tasks'])
+                    else:
+                        self._process_task_list(list(data.values()))
+                elif isinstance(data, list):
+                    self._process_task_list(data)
+                else:
+                    print(f"[ERROR] Unknown data format in {path}: {type(data)}")
+                    raise ValueError(f"Unknown task data format: {type(data)}")
+                
+                if self.tasks:
+                    # Filter by task types if specified
+                    if self.target_task_types:
+                        logger.debug(f\"Filteri\"ng tasks by types: {self.target_task_types})
+                        self._filter_by_types()
+                    logger.info(f"Loaded {len(self.tasks)} tasks from {path}")
+                    self._organize_tasks()
+                    return
+                else:
+                    print(f"[WARNING] No tasks loaded from {path}")
+        
+        logger.warning("No task file found, creating sample tasks")
+        self._create_sample_tasks()
+    
+    def _process_task_list(self, tasks_data: List[Any]):
+        """Process a list of task data"""
+        for i, task_data in enumerate(tasks_data):
+            if isinstance(task_data, dict):
+                try:
+                    task = self._create_task_object(task_data)
+                    if task:
+                        self.tasks.append(task)
+                except Exception as e:
+                    logger.error(f"Failed to create task {i}: {e}")
+                    # Try to print task data for debugging
+                    logger.debug(f"Task data: {json.dumps(task_data, indent=2, default=str)[:200]}...")
+            elif isinstance(task_data, str):
+                logger.warning(f"Skipping string task data: {task_data[:50]}...")
+            else:
+                logger.warning(f"Skipping unknown task data type: {type(task_data)}")
+    
+    def _create_task_object(self, data: dict):
+        """Create a task object from dictionary data"""
+        class Task:
+            def __init__(self, data):
+                # Handle different field names
+                self.id = data.get('id', data.get('instance_id', f"task_{uuid.uuid4().hex[:8]}"))
+                self.instance_id = self.id
+                self.task_type = data.get('task_type', 'unknown')
+                self.description = data.get('description', '')
+                self.complexity = data.get('complexity', 'medium')
+                
+                # Handle input data
+                self.test_input = data.get('test_input', data.get('inputs', {}))
+                self.inputs = self.test_input
+                
+                # Handle output data
+                self.expected_output = data.get('expected_output', data.get('expected_outputs', {}))
+                self.expected_outputs = self.expected_output
+                
+                # Handle tools
+                self.required_tools = data.get('required_tools', [])
+                
+                # Metadata
+                self.metadata = data.get('metadata', {})
+                
+                # Additional fields
+                self.semantic_features = data.get('semantic_features', {})
+        
+        return Task(data)
+    
+    def _organize_tasks(self):
+        """Organize tasks by type and complexity"""
+        self.tasks_by_type.clear()
+        self.tasks_by_complexity.clear()
+        
+        for task in self.tasks:
+            if hasattr(task, 'task_type'):
+                self.tasks_by_type[task.task_type].append(task)
+            if hasattr(task, 'complexity'):
+                self.tasks_by_complexity[task.complexity].append(task)
+        
+        logger.info(f"Organized tasks: {len(self.tasks_by_type)} types, {len(self.tasks_by_complexity)} complexity levels")
+
+
+    def _filter_by_types(self):
+        """Filter tasks by target task types"""
+        if not self.target_task_types:
+            return
+        
+        # 记录原始数量
+        original_count = len(self.tasks)
+        original_type_counts = {}
+        for task in self.tasks:
+            if hasattr(task, 'task_type'):
+                task_type = task.task_type
+                original_type_counts[task_type] = original_type_counts.get(task_type, 0) + 1
+        
+        # 筛选任务
+        filtered_tasks = []
+        for task in self.tasks:
+            if hasattr(task, 'task_type') and task.task_type in self.target_task_types:
+                filtered_tasks.append(task)
+        
+        self.tasks = filtered_tasks
+        
+        # 记录筛选后的数量
+        filtered_type_counts = {}
+        for task in self.tasks:
+            if hasattr(task, 'task_type'):
+                task_type = task.task_type
+                filtered_type_counts[task_type] = filtered_type_counts.get(task_type, 0) + 1
+        
+        # 日志输出
+        logger.info(f"Task filtering results:")
+        logger.info(f"  Total: {original_count} -> {len(self.tasks)}")
+        for task_type in self.target_task_types:
+            original = original_type_counts.get(task_type, 0)
+            filtered = filtered_type_counts.get(task_type, 0)
+            logger.info(f"  {task_type}: {original} -> {filtered}")
+        
+        # 警告如果某些类型没有任务
+        for task_type in self.target_task_types:
+            if filtered_type_counts.get(task_type, 0) == 0:
+                logger.warning(f"No tasks found for type '{task_type}' in the task library!")
+        
+        # 如果筛选后没有任何任务，报错
+        if not self.tasks:
+            raise ValueError(f"No tasks found for types {self.target_task_types} in the task library!")
+    
+    def _create_sample_tasks(self):
+        """Create sample tasks if no file is found"""
+        sample_tasks = [
+            {
+                'id': 'sample_task_1',
+                'task_type': 'simple_task',
+                'description': 'Process a simple data transformation',
+                'complexity': 'easy',
+                'test_input': {'data': [1, 2, 3, 4, 5]},
+                'expected_output': {'result': [2, 4, 6, 8, 10]},
+                'required_tools': ['reader', 'transformer', 'writer']
+            },
+            {
+                'id': 'sample_task_2',
+                'task_type': 'data_pipeline',
+                'description': 'Build a complete data processing pipeline',
+                'complexity': 'medium',
+                'test_input': {'source': 'data.csv', 'format': 'csv'},
+                'expected_output': {'processed': True, 'output_format': 'json'},
+                'required_tools': ['reader', 'parser', 'validator', 'transformer', 'writer']
+            },
+            {
+                'id': 'sample_task_3',
+                'task_type': 'api_integration',
+                'description': 'Integrate multiple APIs with validation',
+                'complexity': 'hard',
+                'test_input': {'endpoints': ['api1', 'api2'], 'auth': 'token'},
+                'expected_output': {'integrated': True, 'validated': True},
+                'required_tools': ['authenticator', 'fetcher', 'validator', 'aggregator', 'poster']
+            },
+            {
+                'id': 'sample_task_4',
+                'task_type': 'workflow_automation',
+                'description': 'Automate a multi-stage workflow',
+                'complexity': 'hard',
+                'test_input': {'stages': 5, 'data': [100, 200, 300]},
+                'expected_output': {'completed_stages': 5},
+                'required_tools': ['reader', 'parser', 'transformer', 'aggregator', 'writer']
+            }
+        ]
+        
+        for i, task_data in enumerate(sample_tasks):
+            logger.debug(f\"Creati\"ng sample task {i+1}/{len(sample_tasks)}: {task_data['id']}")
+            task = self._create_task_object(task_data)
+            if task:
+                self.tasks.append(task)
+                logger.info(f"Created sample task: {task.id}")
+            else:
+                # 直接抛出错误，不隐藏问题
+                raise ValueError(f"Failed to create sample task from data: {task_data}")
+        
+        logger.info(f"Created {len(self.tasks)} sample tasks")
+        self._organize_tasks()
+    
+    def get_task(self, task_type: Optional[str] = None, 
+                 complexity: Optional[str] = None) -> Any:
+        """Get a task based on criteria"""
+        candidates = self.tasks
+        
+        if task_type and task_type in self.tasks_by_type:
+            candidates = self.tasks_by_type[task_type]
+        elif complexity and complexity in self.tasks_by_complexity:
+            candidates = self.tasks_by_complexity[complexity]
+        
+        if candidates:
+            return random.choice(candidates)
+        elif self.tasks:
+            return random.choice(self.tasks)
+        else:
+            return None
+
+
+
+# ===========================
+# MDP Environment Wrapper
+# ===========================
+
+# 相同位置的修复代码
+# 修改的行用注释标注：# <- 修改了这一行
+
+class MDPEnvironment:
+    """Environment wrapper for MDP with Phase 2/3 integration"""
+
+
+    def __init__(self, mdp: GeneralizedMDP, task_manager,  # <- 修改了这一行：将 GeneralizedMDPFramework 改为 GeneralizedMDP
+                use_task_aware_state: bool = True,
+                enforce_workflow: bool = False,
+                use_phase2_scoring: bool = True):
+        """Initialize MDP environment"""
+        self.mdp = mdp
+        self.task_manager = task_manager
+        self.use_task_aware_state = use_task_aware_state
+        self.enforce_workflow = enforce_workflow
+        self.use_phase2_scoring = use_phase2_scoring
+        
+        # State representation
+        # self.state_dim = mdp.state_dim
+        
+        # Current episode state
+        self.current_task = None
+        self.current_state = None
+        self.episode_steps = 0
+        
+        # 评估模式标志  # <- 新
+        
+        # 评估模式标志  # <- 新增这一行
+        self.is_evaluation_mode = False  # <- 新增这一行
+        
+        # Action space
+        self.action_space = self._build_action_space()
+        self.num_actions = len(self.action_space)
+        self.num_tools = len(mdp.tool_capabilities)
+        
+        # Create tool registry for verifier  # <- 修改了这一行
+        self.tool_registry = mdp.tool_capabilities  # <- 修改了这一行
+        
+        # 创建工具索引映射（用于序列编码）  # <- 新增了这部分
+        self.tool_names = sorted(list(mdp.tool_capabilities.keys()))  # <- 新增了这一行
+        self.tool_to_idx = {tool: idx for idx, tool in enumerate(self.tool_names)}  # <- 新增了这一行
+    
+        # Workflow enforcement
+        self.workflow_generator = None
+        self.current_workflow = None
+        self.workflow_step = 0
+        
+        if self.enforce_workflow and MDPWorkflowGenerator:
+            self.workflow_generator = MDPWorkflowGenerator(
+                model_path=None,  # Will use random workflows
+                tools_path="./mcp_generated_library/tool_registry_consolidated.json"
+            )
+            logger.info("Workflow enforcement enabled")
+
+        
+        self.scorer = None
+        if self.use_phase2_scoring and StableScorer:
+            # Initialize embedding manager first
+            embedding_manager = None
+            logger.debug( Initializing embedding manager for Phase 2 scoring)
+            from mcp_embedding_manager import MCPEmbeddingManager
+            embedding_manager = MCPEmbeddingManager()
+            
+            # Try to load existing index
+            index_path = Path(".mcp_embedding_cache/tool_index.pkl")
+            embedding_manager.load_index(index_path)
+            print(f"[INFO] Loaded tool embeddings for {len(embedding_manager.tool_embeddings)} tools")
+            logger.info(f"Loaded embedding manager with {len(embedding_manager.tool_embeddings)} tools")
+
+            
+            # Create verifier with embedding manager
+            verifier = None
+            if PHASE2_AVAILABLE:
+                try:
+                    from workflow_quality_test_flawed import ToolCallVerifier
+                    verifier = ToolCallVerifier(self.tool_registry, embedding_manager=embedding_manager)
+                    logger.info("Created ToolCallVerifier for Phase 2 scoring")
+                    print(f"[VERIFIER] Created with {len(self.tool_registry)} tools and embedding_manager={'enabled' if embedding_manager else 'disabled'}")
+                except Exception as e:
+                    logger.warning(f"Failed to create verifier: {e}")
+                    print(f"[WARNING] Failed to create verifier: {e}")
+            
+            # Create StableScorer with both verifier and embedding_manager
+            self.scorer = StableScorer(
+                SimplifiedScoringConfig(), 
+                verifier=verifier,
+                embedding_manager=embedding_manager
+            )
+            logger.info(f"Phase 2 stable scoring enabled with embedding_manager={'yes' if embedding_manager else 'no'}")
+        
+        # Curriculum learning
+        self.curriculum_stage = 0
+        
+        logger.info(f"Environment initialized:")
+        logger.info(f"  Tools: {self.num_tools}")
+        logger.info(f"  Actions: {self.num_actions}")
+        logger.info(f"  Task-aware: {self.use_task_aware_state}")
+        logger.info(f"  Workflow enforcement: {self.enforce_workflow}")
+        logger.info(f"  Phase 2 scoring: {self.use_phase2_scoring}")
+    
+    def _build_action_space(self) -> List['GeneralizedAction']:
+        """Build discrete action space"""
+        actions = []
+        
+        # Tool invocation actions
+        for tool_name in self.mdp.tool_capabilities:
+            actions.append(GeneralizedAction(
+                action_type=ActionType.INVOKE_TOOL,
+                tool_name=tool_name
+            ))
+        
+        # Other action types
+        actions.extend([
+            GeneralizedAction(ActionType.NO_OP),
+            GeneralizedAction(ActionType.VALIDATE_OUTPUT),
+            GeneralizedAction(ActionType.RECOVER_ERROR),
+        ])
+        
+        return actions
+
+
+    def reset(self, task: Optional[Any] = None, curriculum_stage: Optional[int] = None) -> np.ndarray:
+        """Reset environment for new episode
+        
+        Args:
+            task: Optional specific task to use. If None, will select based on curriculum
+            curriculum_stage: Optional curriculum stage for task selection
+        
+        Returns:
+            np.ndarray: Encoded initial state
+        """
+        # Select task
+        if task is None:
+            # 使用curriculum_stage参数选择任务
+            self.current_task = self._select_task(curriculum_stage=curriculum_stage)
+        else:
+            self.current_task = task
+        
+        # 保存任务的完整信息，包括required_tools
+        # 从任务对象提取必要信息
+        self.current_task_info = {
+            'id': getattr(self.current_task, 'id', 'unknown'),
+            'task_type': getattr(self.current_task, 'task_type', 'unknown'),
+            'description': getattr(self.current_task, 'description', ''),
+            'required_tools': getattr(self.current_task, 'required_tools', []),
+            'complexity': getattr(self.current_task, 'complexity', 'medium'),
+            'metadata': getattr(self.current_task, 'metadata', {})
+        }
+        
+        # Create initial state
+        if self.use_task_aware_state and hasattr(globals(), 'TaskAwareMDPState'):
+            self.current_state = globals()['TaskAwareMDPState'](
+                task_id=self.current_task.id,
+                task_type=self.current_task.task_type,
+                task_objective=self.current_task.description
+            )
+            # Extract task features
+            self.current_state.task_features = self._extract_task_features(self.current_task)
+        else:
+            self.current_state = GeneralizedMDPState(
+                task_id=self.current_task.id,
+                task_type=self.current_task.task_type,
+                task_objective=self.current_task.description
+            )
+        
+        # Reset workflow
+        self._reset_workflow()
+        
+        # Reset episode tracking
+        self.episode_steps = 0
+        
+        # LLM guidance support
+        self.llm_suggested_workflow = None
+        self.workflow_position = 0
+        
+        return self._encode_state()
+    
+    def _select_task(self, task_type: Optional[str] = None,
+                     curriculum_stage: Optional[int] = None) -> Any:
+        """Select task based on curriculum and type"""
+        # Curriculum-based complexity
+        complexity_map = {
+            0: 'easy',
+            1: 'medium',
+            2: 'hard',
+            3: None  # All complexities
+        }
+        
+        complexity = None
+        if curriculum_stage is not None and curriculum_stage in complexity_map:
+            complexity = complexity_map[curriculum_stage]
+        
+        # Get task
+        return self.task_manager.get_task(task_type=task_type, complexity=complexity)
+    
+    def _extract_task_features(self, task) -> 'TaskFeatures':
+        """Extract semantic features from task"""
+        features = TaskFeatures()
+        
+        # Extract from description
+        desc_lower = task.description.lower() if hasattr(task, 'description') else ''
+        
+        features.has_input_requirement = any(kw in desc_lower for kw in ['read', 'load', 'fetch', 'input'])
+        features.has_output_requirement = any(kw in desc_lower for kw in ['write', 'save', 'export', 'output'])
+        features.requires_validation = 'validat' in desc_lower
+        features.requires_transformation = any(kw in desc_lower for kw in ['transform', 'convert', 'process'])
+        features.requires_aggregation = any(kw in desc_lower for kw in ['aggregat', 'combin', 'merg'])
+        
+        # Estimate complexity
+        if hasattr(task, 'complexity'):
+            comp_map = {'easy': TaskComplexity.SIMPLE, 'medium': TaskComplexity.MODERATE, 'hard': TaskComplexity.COMPLEX}
+            features.complexity = comp_map.get(task.complexity, TaskComplexity.MODERATE)
+        
+        # Estimate steps
+        if hasattr(task, 'required_tools'):
+            features.estimated_steps = len(task.required_tools)
+        
+        # Determine domain
+        if 'api' in desc_lower:
+            features.domain = TaskDomain.API_INTEGRATION
+        elif 'file' in desc_lower:
+            features.domain = TaskDomain.FILE_OPERATIONS
+        elif 'data' in desc_lower:
+            features.domain = TaskDomain.DATA_PROCESSING
+        
+        return features
+    
+
+
+    def _reset_workflow(self):
+        """Reset workflow for enforcement"""
+        # 添加严格的None检查
+        print("[DEBUG] _reset_workflow called, workflow_generator =", self.workflow_generator)
+        print("[DEBUG] enforce_workflow =", self.enforce_workflow)
+        
+        # 如果workflow_generator为None，直接返回
+        if self.workflow_generator is None:
+            logger.debug( workflow_generator is None, skipping workflow reset)
+            self.current_workflow = None
+            self.workflow_step = 0
+            return
+        
+        # 只有在workflow_generator存在时才执行workflow生成
+        try:
+            # 创建task_instance字典，包含完整的任务信息
+            task_instance = {
+                'task_type': self.current_task.task_type,
+                'description': getattr(self.current_task, 'description', ''),
+                'required_tools': getattr(self.current_task, 'required_tools', []),
+                'id': getattr(self.current_task, 'id', 'unknown'),
+                'complexity': getattr(self.current_task, 'complexity', 'medium'),
+                'inputs': getattr(self.current_task, 'inputs', {}),
+                'expected_outputs': getattr(self.current_task, 'expected_outputs', {})
+            }
+            
+            logger.debug(f\"Ge\"nerating workflow for task_type: {self.current_task.task_type})
+            
+            # 使用task_instance生成workflow，启用instance-dependent + RAG
+            workflow = self.workflow_generator.generate_workflow(
+                self.current_task.task_type,
+                task_instance=task_instance
+            )
+            self.current_workflow = workflow.get('optimal_sequence', [])
+            self.workflow_step = 0
+            logger.info(f"Generated instance-aware workflow: {self.current_workflow}")
+            logger.debug(f\"Successfully ge\"nerated workflow: {self.current_workflow})
+        except Exception as e:
+            print(f"[ERROR] Failed to generate workflow: {type(e).__name__}: {e}")
+            logger.warning(f"Failed to generate workflow: {e}")
+            self.current_workflow = None
+            self.workflow_step = 0
+            # 直接报错，不隐藏问题
+            raise RuntimeError(f"Workflow generation failed: {e}")
+
+    
+
+    def _encode_state(self) -> np.ndarray:
+        """Encode state as vector with Phase 3 support"""
+        state = self.current_state
+        encoded = []
+        
+        # Tool states (one-hot encoding)
+        for tool_name in sorted(self.mdp.tool_capabilities.keys()):
+            if hasattr(state, 'tool_states') and tool_name in state.tool_states:
+                status = state.tool_states[tool_name]
+                # Handle status encoding
+                if hasattr(ToolExecutionStatus, '__members__'):
+                    status_list = list(ToolExecutionStatus)
+                    status_idx = status_list.index(status) if status in status_list else 0
+                else:
+                    status_idx = 0
+            else:
+                status_idx = 0
+            
+            # One-hot encode (11 possible states)
+            one_hot = [0.0] * 11
+            one_hot[status_idx] = 1.0
+            encoded.extend(one_hot)
+        
+        # Progress features (10 dimensions)
+        progress_features = [
+            getattr(state, 'overall_progress', 0.0),
+            float(getattr(state, 'workflow_step', 0)) / 50.0,
+            float(getattr(state, 'consecutive_errors', 0)) / 10.0,
+            float(getattr(state, 'total_errors', 0)) / 20.0,
+            float(len(getattr(state, 'execution_sequence', []))) / 20.0,
+            float(len(getattr(state, 'milestones_achieved', set()))) / 10.0,
+            float(getattr(state, 'current_stage', 0)) / 5.0,
+            float(getattr(state, 'recovery_count', 0)) / 5.0,
+            getattr(state, 'confidence_score', 1.0),
+            min(1.0, getattr(state, 'time_elapsed', 0.0) / 100.0)
+        ]
+        encoded.extend(progress_features)
+        
+        # Task-aware features (if available)
+        if self.use_task_aware_state and hasattr(state, 'task_features'):
+            task_vector = state.task_features.to_vector()
+            encoded.extend(task_vector)
+        
+        # Semantic features (if available)
+        if hasattr(state, 'semantic_milestones'):
+            semantic_features = [
+                float('data_loaded' in state.milestones_achieved),
+                float('data_validated' in state.milestones_achieved),
+                float('data_transformed' in state.milestones_achieved),
+                float('data_exported' in state.milestones_achieved),
+                float(getattr(state, 'data_flow_state', DataFlowState.EMPTY) == DataFlowState.VALIDATED),
+                float(getattr(state, 'data_flow_state', DataFlowState.EMPTY) == DataFlowState.TRANSFORMED),
+                float(len(getattr(state, 'validations_performed', []))) / 5.0,
+                float(len(getattr(state, 'semantic_milestones', []))) / 10.0,
+                getattr(state, 'subtask_progress', {}).get('input_acquired', 0.0),
+                getattr(state, 'subtask_progress', {}).get('validated', 0.0)
+            ]
+            encoded.extend(semantic_features)
+        
+        # 序列感知特征 - 包含工具执行位置和顺序信息  # <- 新增了这部分
+        sequence_features = self._encode_sequence_features(state)  # <- 新增了这一行
+        encoded.extend(sequence_features)  # <- 新增了这一行
+        
+        return np.array(encoded, dtype=np.float32)
+
+
+    def _encode_sequence_features(self, state) -> List[float]:
+        """编码序列相关特征，基于数据流和语义进展而非required_tools"""
+        features = []
+        
+        # 1. 数据流进展特征（不依赖required_tools）
+        data_flow_progression = [
+            float(state.data_flow_state == DataFlowState.EMPTY),
+            float(state.data_flow_state == DataFlowState.INITIALIZED),
+            float(state.data_flow_state == DataFlowState.PARTIAL),  # <- 修改了这一行：用PARTIAL替代原来错误的位置
+            float(state.data_flow_state == DataFlowState.TRANSFORMED),
+            float(state.data_flow_state == DataFlowState.VALIDATED)  # <- 修改了这一行：VALIDATED是最终状态
+        ]
+        features.extend(data_flow_progression)  # 5维
+        
+        # 2. 语义操作覆盖度（已完成的操作类型）
+        semantic_coverage = {
+            'read': False,
+            'validate': False,
+            'transform': False,
+            'aggregate': False,
+            'write': False
+        }
+        
+        # 检查已执行工具的语义操作
+        for tool in state.execution_sequence:
+            if tool in self.mdp.tool_capabilities:
+                capability = self.mdp.tool_capabilities[tool]
+                for op in capability.semantic_operations:
+                    for key in semantic_coverage:
+                        if key in op.lower():
+                            semantic_coverage[key] = True
+        
+        features.extend([float(v) for v in semantic_coverage.values()])  # 5维
+        
+        # 3. 工具类别转换模式（最近的类别转换）
+        tool_category_sequence = []
+        for tool in state.execution_sequence[-3:]:  # 最近3个工具
+            if tool in self.mdp.tool_capabilities:
+                # 获取工具的主要类别
+                category = self._get_tool_category(tool)
+                tool_category_sequence.append(category)
+        
+        # 编码类别转换（如：read->transform->write）
+        category_transitions = self._encode_category_transitions(tool_category_sequence)
+        features.extend(category_transitions)  # 3维
+        
+        # 4. 执行密度和效率特征
+        if len(state.execution_sequence) > 0:
+            # 成功率
+            success_rate = len([t for t in state.execution_sequence 
+                            if state.tool_states.get(t) == ToolExecutionStatus.SUCCESS]) / len(state.execution_sequence)
+            # 工具多样性
+            diversity = len(set(state.execution_sequence)) / len(state.execution_sequence)
+        else:
+            success_rate = 0.0
+            diversity = 0.0
+        
+        features.extend([success_rate, diversity])  # 2维
+        
+        return features  # 总共15维
+
+
+    def _get_tool_category(self, tool_name: str) -> float:
+        """获取工具的语义类别编码 - RAG增强版本"""
+        # 首先尝试使用tool_capability_manager（如果存在）
+        capability = self.mdp.tool_capabilities.get(tool_name)
+        # 获取类别名称 - 通过self.mdp访问tool_capability_manager
+        category = self.mdp.tool_capability_manager.get_category(capability)  # <- 修改了这一行：添加self.mdp.
+        # 获取类别编码
+        category_encoding = self.mdp.tool_capability_manager.get_category_encoding(category)  # <- 修改了这一行：添加self.mdp.
+        
+        # 如果有嵌入管理器，使用RAG增强
+        if self.mdp.embedding_manager:  # <- 修改了这一行：添加条件检查和self.mdp.
+            # logger.debug(f\"Usi\"ng RAG enhancement for {tool_name})
+            # 构建搜索查询，包含工具名和语义操作
+            search_query = f"{tool_name} {' '.join(capability.semantic_operations)}"
+            
+            # 搜索语义相似的工具
+            search_results = self.mdp.embedding_manager.search(  # <- 修改了这一行：添加self.mdp.
+                query=search_query,
+                k=10,
+                return_scores=True
+            )
+            
+            # 分析搜索结果中的类别分布
+            category_scores = {}
+            total_score = 0.0
+            
+            for result in search_results:
+                if result.tool_name in self.mdp.tool_capabilities:
+                    result_capability = self.mdp.tool_capabilities[result.tool_name]
+                    result_category = self.mdp.tool_capability_manager.get_category(result_capability)  # <- 修改了这一行：添加self.mdp.
+                    result_encoding = self.mdp.tool_capability_manager.get_category_encoding(result_category)  # <- 修改了这一行：添加self.mdp.
+                    
+                    # 使用相似度分数加权
+                    if result_encoding not in category_scores:
+                        category_scores[result_encoding] = 0.0
+                    category_scores[result_encoding] += result.score
+                    total_score += result.score
+            
+            # 如果有有效的搜索结果，使用加权平均
+            if total_score > 0:
+                rag_encoding = sum(encoding * score / total_score 
+                                for encoding, score in category_scores.items())
+                # 混合原始编码和RAG编码
+                final_encoding = category_encoding * 0.6 + rag_encoding * 0.4
+                # logger.debug(f\"RAG-e\"nhanced encoding for {tool_name}: {final_encoding:.3f})
+                return final_encoding
+                
+        return category_encoding
+
+    def _encode_category_transitions(self, categories: List[float]) -> List[float]:
+        """编码类别转换模式"""
+        if len(categories) == 0:
+            return [0.0, 0.0, 0.0]
+        elif len(categories) == 1:
+            return [categories[0], 0.0, 0.0]
+        elif len(categories) == 2:
+            return [categories[0], categories[1], categories[1] - categories[0]]
+        else:
+            return [
+                categories[0],
+                categories[-1],
+                np.mean([categories[i+1] - categories[i] for i in range(len(categories)-1)])
+            ]
+
+    def _encode_task_type(self, task_type: str) -> List[float]:
+        """将任务类型编码为向量"""
+        task_types = ['simple_task', 'data_pipeline', 'api_integration', 
+                    'file_processing', 'multi_stage_pipeline']
+        
+        # One-hot编码
+        features = [0.0] * len(task_types)
+        if task_type in task_types:
+            idx = task_types.index(task_type)
+            features[idx] = 1.0
+        
+        return features
+
+    def _encode_description_features(self, description: str) -> List[float]:
+        """从任务描述中提取简单的语义特征"""
+        desc_lower = description.lower()
+        
+        features = [
+            float('read' in desc_lower or 'extract' in desc_lower),
+            float('transform' in desc_lower or 'process' in desc_lower),
+            float('write' in desc_lower or 'save' in desc_lower),
+            float('validate' in desc_lower or 'check' in desc_lower),
+            float('sequential' in desc_lower or 'pipeline' in desc_lower)
+        ]
+        
+        return features
+
+
+
+    def get_state_dim(self) -> int:
+        """Get state dimension"""
+        # Base: tools * 11 states + 10 progress features
+        base_dim = self.num_tools * 11 + 10
+        
+        # Add task-aware features
+        if self.use_task_aware_state:
+            base_dim += 20  # TaskFeatures vector dimension
+        
+        # Add semantic features
+        base_dim += 10
+        
+        # 添加序列感知特征  # <- 新增了这一行
+        base_dim += 15  # 序列特征维度  # <- 新增了这一行
+        
+        return base_dim
+    
+    def get_valid_actions(self) -> List[int]:
+        """Get valid action indices"""
+        if self.enforce_workflow and self.current_workflow:
+            # Workflow enforcement
+            if self.workflow_step < len(self.current_workflow):
+                next_tool = self.current_workflow[self.workflow_step]
+                valid_indices = []
+                for i, action in enumerate(self.action_space):
+                    if (action.action_type == ActionType.INVOKE_TOOL and
+                        action.tool_name == next_tool):
+                        valid_indices.append(i)
+                if valid_indices:
+                    return valid_indices
+        
+        # Otherwise get all semantically valid actions
+        valid_actions = self.mdp.get_available_actions(self.current_state)
+        valid_indices = []
+        
+        for i, action in enumerate(self.action_space):
+            for valid_action in valid_actions:
+                if (action.action_type == valid_action.action_type and
+                    action.tool_name == getattr(valid_action, 'tool_name', None)):
+                    valid_indices.append(i)
+                    break
+        
+        # Always allow NO_OP
+        if not valid_indices:
+            for i, action in enumerate(self.action_space):
+                if action.action_type == ActionType.NO_OP:
+                    valid_indices.append(i)
+                    break
+        
+        return valid_indices
+
+
+    def step(self, action_idx: int) -> Tuple[np.ndarray, float, bool, Dict]:
+        """Execute action and return (next_state, reward, done, info)"""
+        # Get action
+        action = self.action_space[action_idx]
+        
+        # 计算当前状态的RAG上下文
+        rag_context = self._compute_rag_context_for_state(self.current_state)
+        self.last_rag_context = rag_context  # 存储供PPOTrainer使用
+        
+        # Execute action in MDP
+        next_state, reward, done = self.mdp.step(self.current_state, action)
+        
+        # Update state
+        self.current_state = next_state
+        self.episode_steps += 1
+        
+        # 检查终止条件
+        done = (next_state.is_completed or 
+                self.episode_steps >= 30 or
+                next_state.consecutive_errors >= 5)
+        
+        # ========== 改进的奖励设计 - 更重视required_tools ==========
+        # 基础步数惩罚（鼓励效率）
+        reward = -5
+        
+        # 获取当前任务的required_tools
+
+        required_tools = self.current_task.required_tools
+        print(f"[REWARD] Required tools: {required_tools}")
+        
+        # 立即奖励：成功执行工具
+        if action.action_type == ActionType.INVOKE_TOOL and action.tool_name:
+            if (action.tool_name in next_state.tool_states and 
+                next_state.tool_states[action.tool_name] == ToolExecutionStatus.SUCCESS):
+                
+                # 差异化奖励：required_tools vs 其他工具
+                if action.tool_name in required_tools:
+                    # required tool获得高奖励
+                    base_tool_reward = 3.0
+                    print(f"[REWARD] Required tool success: {action.tool_name} +{base_tool_reward}")
+                    
+                    # 检查是否是重试成功
+                    if (action.tool_name in self.current_state.tool_states and
+                        self.current_state.tool_states[action.tool_name] == ToolExecutionStatus.FAILED):
+                        # required tool重试成功获得额外奖励
+                        retry_bonus = 5
+                        reward += base_tool_reward + retry_bonus
+                        print(f"[REWARD] Required tool retry success bonus: +{retry_bonus}")
+                    else:
+                        reward += base_tool_reward
+                else:
+                    # 非required tool奖励大幅降低
+                    non_required_reward = 0.3
+                    reward += non_required_reward
+                    print(f"[REWARD] Non-required tool: {action.tool_name} +{non_required_reward}")
+            
+            # 失败惩罚（特别是required_tools）
+            elif (action.tool_name in next_state.tool_states and 
+                  next_state.tool_states[action.tool_name] == ToolExecutionStatus.FAILED):
+                if action.tool_name in required_tools:
+                    # required tool失败惩罚更重
+                    reward -= 0
+                    print(f"[REWARD] Required tool failed: {action.tool_name} -1.0")
+                else:
+                    reward -= 5
+        
+        # 进度奖励（考虑required_tools）
+        # 计算required_tools的完成进度
+        completed_required = sum(1 for tool in required_tools 
+                                if tool in next_state.tool_states and 
+                                next_state.tool_states[tool] == ToolExecutionStatus.SUCCESS)
+        required_progress = completed_required / len(required_tools)
+        
+        # 只有required_tools的进度才给奖励
+        prev_completed = sum(1 for tool in required_tools
+                            if tool in self.current_state.tool_states and
+                            self.current_state.tool_states[tool] == ToolExecutionStatus.SUCCESS)
+        progress_delta = (completed_required - prev_completed) / len(required_tools)
+        
+        if progress_delta > 0:
+            progress_reward = progress_delta * 5.0  # 提高进度奖励
+            reward += progress_reward
+            print(f"[REWARD] Required tools progress: +{progress_reward:.2f}")
+
+        
+        # Episode结束时的奖励
+        if done:
+            if self.use_phase2_scoring and self.scorer:
+                # 构建执行历史
+                execution_history = []
+                tool_calls = []
+                retry_count = 0
+                
+                # 统计工具执行情况
+                tool_execution_count = {}
+                for item in next_state.execution_sequence:
+                    if isinstance(item, str):
+                        tool_name = item
+                    elif hasattr(item, 'action_type') and item.action_type == ActionType.INVOKE_TOOL:
+                        tool_name = item.tool_name
+                    else:
+                        continue
+                    
+                    tool_calls.append(tool_name)
+                    tool_execution_count[tool_name] = tool_execution_count.get(tool_name, 0) + 1
+                    
+                    success = (tool_name in next_state.tool_states and 
+                            next_state.tool_states[tool_name] == ToolExecutionStatus.SUCCESS)
+                    
+                    execution_history.append(type('ExecutionEntry', (), {
+                        'tool_name': tool_name,
+                        'success': success
+                    })())
+                
+                # 计算重试次数
+                retry_count = sum(count - 1 for count in tool_execution_count.values() if count > 1)
+                
+                # 评估成功级别
+                success_level, evaluation_details = self._evaluate_success_level(
+                    next_state, execution_history, tool_calls, required_tools
+                )
+                
+                # 计算required_tools覆盖率
+                if required_tools:
+                    successful_required = sum(1 for tool in required_tools
+                                            if any(h.tool_name == tool and h.success 
+                                                  for h in execution_history))
+                    required_coverage = successful_required / len(required_tools)
+                else:
+                    required_coverage = 1.0
+                
+                print(f"[REWARD] Episode end - Success level: {success_level}, Required coverage: {required_coverage:.2%}")
+                
+                # 基于成功级别和required_tools覆盖的奖励
+                if success_level == 'full_success':
+                    # 基础奖励取决于required_tools覆盖率
+                    base_reward = 100 + (required_coverage * 150.0)  # 10-25分
+                    
+                    # 效率奖励
+                    efficiency_bonus = max(0, (20 - self.episode_steps) / 20) * 3
+                    
+                    # 重试惩罚（但required_tools重试惩罚较轻）
+                    required_retries = sum(1 for tool in required_tools 
+                                         if tool_execution_count.get(tool, 0) > 1)
+                    other_retries = retry_count - required_retries
+                    retry_penalty = required_retries * 0.3 + other_retries * 1.0
+                    
+                    reward = base_reward + efficiency_bonus - retry_penalty
+                    
+                elif success_level == 'partial_success':
+                    # 部分成功更依赖required_tools覆盖率
+                    base_reward = 5.0 + (required_coverage * 8.0)  # 5-13分
+                    efficiency_bonus = max(0, (30 - self.episode_steps) / 30) * 2
+                    retry_penalty = retry_count * 0.5
+                    reward = base_reward + efficiency_bonus - retry_penalty
+                    
+                else:  # failure
+                    # 失败时根据required_tools完成情况给予惩罚
+                    base_penalty = -5.0
+                    # 如果required_tools覆盖率很低，额外惩罚
+                    if required_coverage < 0.5:
+                        coverage_penalty = (0.5 - required_coverage) * 100
+                        reward = base_penalty - coverage_penalty
+                        print(f"[REWARD] Low required_tools coverage penalty: -{coverage_penalty:.2f}")
+                    else:
+                        reward = base_penalty
+                
+                # 额外奖励：完美执行required_tools（无重试）
+                if (required_coverage == 1.0 and 
+                    all(tool_execution_count.get(tool, 0) == 1 for tool in required_tools)):
+                    perfect_bonus = 5.0
+                    reward += perfect_bonus
+                    print(f"[REWARD] Perfect required_tools execution bonus: +{perfect_bonus}")
+                
+                # 如果有成功的恢复，给额外奖励
+                if evaluation_details.get('recovery_success', False):
+                    reward += 3.0
+                
+                phase2_metrics = {
+                    'phase2_score': reward / 30.0,  # 归一化到大约[0,1]
+                    'success_level': success_level,
+                    'retry_count': retry_count,
+                    'required_coverage': required_coverage
+                }
+            else:
+                phase2_metrics = {}
+        else:
+            phase2_metrics = {}
+        
+        # Info dict
+        info = {
+            'success': next_state.is_successful,
+            'progress': next_state.overall_progress,
+            'tools_used': len([s for s in next_state.tool_states.values() 
+                            if s == ToolExecutionStatus.SUCCESS]),
+            'errors': next_state.total_errors,
+            'phase2_metrics': phase2_metrics,
+            'episode_steps': self.episode_steps,
+            'reward': reward,
+            'required_tools': required_tools,
+            'required_coverage': phase2_metrics.get('required_coverage', 0.0)
+        }
+        
+        return self._encode_state(), reward, done, info
+
+    def _compute_rag_context_for_state(self, state: GeneralizedMDPState) -> Dict[str, List]:
+        """计算当前状态的RAG上下文"""
+        rag_context = {}
+        
+        if not self.mdp.embedding_manager:
+            return rag_context
+        
+        # 基于任务目标和当前进度构建搜索查询
+        task_desc = state.task_objective
+        
+        # 1. 基于整体任务描述的搜索
+        if task_desc:
+            search_results = self.mdp.embedding_manager.search(
+                query=task_desc,
+                k=10,
+                return_scores=True
+            )
+            rag_context['task_description'] = search_results
+        
+        # 2. 基于当前需要的操作类型搜索
+        # 根据进度推断下一步操作
+        if len(state.execution_sequence) == 0:
+            # 开始阶段，需要读取/加载操作
+            operation_query = "read load fetch input data"
+        elif state.data_flow_state == DataFlowState.INITIALIZED:
+            operation_query = "validate check verify data"
+        elif state.data_flow_state == DataFlowState.VALIDATED:
+            operation_query = "transform process convert data"
+        else:
+            operation_query = "write export save output"
+        
+        operation_results = self.mdp.embedding_manager.search(
+            query=f"{operation_query} {state.task_type}",
+            k=5,
+            return_scores=True
+        )
+        rag_context['next_operation'] = operation_results
+        
+        # 3. 基于已执行工具的上下文搜索
+        if state.execution_sequence:
+            last_tool = state.execution_sequence[-1]
+            context_query = f"after {last_tool} for {state.task_type}"
+            context_results = self.mdp.embedding_manager.search(
+                query=context_query,
+                k=5,
+                return_scores=True
+            )
+            rag_context['contextual'] = context_results
+        
+        return rag_context
+
+    def _encode_rag_embedding(self, rag_context: Dict[str, List]) -> np.ndarray:
+        """将RAG上下文编码为固定大小的embedding"""
+        rag_embedding = np.zeros(64)  # 64维RAG embedding
+        
+        if not rag_context:
+            return rag_embedding
+        
+        # 聚合所有搜索结果
+        all_scores = []
+        all_embeddings = []
+        
+        for key, results in rag_context.items():
+            for result in results[:3]:  # 每个类别最多3个结果
+                if hasattr(result, 'embedding') and result.embedding is not None:
+                    all_embeddings.append(result.embedding)
+                    all_scores.append(result.score)
+        
+        if all_embeddings:
+            # 加权平均
+            weights = np.array(all_scores) / sum(all_scores)
+            weighted_embedding = np.average(all_embeddings, axis=0, weights=weights)
+            
+            # 降维到64维
+            if len(weighted_embedding) > 64:
+                rag_embedding = weighted_embedding[:64]
+            else:
+                rag_embedding[:len(weighted_embedding)] = weighted_embedding
+        
+        # 元信息
+        rag_embedding[0] = np.mean(all_scores) if all_scores else 0.0  # 平均置信度
+        rag_embedding[1] = len(all_scores)  # 结果数量
+        
+        return rag_embedding
+
+    def _evaluate_success_level(self, state: GeneralizedMDPState, 
+                            execution_history: List[ToolExecutionResult],  # <- 修改了这一行：将 ToolExecutionEntry 改为 ToolExecutionResult
+                            tool_calls: List[str],
+                            required_tools: List[str]) -> Tuple[str, Dict]:
+        """评估任务完成的成功级别 - 使用语义分析和更严格的判定"""
+        evaluation_details = {
+            'state_completed': state.is_completed,
+            'required_tools_coverage': 0.0,
+            'semantic_completion': 0.0,
+            'has_output': False,
+            'recovery_success': False,
+            'successful_tools': 0,
+            'task_coherence': 0.0,  # 新增：任务连贯性评分
+            'critical_steps_completed': False  # 新增：关键步骤完成
+        }
+        
+        # 使用配置的阈值
+        thresholds = self.task_manager.scoring_thresholds if hasattr(self.task_manager, 'scoring_thresholds') else ScoringThresholds()
+        logger.debug(f\"Usi\"ng thresholds: partial_coverage={thresholds.partial_success_coverage})
+        
+        # 1. 检查required_tools覆盖率
+        if required_tools:
+            successful_required = sum(1 for tool in required_tools
+                                    if any(h.tool_name == tool and h.success 
+                                        for h in execution_history))
+            evaluation_details['required_tools_coverage'] = successful_required / len(required_tools)
+        else:
+            evaluation_details['required_tools_coverage'] = 1.0
+        
+        # 2. 检查输出生成
+        output_keywords = [
+            'writer', 'export', 'save', 'output', 'post', 
+            'publish', 'store', 'emit', 'notify', 'report', 
+            'generate', 'filter', 'aggregator', 'compressor'
+        ]
+        
+        for exec_result in execution_history:
+            if exec_result.success:
+                tool_lower = exec_result.tool_name.lower()
+                if any(keyword in tool_lower for keyword in output_keywords):
+                    evaluation_details['has_output'] = True
+                    break
+        
+        # 3. 计算成功工具数
+        evaluation_details['successful_tools'] = sum(1 for r in execution_history if r.success)
+        
+        # 4. 部分成功判定条件
+        partial_success_conditions = []
+        
+        # 条件A：完成了大部分required_tools（>=60%）
+        if required_tools and evaluation_details['required_tools_coverage'] >= thresholds.partial_success_coverage:
+            partial_success_conditions.append(f"Completed {evaluation_details['required_tools_coverage']:.0%} of required tools")
+        
+        # 条件B：有输出生成
+        if evaluation_details['has_output']:
+            partial_success_conditions.append("Generated output")
+        
+        # 条件C：达到了特定任务类型的最低要求
+        task_min_requirements = thresholds.task_min_requirements
+        min_required = task_min_requirements.get(state.task_type, 2)
+        if evaluation_details['successful_tools'] >= min_required:
+            partial_success_conditions.append(f"Met minimum tool requirement ({evaluation_details['successful_tools']}/{min_required})")
+        
+        # 5. 判定逻辑
+        if state.is_completed and state.is_successful:
+            # 完全成功
+            return "full_success", evaluation_details
+        elif len(partial_success_conditions) >= 2:
+            # 部分成功：至少满足2个条件
+            evaluation_details['success_reasons'] = partial_success_conditions
+            return "partial_success", evaluation_details
+        else:
+            # 失败
+            evaluation_details['failure_reasons'] = [
+                f"Required tools coverage: {evaluation_details['required_tools_coverage']:.0%}",
+                f"Successful tools: {evaluation_details['successful_tools']}",
+                f"Has output: {evaluation_details['has_output']}"
+            ]
+            return "failure", evaluation_details
+    
+
+    def _calculate_sequence_coherence(self, tool_sequence: List[str]) -> float:
+        """计算工具序列的连贯性得分"""
+        if len(tool_sequence) < 2:
+            return 1.0
+        
+        coherence_score = 0.0
+        valid_transitions = 0
+        
+        # 检查每个相邻工具对的合理性
+        for i in range(len(tool_sequence) - 1):
+            current_tool = tool_sequence[i]
+            next_tool = tool_sequence[i + 1]
+            
+            # 使用语义搜索检查转换合理性
+            query = f"tools that naturally follow after {current_tool}"
+            results = self.task_manager.embedding_manager.search(query, k=10, return_scores=True)
+            
+            for result in results:
+                if result.tool_name == next_tool and result.score > 0.6:
+                    valid_transitions += 1
+                    break
+
+        
+        coherence_score = valid_transitions / (len(tool_sequence) - 1)
+        return coherence_score
+
+    def _is_valid_transition_by_category(self, current_tool: str, next_tool: str) -> bool:
+        """基于工具类别判断转换是否合理"""
+        # 定义合理的类别转换
+        valid_transitions = {
+            'reader': ['validator', 'parser', 'transformer', 'filter'],
+            'scanner': ['reader', 'validator', 'parser'],
+            'validator': ['transformer', 'filter', 'aggregator'],
+            'transformer': ['validator', 'writer', 'aggregator'],
+            'filter': ['aggregator', 'writer', 'transformer'],
+            'aggregator': ['writer', 'exporter'],
+            'parser': ['transformer', 'validator', 'filter']
+        }
+        
+        # 获取工具类别
+        current_category = None
+        next_category = None
+        
+        for category in valid_transitions.keys():
+            if category in current_tool.lower():
+                current_category = category
+            if category in next_tool.lower():
+                next_category = category
+        
+        if current_category and next_category:
+            return next_category in valid_transitions.get(current_category, [])
+        
+        # 默认允许
+        return True
+
+    def _check_pipeline_stages_semantically(self, successful_tools: set) -> bool:
+        """使用语义分析检查管道阶段是否完整"""
+        if hasattr(self.task_manager, 'embedding_manager') and self.task_manager.embedding_manager:
+            # 语义分析管道阶段
+            pipeline_stages = [
+                "data input or reading stage",
+                "data transformation or processing stage", 
+                "data output or writing stage"
+            ]
+            
+            stages_completed = 0
+            for stage_query in pipeline_stages:
+                try:
+                    results = self.task_manager.embedding_manager.search(stage_query, k=10, return_scores=True)
+                    for result in results:
+                        if result.tool_name in successful_tools and result.score > 0.7:
+                            stages_completed += 1
+                            logger.debug(f"Stage '{stage_query}' completed by {result.tool_name}")
+                            break
+                except:
+                    pass
+            
+            return stages_completed >= 3
+        
+        else:
+            # 回退到简单检查
+            stage_keywords = ['read', 'transform', 'write', 'parse', 'validate']
+            stages_found = sum(1 for keyword in stage_keywords 
+                            if any(keyword in tool.lower() for tool in successful_tools))
+            return stages_found >= 3
+
+    def _check_output_generated(self, execution_history):
+        """检查是否生成了输出"""
+        output_keywords = [
+            'writer', 'export', 'save', 'output', 'post', 
+            'publish', 'store', 'emit', 'filter', 'aggregator', 'compressor'
+        ]
+        
+        for exec_result in execution_history:
+            if exec_result.success:
+                tool_lower = exec_result.tool_name.lower()
+                if any(keyword in tool_lower for keyword in output_keywords):
+                    return True
+        return False
+
+# ===========================
+# Replay Buffer
+# ===========================
+
+# 相同位置的修复代码
+# 修改的行用注释标注：# <- 修改了这一行
+
+class ReplayBuffer:
+    """Experience replay buffer for DQN training"""
+    
+    def __init__(self, capacity: int):
+        self.capacity = capacity
+        self.buffer = deque(maxlen=capacity)
+    
+    def push(self, state, action, reward, next_state, done, task_type=None):  # <- 修改了这一行：添加task_type参数
+        """Store a transition"""
+        self.buffer.append((state, action, reward, next_state, done, task_type))  # <- 修改了这一行：存储task_type
+    
+    def sample(self, batch_size: int):
+        """Sample a batch of transitions"""
+        batch = random.sample(self.buffer, batch_size)
+        
+        states = torch.FloatTensor([t[0] for t in batch]).to(device)
+        actions = torch.LongTensor([t[1] for t in batch]).to(device)
+        rewards = torch.FloatTensor([t[2] for t in batch]).to(device)
+        next_states = torch.FloatTensor([t[3] for t in batch]).to(device)
+        dones = torch.FloatTensor([t[4] for t in batch]).to(device)
+        
+        return states, actions, rewards, next_states, dones
+    
+    def __len__(self):
+        return len(self.buffer)
+
+# ===========================
+# Task-Aware Memory System
+# ===========================
+
+class TaskAwareMemory:
+    """Task-aware experience memory with balanced sampling"""
+    
+    def __init__(self, capacity_per_task: int = 10000, min_samples_per_task: int = 100):
+        self.capacity_per_task = capacity_per_task
+        self.min_samples_per_task = min_samples_per_task
+        self.task_buffers = {}  # task_type -> ReplayBuffer
+        self.task_counts = defaultdict(int)  # 统计每个任务的经验数
+        self.global_buffer = ReplayBuffer(capacity_per_task * 5)  # 全局缓冲区
+        
+    def push(self, state, action, reward, next_state, done, task_type=None):
+        """Store experience with task awareness"""
+        # 存储到全局缓冲区
+        self.global_buffer.push(state, action, reward, next_state, done, task_type)
+        
+        # 如果有任务类型，也存储到任务特定缓冲区
+        if task_type:
+            if task_type not in self.task_buffers:
+                self.task_buffers[task_type] = ReplayBuffer(self.capacity_per_task)
+            
+            self.task_buffers[task_type].push(state, action, reward, next_state, done, task_type)
+            self.task_counts[task_type] += 1
+    
+    def sample(self, batch_size: int, current_task_type=None, mix_ratio=0.7):
+        """Sample with task-aware mixing strategy"""
+        if len(self.global_buffer) < batch_size:
+            return None
+        
+        # 如果指定了当前任务类型，混合采样
+        if current_task_type and current_task_type in self.task_buffers:
+            current_task_samples = int(batch_size * mix_ratio)
+            other_samples = batch_size - current_task_samples
+            
+            # 从当前任务采样
+            current_batch = []
+            if len(self.task_buffers[current_task_type]) >= current_task_samples:
+                current_batch = self._sample_from_buffer(
+                    self.task_buffers[current_task_type], 
+                    current_task_samples
+                )
+            
+            # 从其他任务均衡采样
+            other_batch = self._sample_balanced(other_samples, exclude_task=current_task_type)
+            
+            # 合并批次
+            all_transitions = current_batch + other_batch
+            
+        else:
+            # 均衡采样所有任务
+            all_transitions = self._sample_balanced(batch_size)
+        
+        # 转换为张量
+        return self._transitions_to_tensors(all_transitions)
+    
+    def _sample_balanced(self, num_samples, exclude_task=None):
+        """Balanced sampling across task types"""
+        available_tasks = [t for t in self.task_buffers.keys() if t != exclude_task]
+        
+        if not available_tasks:
+            # 从全局缓冲区采样
+            return self._sample_from_buffer(self.global_buffer, num_samples)
+        
+        samples_per_task = max(1, num_samples // len(available_tasks))
+        remaining = num_samples - (samples_per_task * len(available_tasks))
+        
+        all_samples = []
+        for task_type in available_tasks:
+            buffer = self.task_buffers[task_type]
+            if len(buffer) > 0:
+                n_samples = min(samples_per_task, len(buffer))
+                all_samples.extend(self._sample_from_buffer(buffer, n_samples))
+        
+        # 填充剩余样本
+        if remaining > 0 and len(all_samples) < num_samples:
+            extra_samples = self._sample_from_buffer(
+                self.global_buffer, 
+                min(remaining, num_samples - len(all_samples))
+            )
+            all_samples.extend(extra_samples)
+        
+        random.shuffle(all_samples)
+        return all_samples[:num_samples]
+    
+    def _sample_from_buffer(self, buffer, num_samples):
+        """Sample from a specific buffer"""
+        if isinstance(buffer, ReplayBuffer):
+            # 临时方法：直接从buffer的内部deque采样
+            return random.sample(buffer.buffer, min(num_samples, len(buffer.buffer)))
+        return []
+    
+    def _transitions_to_tensors(self, transitions):
+        """Convert transitions to tensors"""
+        if not transitions:
+            return None
+            
+        states = torch.FloatTensor([t[0] for t in transitions]).to(device)
+        actions = torch.LongTensor([t[1] for t in transitions]).to(device)
+        rewards = torch.FloatTensor([t[2] for t in transitions]).to(device)
+        next_states = torch.FloatTensor([t[3] for t in transitions]).to(device)
+        dones = torch.FloatTensor([t[4] for t in transitions]).to(device)
+        
+        return states, actions, rewards, next_states, dones
+    
+    def get_task_statistics(self):
+        """Get memory statistics per task type"""
+        stats = {}
+        for task_type, buffer in self.task_buffers.items():
+            stats[task_type] = {
+                'count': len(buffer),
+                'total_collected': self.task_counts[task_type]
+            }
+        return stats
+    
+    def __len__(self):
+        return len(self.global_buffer)
+
+# ===========================
+# DQN Trainer
+# ===========================
+
+
+class DQNTrainer(BaseTrainer):
+    """DQN trainer implementation"""
+    
+    def __init__(self, env: 'MDPEnvironment', config: Dict[str, Any]):
+        super().__init__(env, config)  # <- 修改：调用基类构造函数
+        
+        # Network
+        state_dim = env.get_state_dim()
+        action_dim = env.num_actions
+        hidden_dim = config.get('hidden_dim', 256)
+        
+        self.q_network = DuelingDQN(state_dim, action_dim, hidden_dim).to(self.device)  # <- 修改：使用self.device
+        self.target_network = DuelingDQN(state_dim, action_dim, hidden_dim).to(self.device)  # <- 修改
+        self.target_network.load_state_dict(self.q_network.state_dict())
+        
+        # Optimizer
+        self.optimizer = optim.Adam(self.q_network.parameters(), lr=config['learning_rate'])
+        self.scheduler = ReduceLROnPlateau(self.optimizer, patience=10, factor=0.5)
+        
+        # Replay buffer - 使用任务感知记忆系统
+        use_task_aware_memory = config.get('use_task_aware_memory', True)
+        if use_task_aware_memory:
+            self.memory = TaskAwareMemory(
+                capacity_per_task=config.get('memory_size', 50000) // 5,
+                min_samples_per_task=100
+            )
+            self.replay_buffer = self.memory  # 兼容性别名
+        else:
+            self.replay_buffer = ReplayBuffer(config['memory_size'])
+        
+        # Training parameters
+        self.epsilon = config['epsilon_start']
+        self.epsilon_decay = config['epsilon_decay']
+        self.epsilon_min = config['epsilon_min']
+        self.gamma = config['gamma']
+        self.batch_size = config['batch_size']
+        
+        # Statistics
+        self.target_update_counter = 0
+        self.current_task_type = None
+    
+    def set_eval_mode(self, eval_mode: bool):  # <- 修改：重写基类方法
+        """Set evaluation mode - disable exploration"""
+        super().set_eval_mode(eval_mode)
+        if eval_mode:
+            self.stored_epsilon = self.epsilon
+            self.epsilon = 0.0
+        else:
+            if hasattr(self, 'stored_epsilon'):
+                self.epsilon = self.stored_epsilon
+    
+    def select_action(self, state: np.ndarray, valid_actions: Optional[List[int]] = None) -> int:
+        """Select action using epsilon-greedy with optional masking"""
+        # Epsilon-greedy
+        if not self.eval_mode and random.random() < self.epsilon:  # <- 修改：检查eval_mode
+            if valid_actions:
+                return random.choice(valid_actions)
+            else:
+                return random.randint(0, self.env.num_actions - 1)
+        
+        # Greedy action
+        with torch.no_grad():
+            state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)  # <- 修改：使用self.device
+            q_values = self.q_network(state_tensor).squeeze()
+            
+            if valid_actions:
+                # 使用基类的动作掩码方法  # <- 修改
+                q_values = self.apply_action_mask(q_values, valid_actions)
+                
+            return q_values.argmax().item()
+    
+    def store_experience(self, state: np.ndarray, action: int, reward: float,  # <- 新增：实现统一接口
+                        next_state: np.ndarray, done: bool, **kwargs) -> None:
+        """Store experience in replay buffer"""
+        task_type = kwargs.get('task_type', None)
+        
+        if isinstance(self.replay_buffer, TaskAwareMemory):
+            self.replay_buffer.push(state, action, reward, next_state, done, task_type)
+        else:
+            self.replay_buffer.push(state, action, reward, next_state, done)
+
+    def should_train(self) -> bool:  # <- 新增：判断是否应该训练
+        """DQN trains when replay buffer has enough samples"""
+        return len(self.replay_buffer) >= self.config['batch_size']
+    
+    def on_episode_end(self) -> None:  # <- 新增：episode结束处理
+        """DQN doesn't need special episode end handling"""
+        pass
+    
+    
+    def train_step(self) -> float:
+        """Perform one training step"""
+        if len(self.replay_buffer) < self.batch_size:
+            return 0.0
+        
+        # Sample batch - 使用任务感知采样
+        if isinstance(self.replay_buffer, TaskAwareMemory):
+            batch = self.replay_buffer.sample(
+                self.batch_size,
+                current_task_type=self.current_task_type,
+                mix_ratio=0.7  # 70%来自当前任务，30%来自其他任务
+            )
+            if batch is None:
+                return 0.0
+            states, actions, rewards, next_states, dones = batch
+        else:
+            states, actions, rewards, next_states, dones = self.replay_buffer.sample(self.batch_size)
+        
+        # Current Q values
+        current_q_values = self.q_network(states).gather(1, actions.unsqueeze(1))
+        
+        # Next Q values (Double DQN)
+        with torch.no_grad():
+            # Select actions using online network
+            next_actions = self.q_network(next_states).argmax(dim=1)
+            # Evaluate using target network
+            next_q_values = self.target_network(next_states).gather(1, next_actions.unsqueeze(1))
+            target_q_values = rewards.unsqueeze(1) + self.gamma * next_q_values * (1 - dones.unsqueeze(1))
+        
+        # Loss
+        loss = F.mse_loss(current_q_values, target_q_values)
+        
+        # Optimize
+        self.optimizer.zero_grad()
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.q_network.parameters(), 1.0)
+        self.optimizer.step()
+        
+        # Update target network
+        self.training_steps += 1
+        if self.training_steps % self.config['target_update_frequency'] == 0:
+            self.target_network.load_state_dict(self.q_network.state_dict())
+            self.target_update_counter += 1
+        
+        return loss.item()
+    
+    def update_exploration(self):
+        """Update exploration rate"""
+        # 添加基于训练步数的快速衰减
+        if self.training_steps < 100:
+            fast_decay_rate = 0.995
+            self.epsilon = max(0.5, self.epsilon * fast_decay_rate)
+        else:
+            # 之后使用正常衰减率
+            self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
+    
+    def save_checkpoint(self, path: str, additional_data: Dict[str, Any] = None):
+        """Save training checkpoint"""
+        state_dicts = {  # <- 修改：使用基类方法
+            'q_network_state_dict': self.q_network.state_dict(),
+            'target_network_state_dict': self.target_network.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'epsilon': self.epsilon
+        }
+        
+        # 保存任务感知记忆的统计信息
+        extra_data = {}
+        if isinstance(self.replay_buffer, TaskAwareMemory):
+            extra_data['memory_stats'] = self.replay_buffer.get_task_statistics()
+        
+        if additional_data:
+            extra_data.update(additional_data)
+        
+        self.save_checkpoint_base(path, state_dicts, extra_data)  # <- 修改：使用基类方法
+    
+    def load_checkpoint(self, path: str) -> Dict[str, Any]:
+        """Load training checkpoint and return additional data"""
+        checkpoint = self.load_checkpoint_base(path)  # <- 修改：使用基类方法
+        
+        self.q_network.load_state_dict(checkpoint['q_network_state_dict'])
+        self.target_network.load_state_dict(checkpoint['target_network_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        self.epsilon = checkpoint.get('epsilon', self.epsilon)
+        
+        return checkpoint
+# ===========================
+# Curriculum Learning
+# ===========================
+
+class CurriculumScheduler:
+    """Manages curriculum learning progression"""
+    
+    def __init__(self, total_episodes: int):
+        self.total_episodes = total_episodes
+        self.current_episode = 0
+        self.stage_thresholds = [0.3, 0.6, 0.9]
+    
+    def get_stage(self) -> int:
+        """Get current curriculum stage"""
+        progress = self.current_episode / self.total_episodes
+        
+        for i, threshold in enumerate(self.stage_thresholds):
+            if progress < threshold:
+                return i
+        
+        return len(self.stage_thresholds)
+    
+    def update(self):
+        """Update progress"""
+        self.current_episode += 1
+    
+    def get_stage_name(self) -> str:
+        """Get human-readable stage name"""
+        names = ["Easy", "Easy-Medium", "All Complexities", "Full Difficulty"]
+        return names[self.get_stage()]
+
+
+# ===========================
+# Unified Training Manager (Refactored)
+# ===========================
+
+# 相同位置的修复代码
+# 修改的行用注释标注：# <- 修改了这一行
+
+class UnifiedTrainingManager:
+    """Main training manager with Phase 2/3 integration and proper checkpoint handling"""
+    
+    def __init__(self, config_path: Optional[str] = None,
+                use_task_aware_state: bool = True,
+                enforce_workflow: bool = False,
+                use_phase2_scoring: bool = True,
+                algorithm: str = 'dqn',
+                task_types: Optional[List[str]] = None,
+                scoring_thresholds: ScoringThresholds = None):  # 新增参数
+        """Initialize training manager with configurable thresholds"""
+        
+        # Configuration
+        self.config = self._load_config(config_path)
+        self.use_task_aware_state = use_task_aware_state
+        self.enforce_workflow = enforce_workflow
+        self.use_phase2_scoring = use_phase2_scoring
+        self.algorithm = algorithm
+        self.task_types = task_types
+        self.thresholds = scoring_thresholds or ScoringThresholds()  # 新增
+        
+        # Components
+        self.mdp = None
+        self.task_manager = None
+        self.env = None
+        self.trainer = None
+        self.embedding_manager = None  # 新增
+        
+        # Paths
+        self.checkpoint_dir = Path("checkpoints")
+        self.checkpoint_dir.mkdir(exist_ok=True)
+        
+        # Statistics
+        self.training_history = defaultdict(list)
+        self.best_success_rate = 0.0
+        self.best_model_path = None
+        
+        logger.info("UnifiedTrainingManager initialized")
+        logger.info(f"Algorithm: {self.algorithm}")
+        logger.info(f"Task-aware state: {self.use_task_aware_state}")
+        logger.info(f"Workflow enforcement: {self.enforce_workflow}")
+        logger.info(f"Phase 2 scoring: {self.use_phase2_scoring}")
+        logger.info(f"Scoring thresholds: semantic_match={self.thresholds.semantic_match_threshold}, "
+                    f"partial_success={self.thresholds.partial_success_coverage}")
+
+
+
+    def _load_config(self, config_path: Optional[str]) -> Dict[str, Any]:
+        """Load or create default configuration"""
+        default_config = {
+            # DQN parameters
+            'learning_rate': 0.0003,
+            'batch_size': 64,
+            'memory_size': 50000,
+            'gamma': 0.95,
+            'epsilon_start': 0.3,
+            'epsilon_decay': 0.995,
+            'epsilon_min': 0.01,
+            'target_update_frequency': 50,
+            'hidden_dim': 256,
+            
+            # Training parameters
+            # Checkpoint优化配置
+            'checkpoint_mode': 'full',  # lightweight, standard, full
+            'checkpoint_frequency': 100,  # 可以动态调整
+            'checkpoint_keep_recent': 3,  # 减少到3个
+            'checkpoint_keep_interval': 500,  # 每500个episode保留一个里程碑
+            'checkpoint_size_limit_mb': 500,  # 总大小限制500MB
+            'evaluation_frequency': 50,
+            'evaluation_episodes': 10,
+            'max_episode_length': 30,
+            
+            # PPO specific (如果使用PPO)
+            'n_steps': 256,
+            'n_epochs': 4,
+            'clip_range': 0.2,
+            
+            # Teacher guidance for PPO
+            'use_teacher_guidance': True,
+            'teacher_guidance_start_prob': 0.01,
+            'teacher_guidance_decay': 0.995,
+            'teacher_guidance_min_prob': 0.005,
+            'episode_guidance_mode': True,  # <- 新增：使用episode级别guidance
+            
+            # TaskAwareRolloutBuffer配置（新增）  # <- 新增这部分
+            'use_task_aware_buffer': True,  # <- 新增
+            'buffer_capacity_per_task': 100,  # <- 新增
+            'min_episodes_per_task': 10,  # <- 新增
+            'prioritize_medium_reward': True,  # <- 新增：优先采样中等奖励的episodes
+            
+            # Curriculum learning
+            'use_curriculum': True,
+            
+            # Action masking
+            'use_action_masking': True
+        }
+        
+        if config_path and Path(config_path).exists():
+            with open(config_path, 'r') as f:
+                loaded_config = json.load(f)
+                default_config.update(loaded_config)
+        
+        return default_config
+    
+    def setup_environment(self, tool_registry_path: str = "mcp_generated_library/tool_registry_consolidated.json",
+                         task_library_path: Optional[str] = None) -> bool:
+        """Set up training environment"""
+        # Load tool capabilities
+        if not MDP_AVAILABLE:
+            logger.error("MDP framework not available!")
+            return False
+        
+        # Try multiple tool registry paths
+        tool_paths = [
+            Path(tool_registry_path),
+            Path("mcp_generated_library/tool_registry_consolidated.json"),
+            Path("mcp_generated_library/tool_registry.json"),
+            Path("tool_registry.json")
+        ]
+        
+        tool_capabilities = None
+        for path in tool_paths:
+            if path.exists():
+                try:
+                    tool_capabilities = load_tool_capabilities(str(path))
+                    logger.info(f"Loaded tools from {path}")
+                    break
+                except Exception as e:
+                    logger.warning(f"Failed to load tools from {path}: {e}")
+        
+        if not tool_capabilities:
+            logger.error("No tool capabilities loaded!")
+            return False
+        
+        # Create MDP
+        self.mdp = GeneralizedMDP(tool_capabilities)
+        
+        # Load tasks
+        self.task_manager = TaskManager(task_library_path, task_types=self.task_types)  # <- 传递task_types
+
+        
+        # If no tasks were loaded from files, ensure we have sample tasks
+        if not self.task_manager.tasks:
+            logger.warning("No tasks loaded from files, using sample tasks")
+            self.task_manager._create_sample_tasks()
+        
+        if not self.task_manager.tasks:
+            logger.error("Failed to create any tasks!")
+            return False
+        
+        # Create environment
+        self.env = MDPEnvironment(
+            self.mdp,
+            self.task_manager,
+            use_task_aware_state=self.use_task_aware_state,
+            enforce_workflow=self.enforce_workflow,
+            use_phase2_scoring=self.use_phase2_scoring
+        )
+        
+        logger.info(f"Environment setup complete:")
+        logger.info(f"  Tools: {len(tool_capabilities)}")
+        logger.info(f"  Tasks: {len(self.task_manager.tasks)}")
+        
+        return True
+        
+
+
+    def save_checkpoint(self, path: Path, episode: int, success_rate: float):
+        """Save checkpoint with configurable detail level"""
+        # 确定checkpoint类型
+        checkpoint_mode = self.config.get('checkpoint_mode', 'full')  # lightweight, standard, full
+        logger.debug(f\"Savi\"ng {checkpoint_mode} checkpoint at episode {episode})
+        
+        # 基础信息（所有checkpoint都包含）
+        manager_state = {
+            'episode': episode,
+            'best_success_rate': self.best_success_rate,
+            'algorithm': self.algorithm,
+            'state_dim': self.env.get_state_dim(),
+            'action_dim': self.env.num_actions,
+            'timestamp': datetime.now().isoformat(),
+            'checkpoint_mode': checkpoint_mode
+        }
+        
+        # 标准信息（standard和full模式包含）
+        if checkpoint_mode in ['standard', 'full']:
+            manager_state.update({
+                'config': self.config,
+                'use_task_aware_state': self.use_task_aware_state,
+                'enforce_workflow': self.enforce_workflow,
+                'use_phase2_scoring': self.use_phase2_scoring,
+            })
+        
+        # 完整信息（仅full模式包含）
+        if checkpoint_mode == 'full':
+            # 压缩训练历史 - 暂时直接使用原始历史，如果方法不存在会报错
+            logger.debug( Full mode checkpoint - attempting to compress history)
+            # 由于_compress_training_history不存在，直接使用原始数据
+            # 如果需要压缩功能，应该先实现该方法
+            manager_state.update({
+                'training_history': dict(self.training_history),  # 直接使用原始历史
+                'best_model_path': str(self.best_model_path) if self.best_model_path else None,
+            })
+        
+        # 动态调整保存内容
+        if checkpoint_mode == 'lightweight':
+            # 轻量级：仅保存模型权重
+            logger.debug( Lightweight mode - saving minimal checkpoint)
+            if self.trainer:
+                # 由于_save_lightweight_checkpoint不存在，使用标准保存但只包含最小信息
+                # 如果需要轻量级保存，应该先实现该方法
+                lightweight_state = {
+                    'episode': episode,
+                    'algorithm': self.algorithm,
+                    'state_dim': self.env.get_state_dim(),
+                    'action_dim': self.env.num_actions,
+                }
+                if hasattr(self.trainer, 'q_network'):  # DQN
+                    lightweight_state['q_network_state_dict'] = self.trainer.q_network.state_dict()
+                elif hasattr(self.trainer, 'network'):  # PPO  
+                    lightweight_state['network_state_dict'] = self.trainer.network.state_dict()
+                torch.save(lightweight_state, path)
+            logger.debug(f\"Lightweight checkpoi\"nt saved: {path.stat().st_size / 1024 / 1024:.1f} MB)
+        else:
+            # 标准或完整：使用trainer的save_checkpoint
+            if self.trainer:
+                self.trainer.save_checkpoint(str(path), additional_data=manager_state)
+            else:
+                torch.save(manager_state, path)
+            logger.debug(f\"{checkpoi\"nt_mode.capitalize()} checkpoint saved: {path.stat().st_size / 1024 / 1024:.1f} MB)
+        
+        logger.info(f"Checkpoint saved to {path}")
+        
+        # Best model始终保存为标准checkpoint
+        if success_rate >= self.best_success_rate:
+            self.best_success_rate = success_rate
+            self.best_model_path = self.checkpoint_dir / "best_model.pt"
+            
+            # Best model使用standard模式保存
+            temp_mode = self.config.get('checkpoint_mode', 'full')
+            self.config['checkpoint_mode'] = 'full'
+            
+            if self.trainer:
+                self.trainer.save_checkpoint(str(self.best_model_path), additional_data=manager_state)
+            else:
+                torch.save(manager_state, self.best_model_path)
+            
+            self.config['checkpoint_mode'] = temp_mode
+            logger.info(f"New best model saved to best_model.pt with success rate: {success_rate:.2%}")
+        
+        # 使用已存在的清理方法
+        self._cleanup_old_checkpoints()  # 修改：调用已存在的方法
+        logger.debug(f\"Checkpoi\"nt cleanup completed)
+
+
+    def _cleanup_old_checkpoints(self, keep_recent: int = 5):
+        """自动清理旧的checkpoint文件，保留最近的几个和best_model.pt"""
+        try:
+            # 获取所有checkpoint文件（不包括best_model.pt和final_model.pt）
+            checkpoints = list(self.checkpoint_dir.glob("checkpoint_*.pt"))
+            
+            if len(checkpoints) <= keep_recent:
+                return  # 数量未超过限制，无需清理
+            
+            # 按修改时间排序（旧的在前）
+            checkpoints.sort(key=lambda p: p.stat().st_mtime)
+            
+            # 计算需要删除的数量
+            to_remove = checkpoints[:-keep_recent]
+            
+            # 删除旧的checkpoint
+            for checkpoint in to_remove:
+                try:
+                    checkpoint.unlink()
+                    logger.info(f"Removed old checkpoint: {checkpoint.name}")
+                except Exception as e:
+                    logger.warning(f"Failed to remove checkpoint {checkpoint.name}: {e}")
+            
+            logger.info(f"Checkpoint cleanup completed. Kept {keep_recent} recent checkpoints.")
+            
+        except Exception as e:
+            logger.warning(f"Checkpoint cleanup failed: {e}")
+
+    def _find_latest_checkpoint(self) -> Optional[Path]:
+        """Find the latest checkpoint file"""
+        # First, try to find best_model.pt
+        best_model_path = self.checkpoint_dir / "best_model.pt"
+        if best_model_path.exists():
+            logger.info("Found best_model.pt, using it for resume")
+            return best_model_path
+        
+        # If no best model, try to find checkpoint files
+        checkpoints = list(self.checkpoint_dir.glob("checkpoint_*.pt"))
+        if not checkpoints:
+            return None
+        
+        # Sort by modification time as a fallback
+        checkpoints.sort(key=lambda p: p.stat().st_mtime)
+        return checkpoints[-1]
+    
+    def _load_training_state(self, checkpoint_path: Path) -> int:
+        """Load training state from checkpoint and return starting episode"""
+        logger.info(f"Loading checkpoint from {checkpoint_path}")
+        
+        # Load checkpoint through trainer if it exists
+        if self.trainer:
+            checkpoint = self.trainer.load_checkpoint(str(checkpoint_path))
+        else:
+            checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+        
+        # Restore manager state
+        if 'training_history' in checkpoint:
+            self.training_history = defaultdict(list, checkpoint['training_history'])
+        
+        if 'best_success_rate' in checkpoint:
+            self.best_success_rate = checkpoint['best_success_rate']
+        
+        if 'best_model_path' in checkpoint:
+            self.best_model_path = Path(checkpoint['best_model_path']) if checkpoint['best_model_path'] else None
+        
+        # Return next episode to start from
+        return checkpoint.get('episode', 0) + 1
+
+    def train(self, num_episodes: int = 1000, print_frequency: int = 50,
+            resume: bool = False) -> bool:
+        """Unified training loop for both DQN and PPO"""
+        if not self.env:
+            logger.error("Environment not initialized!")
+            return False
+        
+        # Create trainer if not exists
+        if not self.trainer:
+            if self.algorithm == 'dqn':
+                self.trainer = DQNTrainer(self.env, self.config)
+            elif self.algorithm == 'ppo':
+                ppo_config = self.config.copy()
+                ppo_config.update({
+                    'n_steps': 2048,
+                    'n_epochs': 10,
+                    'batch_size': 64,
+                    'clip_range': 0.2,
+                    'ent_coef': 0.01,
+                    'vf_coef': 0.5,
+                    'gae_lambda': 0.95,
+                    'use_task_aware_buffer': self.config.get('use_task_aware_buffer', True),
+                    'buffer_capacity_per_task': self.config.get('buffer_capacity_per_task', 100),
+                    'min_episodes_per_task': self.config.get('min_episodes_per_task', 5),
+                    'task_mix_ratio': self.config.get('task_mix_ratio', 0.7)
+                })
+                self.trainer = PPOTrainer(self.env, ppo_config)
+            else:
+                logger.error(f"Unknown algorithm: {self.algorithm}")
+                return False
+            
+            logger.info(f"Using {self.algorithm.upper()} algorithm")
+        
+        # Resume from checkpoint if requested
+        start_episode = 0
+        if resume:
+            checkpoint_path = self._find_latest_checkpoint()
+            if checkpoint_path:
+                start_episode = self._load_training_state(checkpoint_path)
+                logger.info(f"Resumed from episode {start_episode}")
+            else:
+                logger.warning("No checkpoint found, starting from scratch")
+        
+        # Initialize curriculum
+        curriculum = None
+        if self.config['use_curriculum']:
+            curriculum = CurriculumScheduler(num_episodes)
+            if resume and start_episode > 0:
+                curriculum.current_episode = start_episode
+        
+        # Training metrics
+        episode_rewards = deque(maxlen=100)
+        episode_success = deque(maxlen=100)
+        episode_lengths = deque(maxlen=100)
+        
+        # Load metrics history if resuming
+        if resume and 'rewards' in self.training_history:
+            episode_rewards.extend(self.training_history['rewards'][-100:])
+            episode_success.extend(self.training_history['success'][-100:])
+            episode_lengths.extend(self.training_history['lengths'][-100:])
+        
+        # 收集成功的episodes用于学习
+        successful_episodes = []
+        
+        # Main training loop
+        logger.info(f"Starting training from episode {start_episode} to {num_episodes}")
+        
+        for episode in range(start_episode, num_episodes):
+            # Get curriculum stage
+            curriculum_stage = curriculum.get_stage() if curriculum else None
+            
+            # Reset environment
+            state = self.env.reset(curriculum_stage=curriculum_stage)
+            episode_reward = 0
+            done = False
+            
+            # 收集episode轨迹用于学习
+            episode_trajectory = []
+            
+            while not done and self.env.episode_steps < self.config['max_episode_length']:
+                # Get valid actions if using action masking
+                valid_actions = self.env.get_valid_actions() if self.config['use_action_masking'] else None
+                
+                # Select action
+                action = self.trainer.select_action(state, valid_actions)
+                
+                # Step
+                next_state, reward, done, info = self.env.step(action)
+                
+                # 收集轨迹数据
+                if hasattr(self.env, 'current_state') and hasattr(self.env, 'action_space'):
+                    action_obj = self.env.action_space[action]
+                    episode_trajectory.append((
+                        self.env.current_state,
+                        action_obj,
+                        reward,
+                        self.env.current_state
+                    ))
+                
+                # 使用统一接口存储经验  # <- 修改：简化了条件判断
+                task_type = None
+                if hasattr(self.env, 'current_task') and hasattr(self.env.current_task, 'task_type'):
+                    task_type = self.env.current_task.task_type
+                
+                self.trainer.store_experience(state, action, reward, next_state, done, task_type=task_type)
+                self.trainer.step_completed()  # <- 新增：通知trainer步骤完成
+                
+                # 检查是否应该训练  # <- 修改：使用统一接口
+                if self.trainer.should_train():
+                    loss = self.trainer.train_step()
+                
+                # Update
+                episode_reward += reward
+                state = next_state
+            
+            # Episode结束处理  # <- 新增：调用统一接口
+            self.trainer.on_episode_end()
+            
+            # Episode complete
+            success = info.get('success', False)
+            episode_rewards.append(episode_reward)
+            episode_success.append(float(success))
+            episode_lengths.append(self.env.episode_steps)
+            
+            # 更新工具关键性数据
+            if hasattr(self.mdp, 'update_tool_criticality') and episode_trajectory:
+                final_score = info.get('phase2_metrics', {}).get('phase2_score', 0.0)
+                if final_score == 0.0:
+                    final_score = 1.0 if success else 0.0
+                
+                episode_data = {
+                    'trajectory': episode_trajectory,
+                    'final_score': final_score,
+                    'task_type': self.env.current_task.task_type if hasattr(self.env.current_task, 'task_type') else 'unknown',
+                    'tool_failures': {}
+                }
+                
+                self.mdp.update_tool_criticality(episode_data)
+                
+                if success and final_score > 0.8:
+                    successful_episodes.append({
+                        'trajectory': episode_trajectory,
+                        'final_score': final_score,
+                        'task_description': self.env.current_task.description if hasattr(self.env.current_task, 'description') else ''
+                    })
+            
+            # Update exploration
+            self.trainer.update_exploration()
+            
+            # Update curriculum
+            if curriculum:
+                curriculum.update()
+            
+            # Print progress
+            if episode % print_frequency == 0:
+                avg_reward = np.mean(list(episode_rewards))
+                avg_success = np.mean(list(episode_success))
+                avg_length = np.mean(list(episode_lengths))
+                
+                logger.info(f"Episode {episode}/{num_episodes}:")
+                logger.info(f"  Avg Reward: {avg_reward:.2f}")
+                logger.info(f"  Success Rate: {avg_success:.2%}")
+                logger.info(f"  Avg Length: {avg_length:.1f}")
+                
+                # 获取算法特定的训练信息  # <- 修改：使用统一接口
+                training_info = self.trainer.get_training_info()
+                if self.algorithm == 'dqn' and hasattr(self.trainer, 'epsilon'):
+                    logger.info(f"  Epsilon: {self.trainer.epsilon:.3f}")
+                elif self.algorithm == 'ppo':
+                    logger.info(f"  Total timesteps: {training_info['total_timesteps']}")
+                
+                if curriculum:
+                    logger.info(f"  Curriculum: {curriculum.get_stage_name()}")
+            
+            # Save checkpoint
+            if episode % self.config['checkpoint_frequency'] == 0:
+                checkpoint_path = self.checkpoint_dir / f"checkpoint_episode_{episode}.pt"
+                self.save_checkpoint(checkpoint_path, episode, np.mean(list(episode_success)))
+            
+            # Evaluate
+            if episode % self.config['evaluation_frequency'] == 0:
+                eval_results = self.evaluate(num_episodes=self.config['evaluation_episodes'])
+                logger.info(f"Evaluation at episode {episode}: {eval_results}")
+                
+                # Update scheduler (only for DQN)
+                if self.algorithm == 'dqn' and hasattr(self.trainer, 'scheduler'):
+                    self.trainer.scheduler.step(eval_results['avg_reward'])
+        
+        # PPO: 确保最后的数据被训练  # <- 简化：使用统一方法
+        if hasattr(self.trainer.rollout_buffer, 'states') and len(self.trainer.rollout_buffer.states) > 0:
+            logger.info("Training on final rollout buffer...")
+            self.trainer.train_step()
+        elif hasattr(self.trainer.rollout_buffer, 'current_episode') and len(self.trainer.rollout_buffer.current_episode['states']) > 0:
+            logger.info("Training on final rollout buffer...")
+            self.trainer.train_step()
+        
+        # 学习关键模式
+        if hasattr(self.mdp, 'learn_critical_patterns_from_episodes') and successful_episodes:
+            logger.info(f"Learning critical patterns from {len(successful_episodes)} successful episodes...")
+            self.mdp.learn_critical_patterns_from_episodes(successful_episodes)
+        
+        # 保存学习到的工具关键性数据
+        if hasattr(self.mdp, 'save_learned_criticality'):
+            criticality_path = self.checkpoint_dir / "tool_criticality.json"
+            self.mdp.save_learned_criticality(str(criticality_path))
+            logger.info(f"Saved tool criticality data to {criticality_path}")
+        
+        # Final save
+        final_path = self.checkpoint_dir / "final_model.pt"
+        self.save_checkpoint(final_path, num_episodes, np.mean(list(episode_success)))
+        
+        logger.info("Training completed!")
+        self.training_history['rewards'] = list(episode_rewards)
+        self.training_history['success'] = list(episode_success)
+        self.training_history['lengths'] = list(episode_lengths)
+        
+        return True
+
+    def evaluate(self, num_episodes: int = 100, model_path: Optional[str] = None) -> Dict[str, float]:
+        """Evaluate trained model"""
+        if not self.env or not self.trainer:
+            logger.error("Environment or trainer not initialized!")
+            return {}
+        
+        if model_path:
+            self.trainer.load_checkpoint(model_path)
+        
+        # 设置评估模式 - 使用trainer的统一方法  # <- 修改
+        self.env.is_evaluation_mode = True
+        self.trainer.set_eval_mode(True)  # <- 修改：使用统一方法
+        
+        eval_rewards = []
+        eval_success = []
+        eval_lengths = []
+        
+        logger.info(f"Evaluating for {num_episodes} episodes...")
+        
+        for episode in range(num_episodes):
+            state = self.env.reset()
+            episode_reward = 0
+            done = False
+            
+            while not done and self.env.episode_steps < self.config['max_episode_length']:
+                valid_actions = self.env.get_valid_actions() if self.config['use_action_masking'] else None
+                action = self.trainer.select_action(state, valid_actions)
+                next_state, reward, done, info = self.env.step(action)
+                
+                episode_reward += reward
+                state = next_state
+            
+            eval_rewards.append(episode_reward)
+            eval_success.append(float(info.get('success', False)))
+            eval_lengths.append(self.env.episode_steps)
+        
+        # 恢复训练模式 - 使用trainer的统一方法  # <- 修改
+        self.env.is_evaluation_mode = False
+        self.trainer.set_eval_mode(False)  # <- 修改：使用统一方法
+        
+        # Print results
+        logger.info(f"Evaluation Results:")
+        logger.info(f"  Avg Reward: {np.mean(eval_rewards):.2f} ± {np.std(eval_rewards):.2f}")
+        logger.info(f"  Success Rate: {np.mean(eval_success):.2%}")
+        logger.info(f"  Avg Length: {np.mean(eval_lengths):.1f} ± {np.std(eval_lengths):.1f}")
+        
+        return {
+            'avg_reward': np.mean(eval_rewards),
+            'success_rate': np.mean(eval_success),
+            'avg_length': np.mean(eval_lengths),
+            'std_reward': np.std(eval_rewards),
+            'std_length': np.std(eval_lengths)
+        }
+
+    def analyze_model(self) -> Dict[str, Any]:
+        """Analyze trained model performance"""
+        # Always try to use best_model.pt first
+        best_model_path = self.checkpoint_dir / "best_model.pt"
+        
+        if best_model_path.exists():
+            self.best_model_path = best_model_path
+            logger.info(f"Using best_model.pt for analysis")
+        elif not self.best_model_path:
+            logger.error("No trained model to analyze!")
+            return {}
+        
+        logger.info(f"Analyzing model from {self.best_model_path}")
+        
+        # Load best model
+        self.trainer.load_checkpoint(str(self.best_model_path))
+        
+        # 设置评估模式  # <- 新增了这部分
+        if self.algorithm == 'ppo' and hasattr(self.trainer, 'eval_mode'):
+            self.trainer.eval_mode = True
+        elif self.algorithm == 'dqn' and hasattr(self.trainer, 'epsilon'):
+            old_epsilon = self.trainer.epsilon
+            self.trainer.epsilon = 0.0
+        
+        # Evaluate on different task types
+        results = {}
+        task_types = list(self.task_manager.tasks_by_type.keys())
+        
+        for task_type in task_types:
+            logger.info(f"Evaluating on {task_type} tasks...")
+            type_results = []
+            
+            for _ in range(10):  # 10 episodes per task type
+                state = self.env.reset(task_type=task_type)
+                episode_reward = 0
+                done = False
+                
+                while not done and self.env.episode_steps < self.config['max_episode_length']:
+                    valid_actions = self.env.get_valid_actions() if self.config['use_action_masking'] else None
+                    action = self.trainer.select_action(state, valid_actions)
+                    next_state, reward, done, info = self.env.step(action)
+                    
+                    episode_reward += reward
+                    state = next_state
+                
+                type_results.append({
+                    'reward': episode_reward,
+                    'success': info.get('success', False),
+                    'steps': self.env.episode_steps,
+                    'phase2_score': info.get('phase2_metrics', {}).get('phase2_score', 0.0)
+                })
+            
+            # Aggregate results
+            results[task_type] = {
+                'avg_reward': np.mean([r['reward'] for r in type_results]),
+                'success_rate': np.mean([r['success'] for r in type_results]),
+                'avg_steps': np.mean([r['steps'] for r in type_results]),
+                'avg_phase2_score': np.mean([r['phase2_score'] for r in type_results])
+            }
+        
+        # 恢复训练模式  # <- 新增了这部分
+        if self.algorithm == 'ppo' and hasattr(self.trainer, 'eval_mode'):
+            self.trainer.eval_mode = False
+        elif self.algorithm == 'dqn':
+            self.trainer.epsilon = old_epsilon
+        
+        # Overall statistics
+        overall_success = np.mean([r['success_rate'] for r in results.values()])
+        overall_phase2 = np.mean([r['avg_phase2_score'] for r in results.values()])
+        
+        logger.info(f"\nAnalysis Results:")
+        logger.info(f"Overall Success Rate: {overall_success:.2%}")
+        logger.info(f"Overall Phase 2 Score: {overall_phase2:.3f}")
+        
+        for task_type, metrics in results.items():
+            logger.info(f"\n{task_type}:")
+            logger.info(f"  Success Rate: {metrics['success_rate']:.2%}")
+            logger.info(f"  Avg Steps: {metrics['avg_steps']:.1f}")
+            logger.info(f"  Phase 2 Score: {metrics['avg_phase2_score']:.3f}")
+        
+        return {
+            'task_results': results,
+            'overall_success': overall_success,
+            'overall_phase2_score': overall_phase2,
+            'model_path': str(self.best_model_path)
+        }
+
+
+# ===========================
+# Utility Functions for Testing
+# ===========================
+
+def test_environment_setup():
+    """Test environment setup with all features"""
+    logger.info("Testing environment setup...")
+    
+    manager = UnifiedTrainingManager(
+        use_task_aware_state=True,
+        enforce_workflow=True,
+        use_phase2_scoring=True
+    )
+    
+    if manager.setup_environment():
+        logger.info("✅ Environment setup successful!")
+        
+        # Test reset and step
+        state = manager.env.reset()
+        logger.info(f"State shape: {state.shape}")
+        logger.info(f"State dim: {manager.env.get_state_dim()}")
+        
+        # Test step
+        action = 0
+        next_state, reward, done, info = manager.env.step(action)
+        logger.info(f"Step successful: reward={reward:.2f}")
+        logger.info(f"Info: {info}")
+        
+        return True
+    else:
+        logger.error("❌ Environment setup failed!")
+        return False
+
+
+def quick_train_test(episodes: int = 100):
+    """Quick training test"""
+    logger.info(f"Running quick training test ({episodes} episodes)...")
+    
+    manager = UnifiedTrainingManager(
+        use_task_aware_state=True,
+        enforce_workflow=False,  # Start without enforcement
+        use_phase2_scoring=True
+    )
+    
+    if manager.setup_environment():
+        success = manager.train_dqn(num_episodes=episodes, print_frequency=10)
+        if success:
+            logger.info("✅ Training completed!")
+            # Evaluate
+            results = manager.evaluate(num_episodes=10)
+            logger.info(f"Evaluation: {results}")
+        else:
+            logger.error("❌ Training failed!")
+    else:
+        logger.error("❌ Setup failed!")
+
+
+# ===========================
+# Main Entry Point
+# ===========================
+
+if __name__ == "__main__":
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Unified Training Manager")
+    parser.add_argument("--test", action="store_true", help="Run quick test")
+    parser.add_argument("--episodes", type=int, default=100, help="Number of episodes")
+    parser.add_argument("--use-task-aware", action="store_true", default=True,
+                       help="Use task-aware state representation")
+    parser.add_argument("--no-task-aware", dest="use_task_aware", action="store_false")
+    parser.add_argument("--enforce-workflow", action="store_true", default=False,
+                       help="Enable workflow enforcement")
+    parser.add_argument("--use-phase2", action="store_true", default=True,
+                       help="Use Phase 2 scoring")
+    parser.add_argument("--no-phase2", dest="use_phase2", action="store_false")
+    parser.add_argument("--resume", action="store_true", help="Resume from checkpoint")
+    
+    args = parser.parse_args()
+    
+    if args.test:
+        test_environment_setup()
+        quick_train_test(args.episodes)
+    else:
+        manager = UnifiedTrainingManager(
+            use_task_aware_state=args.use_task_aware,
+            enforce_workflow=args.enforce_workflow,
+            use_phase2_scoring=args.use_phase2
+        )
+        
+        if manager.setup_environment():
+            manager.train_dqn(num_episodes=args.episodes, resume=args.resume)
+        else:
+            logger.error("Failed to setup environment!")

@@ -1,0 +1,3508 @@
+#!/usr/bin/env python3
+"""
+Workflow Quality Tester - Phase 2 Stable Scoring System Implementation
+=====================================================================
+Implementation of simplified and stable scoring mechanism according to the improvement proposal.
+This version implements Phase 2 requirements: stable scoring with Jaccard similarity and workflow adherence.
+"""
+
+# 文件：workflow_quality_test_flawed.py
+# 位置：文件开头的导入部分（第1-40行）
+
+import os
+import sys
+import json
+import time
+import numpy as np
+from pathlib import Path
+from datetime import datetime
+from typing import Dict, List, Any, Optional, Tuple, Set
+from dataclasses import dataclass, field
+import logging
+import matplotlib.pyplot as plt
+from openai import OpenAI
+import traceback
+import matplotlib
+matplotlib.use('Agg')
+from collections import defaultdict
+import argparse
+import concurrent.futures
+from threading import Lock
+import random
+import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Lock, Semaphore
+import queue
+from typing import Callable
+
+# Import MDP generator
+from mdp_workflow_generator import MDPWorkflowGenerator
+from interactive_executor import InteractiveExecutor, ExecutionState, ToolExecutionResult
+
+
+
+# Setup logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Import MDP generator
+from mdp_workflow_generator import MDPWorkflowGenerator
+
+# Import flawed workflow generator if available
+try:
+    from flawed_workflow_generator import FlawedWorkflowGenerator
+except ImportError:
+    logger.warning("FlawedWorkflowGenerator not found. Flawed workflow testing disabled.")
+    FlawedWorkflowGenerator = None
+    ptiny("FFFFFFFFFFFFF")
+
+try:
+    from generalized_mdp_framework import ToolCapability
+except ImportError:
+    print("FFFFFFFFFFF")
+    logger.warning("ToolCapability not found. Will handle tool registry as dictionaries.")
+    ToolCapability = None
+# ======================
+# Phase 2: Simplified Scoring Configuration
+# ======================
+
+# 相同位置的修复代码
+# 修改的行用注释标注：# <- 修改了这一行
+
+@dataclass
+class SimplifiedScoringConfig:
+    """Phase 2: Simplified scoring configuration with two orthogonal dimensions"""
+    # Main dimension weights
+    task_achievement_weight: float = 0.5 # Result-oriented  # <- 修改了这一行：从0.7降低到0.6
+    execution_quality_weight: float = 0.5  # Process-oriented  # <- 修改了这一行：从0.3提高到0.4
+    
+    # Task achievement sub-factors
+    required_tools_weight: float = 0.6
+    output_generated_weight: float = 0.4
+    
+    # Execution quality sub-factors
+    workflow_adherence_weight: float = 0.6  # <- 修改了这一行：从0.5提高到0.6
+    efficiency_weight: float = 0.2  # <- 修改了这一行：从0.3降低到0.2
+    error_handling_weight: float = 0.2
+
+class StableScorer:
+    """Phase 2: Stable scoring system implementation"""
+    
+    def __init__(self, config: SimplifiedScoringConfig = None, verifier: 'ToolCallVerifier' = None):  # <- 修改：使用字符串形式
+        self.config = config or SimplifiedScoringConfig()
+        self.verifier = verifier  # <- 新增
+        if not self.verifier:
+            print("[WARNING] StableScorer initialized without verifier, some features may not work")
+    
+    def calculate_stable_score(self, 
+                             execution_result: Dict,
+                             evaluation_context: Dict) -> Tuple[float, Dict]:
+        """
+        Calculate stable score according to Phase 2 proposal.
+        
+        Returns:
+            Tuple of (final_score, breakdown_dict)
+        """
+        # 1. Calculate Task Achievement Score (0-1)
+        task_achievement, ta_details = self._calculate_task_achievement(
+            execution_result, evaluation_context
+        )
+        
+        # 2. Calculate Execution Quality Score (0-1)
+        execution_quality, eq_details = self._calculate_execution_quality(
+            execution_result, evaluation_context
+        )
+        
+        # 3. Calculate Final Score
+        final_score = (
+            self.config.task_achievement_weight * task_achievement +
+            self.config.execution_quality_weight * execution_quality
+        )
+        
+        # 4. Compile breakdown
+        breakdown = {
+            'final_score': final_score,
+            'task_achievement': task_achievement,
+            'execution_quality': execution_quality,
+            'task_achievement_details': ta_details,
+            'execution_quality_details': eq_details
+        }
+        
+        return final_score, breakdown
+    
+
+
+
+    def _calculate_task_achievement(self, 
+                                execution_result: Dict,
+                                evaluation_context: Dict) -> Tuple[float, Dict]:
+        """Calculate task achievement score - unified and fair"""
+        executed_tools = execution_result.get('tool_calls', [])
+        output_generated = execution_result.get('output_generated', False)
+        
+        # 获取任务的实际需求  # <- 新增：从evaluation_context获取任务信息
+        required_tools = set(evaluation_context.get('required_tools', []))
+        task_complexity = evaluation_context.get('complexity', 'medium')
+        task_objectives = evaluation_context.get('objectives', [])
+        
+        # 1. Tool Effectiveness Score - 基于任务需求的动态评分  # <- 修改：移除硬编码
+        if executed_tools:
+            unique_tools = len(set(executed_tools))
+            total_tools = len(executed_tools)
+            executed_set = set(executed_tools)
+            
+            # 基础分：有工具调用就有基础分
+            base_score = 0.2  # <- 修改：降低基础分
+            
+            # 工具匹配分：基于required_tools的匹配程度  # <- 修改：使用实际需求
+            if required_tools:
+                # Jaccard相似度：交集/并集
+                intersection = len(executed_set & required_tools)
+                union = len(executed_set | required_tools)
+                jaccard_score = intersection / union if union > 0 else 0.0
+                match_score = jaccard_score * 0.5  # 最高0.5分
+            else:
+                # 没有明确要求时，基于复杂度给分  # <- 修改：动态评分
+                expected_tools = {'easy': 2, 'medium': 4, 'hard': 6}.get(task_complexity, 4)
+                if unique_tools >= expected_tools * 0.75:
+                    match_score = 0.4
+                elif unique_tools >= expected_tools * 0.5:
+                    match_score = 0.3
+                else:
+                    match_score = 0.2
+                jaccard_score = 0.0
+                
+            # 效率分：避免过多重复
+            if total_tools > 0:
+                redundancy_ratio = unique_tools / total_tools
+                efficiency_bonus = redundancy_ratio * 0.3  # <- 修改：提高效率奖励到0.3
+            else:
+                efficiency_bonus = 0.0
+            
+            tool_score = min(1.0, base_score + match_score + efficiency_bonus)
+        else:
+            # 没有工具调用
+            tool_score = 0.0
+            jaccard_score = 0.0
+        
+        # 2. Output Generated Score - 基于任务目标的输出评分  # <- 修改：更严格的输出检查
+        if task_objectives:  # <- 新增：基于objectives判断
+            # 检查是否有输出相关的objective
+            has_output_objective = any(
+                'output' in obj.get('description', '').lower() or 
+                'export' in obj.get('description', '').lower() or
+                'save' in obj.get('description', '').lower()
+                for obj in task_objectives
+            )
+            if has_output_objective:
+                output_score = 0.9 if output_generated else 0.1  # <- 修改：有输出要求时严格评分
+            else:
+                output_score = 0.7 if not output_generated else 0.5  # <- 修改：无输出要求时宽松
+        else:
+            # 默认情况：假设需要输出
+            output_score = 0.8 if output_generated else 0.2
+        
+        # 3. Combined Score - 固定权重，对所有策略公平
+        task_achievement = (
+            self.config.required_tools_weight * tool_score +
+            self.config.output_generated_weight * output_score
+        )
+        
+        # 4. Details for debugging
+        details = {
+            'executed_tools': executed_tools,
+            'unique_tools': unique_tools if executed_tools else 0,
+            'tool_score': tool_score,
+            'output_generated': output_generated,
+            'output_score': output_score,
+            'jaccard_similarity': jaccard_score,  # <- 修改：记录实际的Jaccard相似度
+            'required_tools': list(required_tools),  # <- 新增：记录要求的工具
+            'match_score': match_score if executed_tools else 0  # <- 新增：记录匹配分数
+        }
+        
+        return task_achievement, details
+
+    def _are_tools_functionally_similar(self, tool1: str, tool2: str) -> bool:
+        """判断两个工具是否功能相似"""
+        # 完全相同
+        if tool1 == tool2:
+            return True
+            
+        # 提取组成部分
+        tool1_parts = set(tool1.lower().split('_'))
+        tool2_parts = set(tool2.lower().split('_'))
+        
+        # 核心操作词
+        operations = {
+            'read', 'write', 'parse', 'transform', 'validate', 
+            'fetch', 'process', 'analyze', 'cache', 'log',
+            'authenticate', 'scan', 'filter', 'aggregate', 'notify',
+            'export', 'import', 'convert', 'merge', 'split'
+        }
+        
+        # 数据类别词
+        categories = {
+            'file', 'data', 'network', 'api', 'integration', 
+            'utility', 'processing', 'operations', 'computation'
+        }
+        
+        # 找出共同的操作和类别
+        common_ops = (tool1_parts & tool2_parts) & operations
+        common_cats = (tool1_parts & tool2_parts) & categories
+        
+        # 相似性判断规则
+        # 1. 有相同的核心操作词
+        if common_ops:
+            return True
+        
+        # 2. 同类别且有至少2个共同词
+        if common_cats and len(tool1_parts & tool2_parts) >= 2:
+            return True
+        
+        # 3. 特殊情况：reader/scanner, writer/exporter等同义词
+        synonyms = {
+            frozenset(['reader', 'scanner']): 'read_operation',
+            frozenset(['writer', 'exporter']): 'write_operation',
+            frozenset(['parser', 'processor']): 'parse_operation',
+            frozenset(['validator', 'verifier']): 'validate_operation'
+        }
+        
+        tool1_ops = tool1_parts & operations
+        tool2_ops = tool2_parts & operations
+        
+        for syn_set, _ in synonyms.items():
+            if (tool1_ops & syn_set) and (tool2_ops & syn_set):
+                return True
+        
+        return False
+
+    def _calculate_execution_quality(self, 
+                                    execution_result: Dict,
+                                    evaluation_context: Dict) -> Tuple[float, Dict]:
+        """Calculate execution quality based purely on execution history - 完全基于执行轨迹"""
+        tool_calls = execution_result.get('tool_calls', [])
+        execution_trace = execution_result.get('execution_trace', [])
+        
+        # 1. Logical Flow Score - 使用新的动态分析
+        required_tools = evaluation_context.get('required_tools', [])
+        task_objectives = evaluation_context.get('objectives', [])
+
+        logical_score = self._analyze_tool_flow_logic(
+            tool_calls, 
+            required_tools=required_tools,
+            task_objectives=task_objectives
+        )
+        
+        # 2. Efficiency Score - 执行效率
+        if tool_calls:
+            unique_tool_set = set(tool_calls)
+            unique_tools = len(unique_tool_set)
+            total_calls = len(tool_calls)
+            
+            # 去重率：unique/total
+            dedup_ratio = unique_tools / total_calls
+            
+            # 基于任务实际需求的动态工具数量评估
+            required_tools_set = set(evaluation_context.get('required_tools', []))
+            task_objectives = evaluation_context.get('objectives', [])
+            task_complexity = evaluation_context.get('complexity', 'medium')
+            
+            # 动态计算合理的工具数量范围
+            if required_tools_set:
+                # 基于required_tools数量的动态范围
+                base_count = len(required_tools_set)
+                min_tools = max(1, int(base_count * 0.8))  # 至少需要80%的必需工具
+                max_tools = base_count + min(3, int(base_count * 0.5))  # 允许额外50%但不超过3个
+            elif task_objectives:
+                # 基于目标复杂度
+                if required_tools_set:
+                    base_count = len(required_tools_set)
+                    complexity_ranges = {
+                        'easy': (max(1, int(base_count * 0.8)), base_count + 1),
+                        'medium': (max(1, int(base_count * 0.9)), base_count + 2),
+                        'hard': (base_count, base_count + 3)
+                    }
+                else:
+                    # 仅在没有required_tools信息时使用默认值
+                    print("FFFFFFFFFFFFFFFFFFFFFFFFF")
+                    complexity_ranges = {
+                        'easy': (1, 3),
+                        'medium': (2, 5),
+                        'hard': (3, 8)
+                    }
+                min_tools, max_tools = complexity_ranges.get(task_complexity, (2, 5))
+            else:
+                # 默认范围
+                min_tools, max_tools = 2, 5
+            
+            # 工具数量得分 - 在合理范围内给高分
+            if min_tools <= unique_tools <= max_tools:
+                count_score = 1.0
+            elif unique_tools < min_tools:
+                count_score = unique_tools / min_tools
+            else:
+                # 超出范围的惩罚更温和
+                count_score = max(0.5, 1.0 - (unique_tools - max_tools) * 0.1)
+            
+            # 密度得分 - 基于去重率
+            if dedup_ratio >= 0.7:  # 70%以上的工具是唯一的
+                density_score = 1.0
+            elif dedup_ratio >= 0.5:
+                density_score = 0.8
+            else:
+                density_score = max(0.3, dedup_ratio)
+            
+            efficiency_score = 0.6 * count_score + 0.4 * density_score
+            
+            print(f"[EFFICIENCY] Tools: {unique_tools} (range: {min_tools}-{max_tools}), "
+                f"Dedup: {dedup_ratio:.2f}, Score: {efficiency_score:.2f}")
+        else:
+            efficiency_score = 0.0
+            dedup_ratio = 0
+            unique_tools = 0
+            total_calls = 0
+            density_score = 0
+        
+        # 3. Error Handling Score - 修改：不惩罚必要的重试  # <- 修改了这一部分
+        error_score = 1.0  # 默认满分
+        
+        # 检测重试行为
+        retry_info = self._detect_retry_behavior(execution_result)
+        
+        if execution_trace:
+            # 统计错误和重试
+            error_count = sum(1 for event in execution_trace if event.get('error'))
+            successful_retries = sum(1 for event in execution_trace if event.get('action') == 'retry' and event.get('success'))
+            
+            if error_count > 0:
+                # 如果有成功的重试，不惩罚
+                if successful_retries > 0:
+                    error_score = 1.0  # 成功处理了错误，满分
+                    print(f"[BONUS] Successfully handled {successful_retries} errors through retry")
+                else:
+                    # 只有未处理的错误才惩罚
+                    unhandled_errors = error_count - successful_retries
+                    if unhandled_errors > 0:
+                        error_score = max(0.3, 1.0 - unhandled_errors * 0.2)
+                        print(f"[PENALTY] {unhandled_errors} unhandled errors")
+            
+            # 检查错误后的不当继续（这个仍需要惩罚）
+            if execution_result.get('error_ignored_count', 0) > 0:
+                ignored_errors = execution_result['error_ignored_count']
+                error_score *= max(0.5, 1.0 - ignored_errors * 0.1)
+                print(f"[PENALTY] Ignored {ignored_errors} errors without handling")
+        
+        # 幻觉惩罚（保持不变）
+        if execution_result.get('hallucination_detected'):
+            error_score *= 0.5
+            print("[PENALTY] Hallucination detected, error score halved")
+        
+        # 跳步惩罚（保持不变）
+        if execution_result.get('skip_detected'):
+            error_score *= 0.7
+            print("[PENALTY] Skip detected, error score reduced by 30%")
+        
+        # 4. Combined Execution Quality Score
+        execution_quality = (
+            0.5 * logical_score +     # 50%权重给逻辑流
+            0.3 * efficiency_score +  # 30%权重给效率
+            0.2 * error_score        # 20%权重给错误处理
+        )
+        
+        print(f"[QUALITY] Final execution quality: {execution_quality:.3f} "
+            f"(logic:{logical_score:.2f}, eff:{efficiency_score:.2f}, err:{error_score:.2f})")
+        
+        # 5. Details for debugging
+        details = {
+            'logical_score': logical_score,
+            'efficiency_score': efficiency_score,
+            'error_score': error_score,
+            'dedup_ratio': dedup_ratio if tool_calls else 0,
+            'unique_tools': unique_tools if tool_calls else 0,
+            'total_calls': total_calls if tool_calls else 0,
+            'density_score': density_score if tool_calls else 0,
+            'has_execution_trace': len(execution_trace) > 0 if execution_trace else False,
+            'hallucination_detected': execution_result.get('hallucination_detected', False),
+            'skip_detected': execution_result.get('skip_detected', False),
+            'retry_info': retry_info  # <- 新增：重试信息
+        }
+        
+        return execution_quality, details
+
+    def _analyze_tool_flow_logic(self, tool_calls: List[str], 
+                                required_tools: List[str] = None,
+                                task_objectives: List[Dict] = None) -> float:
+        """分析工具调用序列的逻辑合理性 - 基于任务需求和实际依赖"""
+        if not tool_calls:
+            print("[LOGIC] No tool calls to analyze")
+            return 0.0
+        
+        if len(tool_calls) == 1:
+            print(f"[LOGIC] Single tool call: {tool_calls[0]}")
+            # 如果只调用了一个必需工具，给合理的分数
+            if required_tools and tool_calls[0] in required_tools:
+                return 0.7
+            return 0.5
+        
+        try:
+            # 1. 依赖关系满足度（40%权重）
+            dependency_score = self._calculate_dependency_satisfaction(tool_calls)
+            
+            # 2. 任务需求匹配度（30%权重）- 基于实际需求
+            requirement_score = self._calculate_requirement_match(tool_calls, required_tools, task_objectives)
+            
+            # 3. 执行顺序合理性（30%权重）- 基于工具关系而非硬编码  # <- 修改了这一行
+            sequence_score = self._calculate_sequence_rationality(tool_calls, required_tools)  # <- 修改了这一行：使用新方法
+            
+            # 综合评分
+            logical_score = (
+                0.4 * dependency_score +
+                0.3 * requirement_score +
+                0.3 * sequence_score
+            )
+            
+            print(f"[LOGIC] Final logical score: {logical_score:.3f} "
+                f"(dep:{dependency_score:.2f}, req:{requirement_score:.2f}, seq:{sequence_score:.2f})")
+            
+            return logical_score
+            
+        except Exception as e:
+            print(f"[ERROR] Failed to analyze tool flow logic: {e}")
+            print(f"[ERROR] Using fallback logic score calculation")
+            # 备用方案：基于简单的覆盖率
+            if required_tools:
+                coverage = len(set(tool_calls) & set(required_tools)) / len(required_tools)
+                return coverage * 0.5 + 0.3  # 基础分0.3
+            return 0.4  # 默认分数
+
+    def _calculate_dependency_satisfaction(self, tool_calls: List[str]) -> float:
+        """计算依赖满足度（保持原有逻辑）"""
+        dependency_violations = 0
+        dependency_satisfied = 0
+        
+        executed_before = set()
+        for tool in tool_calls:
+            dependencies = self.verifier.get_tool_dependencies(tool)
+            
+            if dependencies:
+                satisfied = all(dep in executed_before for dep in dependencies)
+                if satisfied:
+                    dependency_satisfied += 1
+                    print(f"[LOGIC] Tool '{tool}' dependencies satisfied: {dependencies}")
+                else:
+                    missing = [dep for dep in dependencies if dep not in executed_before]
+                    dependency_violations += 1
+                    print(f"[WARNING] Tool '{tool}' missing dependencies: {missing}")
+            
+            executed_before.add(tool)
+        
+        total_deps = dependency_satisfied + dependency_violations
+        if total_deps > 0:
+            return dependency_satisfied / total_deps
+        return 0.8  # 没有依赖的工具序列
+
+    def _calculate_requirement_match(self, tool_calls: List[str], 
+                                required_tools: List[str], 
+                                task_objectives: List[Dict]) -> float:
+        """基于任务需求计算匹配度"""
+        score = 0.8  # 基础分
+        
+        if required_tools:
+            # 检查必需工具的使用
+            required_set = set(required_tools)
+            used_set = set(tool_calls)
+            
+            # 必需工具覆盖率
+            coverage = len(required_set & used_set) / len(required_set)
+            score = coverage
+            
+            print(f"[LOGIC] Required tools coverage: {coverage:.2f}")
+            
+            # 额外工具的合理性加分
+            extra_tools = used_set - required_set
+            if extra_tools:
+                # 检查额外工具是否有助于完成任务
+                helpful_extras = 0
+                for tool in extra_tools:
+                    # 检查是否是验证、错误处理或优化类工具
+                    if any(keyword in tool.lower() for keyword in ['validate', 'check', 'optimize', 'retry']):
+                        helpful_extras += 1
+                        print(f"[LOGIC] Helpful extra tool: {tool}")
+                    # 检查是否与必需工具功能相关
+                    elif self._is_functionally_related(tool, required_tools):
+                        helpful_extras += 1
+                        print(f"[LOGIC] Related extra tool: {tool}")
+                
+                # 合理的额外工具给予加分
+                if helpful_extras > 0:
+                    bonus = min(0.2, helpful_extras * 0.05)
+                    score = min(1.0, score + bonus)
+                    print(f"[LOGIC] Extra tools bonus: {bonus:.2f}")
+        
+        return score
+
+    def _calculate_sequence_rationality(self, tool_calls: List[str], required_tools: List[str] = None) -> float:
+        """基于工具实际功能和依赖计算序列合理性（完全动态，无硬编码）"""
+        if len(tool_calls) < 2:
+            print("[LOGIC] Less than 2 tools, sequence score: 1.0")
+            return 1.0
+        
+        try:
+            rational_transitions = 0
+            total_transitions = len(tool_calls) - 1
+            
+            # 获取工具的依赖关系映射
+            tool_deps = {}
+            for tool in set(tool_calls):
+                deps = self.verifier.get_tool_dependencies(tool)
+                tool_deps[tool] = set(deps) if deps else set()
+                
+            # 分析每个转换
+            executed_before = set()
+            for i in range(len(tool_calls)):
+                current_tool = tool_calls[i]
+                
+                if i > 0:
+                    # 检查当前工具的依赖是否已执行
+                    deps = tool_deps.get(current_tool, set())
+                    if deps:
+                        # 有依赖的工具
+                        if deps.issubset(executed_before):
+                            rational_transitions += 1
+                            print(f"[LOGIC] Rational: {current_tool} dependencies satisfied")
+                        else:
+                            missing = deps - executed_before
+                            print(f"[WARNING] Irrational: {current_tool} missing deps: {missing}")
+                    else:
+                        # 没有依赖的工具 - 检查是否与required_tools中的顺序一致
+                        if required_tools and current_tool in required_tools:
+                            # 检查是否遵循required_tools的相对顺序
+                            if self._follows_required_order(tool_calls[:i+1], required_tools):
+                                rational_transitions += 1
+                                print(f"[LOGIC] Rational: {current_tool} follows required order")
+                            else:
+                                print(f"[WARNING] Questionable: {current_tool} deviates from required order")
+                        else:
+                            # 额外的工具 - 检查类别合理性
+                            if i > 0 and self._is_category_transition_reasonable(tool_calls[i-1], current_tool):
+                                rational_transitions += 1
+                                print(f"[LOGIC] Rational: category transition {tool_calls[i-1]} -> {current_tool}")
+                            else:
+                                print(f"[WARNING] Questionable transition to {current_tool}")
+                
+                executed_before.add(current_tool)
+            
+            score = rational_transitions / total_transitions if total_transitions > 0 else 1.0
+            print(f"[LOGIC] Sequence rationality score: {score:.2f} ({rational_transitions}/{total_transitions} rational)")
+            return score
+            
+        except Exception as e:
+            print(f"[ERROR] Failed to calculate sequence rationality: {e}")
+            print(f"[ERROR] Using fallback sequence score")
+            return 0.5  # 默认中等分数
+        
+    def _follows_required_order(self, executed_so_far: List[str], required_tools: List[str]) -> bool:
+        """检查已执行的工具是否遵循required_tools的相对顺序"""
+        try:
+            # 提取在required_tools中的工具
+            required_executed = [t for t in executed_so_far if t in required_tools]
+            if not required_executed:
+                return True
+            
+            # 检查相对顺序是否保持
+            last_idx = -1
+            for tool in required_executed:
+                idx = required_tools.index(tool)
+                if idx < last_idx:
+                    return False
+                last_idx = idx
+            
+            return True
+        except Exception as e:
+            print(f"[ERROR] Failed to check required order: {e}")
+            return True  # 出错时给予benefit of doubt
+
+    def _is_category_transition_reasonable(self, from_tool: str, to_tool: str) -> bool:
+        """基于工具类别判断转换是否合理（动态判断）"""
+        try:
+            from_cat = self.verifier.get_tool_category(from_tool)
+            to_cat = self.verifier.get_tool_category(to_tool)
+            
+            if not from_cat or not to_cat:
+                print(f"[WARNING] Missing category info for {from_tool} or {to_tool}")
+                return True  # 无法判断时不惩罚
+            
+            # 使用已有的类别转换判断逻辑
+            return self._is_reasonable_category_transition(from_cat, to_cat, from_tool, to_tool)
+            
+        except Exception as e:
+            print(f"[ERROR] Failed to check category transition: {e}")
+            return True
+
+    def _is_rational_transition(self, tool1: str, tool2: str) -> bool:
+        """判断工具转换是否合理（基于语义而非硬编码）"""
+        # 提取工具的操作类型
+        tool1_ops = self._extract_operations(tool1)
+        tool2_ops = self._extract_operations(tool2)
+        
+        # 常见的合理操作序列（动词级别）
+        rational_sequences = [
+            ('read', 'parse'), ('read', 'validate'),
+            ('parse', 'transform'), ('parse', 'filter'),
+            ('validate', 'process'), ('validate', 'transform'),
+            ('transform', 'write'), ('transform', 'export'),
+            ('filter', 'aggregate'), ('filter', 'write'),
+            ('process', 'export'), ('process', 'save')
+        ]
+        
+        # 检查是否匹配合理序列
+        for op1 in tool1_ops:
+            for op2 in tool2_ops:
+                if (op1, op2) in rational_sequences:
+                    return True
+        
+        # 检查是否是相同类型的操作（可能是批处理）
+        if tool1_ops & tool2_ops:
+            return True
+        
+        # 如果工具2是错误处理或验证工具，总是合理的
+        if any(op in tool2_ops for op in ['validate', 'check', 'verify', 'retry']):
+            return True
+        
+        return False
+
+    def _is_reasonable_category_transition(self, from_cat: str, to_cat: str, 
+                                        from_tool: str, to_tool: str) -> bool:
+        """判断类别转换是否合理 - 基于语义而非硬编码规则"""
+        
+        # 同类别总是合理的
+        if from_cat == to_cat:
+            return True
+        
+        # 基于数据流的合理转换
+        # 输入类 -> 处理类
+
+        input_categories = {'file_operations', 'network', 'api'}
+        processing_categories = {'data_processing', 'computation', 'validation'}
+        output_categories = {'file_operations', 'network', 'utility'}
+        
+        # 输入到处理
+        if from_cat in input_categories and to_cat in processing_categories:
+            return True
+        
+        # 处理到输出
+        if from_cat in processing_categories and to_cat in output_categories:
+            return True
+        
+        # 处理到处理（管道）
+        if from_cat in processing_categories and to_cat in processing_categories:
+            return True
+        
+        # integration可以连接任何类别
+        if 'integration' in {from_cat, to_cat}:
+            return True
+        
+        # utility工具通常可以在任何地方使用
+        if 'utility' in {from_cat, to_cat}:
+            # 检查是否是合理的utility使用（如日志、缓存、监控）
+            utility_keywords = ['log', 'cache', 'monitor', 'track', 'debug']
+            if any(kw in from_tool.lower() or kw in to_tool.lower() for kw in utility_keywords):
+                return True
+        
+        # validation通常在处理之后
+        if to_cat == 'validation' and from_cat in processing_categories:
+            return True
+        
+        # 基于工具名称的额外判断
+        from_ops = self._extract_operations(from_tool)
+        to_ops = self._extract_operations(to_tool)
+        
+        # 检查操作级别的合理性
+        reasonable_sequences = [
+            ('read', 'parse'), ('fetch', 'process'),
+            ('parse', 'transform'), ('transform', 'validate'),
+            ('validate', 'write'), ('process', 'export')
+        ]
+        
+        for from_op in from_ops:
+            for to_op in to_ops:
+                if (from_op, to_op) in reasonable_sequences:
+                    return True
+        
+        return False
+
+    def _extract_operations(self, tool_name: str) -> Set[str]:
+        """从工具名称提取操作动词"""
+        operations = {
+            'read', 'write', 'parse', 'transform', 'filter', 
+            'validate', 'aggregate', 'export', 'save', 'process',
+            'scan', 'check', 'verify', 'retry', 'handle', 'fetch',
+            'post', 'compute', 'analyze', 'log', 'cache'
+        }
+        
+        tool_parts = set(tool_name.lower().split('_'))
+        return tool_parts & operations
+
+    def _is_functionally_related(self, tool: str, required_tools: List[str]) -> bool:
+        """判断工具是否与必需工具功能相关"""
+        tool_parts = set(tool.lower().split('_'))
+        
+        for req_tool in required_tools:
+            req_parts = set(req_tool.lower().split('_'))
+            # 共享2个以上的词表示功能相关
+            if len(tool_parts & req_parts) >= 2:
+                return True
+            
+            # 检查是否是同类操作
+            tool_ops = self._extract_operations(tool)
+            req_ops = self._extract_operations(req_tool)
+            if tool_ops & req_ops:
+                return True
+        
+        return False
+
+    def _analyze_category_flow(self, tool_calls: List[str]) -> float:
+        """分析工具类别转换的合理性 - 基于语义关系而非硬编码"""
+        if len(tool_calls) < 2:
+            return 1.0
+        
+        good_transitions = 0
+        total_transitions = 0
+        
+        for i in range(len(tool_calls) - 1):
+            current_tool = tool_calls[i]
+            next_tool = tool_calls[i + 1]
+            
+            # 获取工具类别
+            current_cat = self.verifier.get_tool_category(current_tool)
+            next_cat = self.verifier.get_tool_category(next_tool)
+            
+            if not current_cat or not next_cat:
+                print(f"[WARNING] Could not get category for {current_tool} or {next_tool}")
+                continue
+                
+            total_transitions += 1
+            
+            # 评估转换合理性
+            if self._is_reasonable_category_transition(current_cat, next_cat, current_tool, next_tool):
+                good_transitions += 1
+                print(f"[LOGIC] Good category transition: {current_cat} -> {next_cat}")
+            else:
+                print(f"[WARNING] Questionable category transition: {current_cat} -> {next_cat}")
+        
+        if total_transitions == 0:
+            print("[WARNING] No valid category transitions to analyze")
+            return 0.5  # 给一个中等分数而不是0
+        
+        return good_transitions / total_transitions
+    
+
+    def _analyze_data_flow_completeness(self, tool_calls: List[str]) -> float:  # <- 新增方法
+        """分析数据流的完整性"""
+        # 检查是否有完整的输入-处理-输出流程
+        tool_categories = [self.verifier.get_tool_category(tool) for tool in tool_calls]
+        
+        # 输入阶段工具
+        input_tools = ['file_operations', 'network', 'integration']
+        has_input = any(cat in input_tools for cat in tool_categories)
+        
+        # 处理阶段工具
+        process_tools = ['data_processing', 'computation']
+        has_processing = any(cat in process_tools for cat in tool_categories)
+        
+        # 输出阶段工具（检查实际的输出工具）
+        has_output = any(tool in self.verifier.output_tools for tool in tool_calls)
+        
+        # 计算完整性分数
+        completeness = 0.0
+        if has_input:
+            completeness += 0.3
+            print("[LOGIC] Has input phase")  # <- 打印阶段检测
+        if has_processing:
+            completeness += 0.4
+            print("[LOGIC] Has processing phase")  # <- 打印阶段检测
+        if has_output:
+            completeness += 0.3
+            print("[LOGIC] Has output phase")  # <- 打印阶段检测
+        
+        # 如果缺少关键阶段，打印警告
+        if not has_input:
+            print("[WARNING] Missing input phase")  # <- 打印警告
+        if not has_processing:
+            print("[WARNING] Missing processing phase")  # <- 打印警告
+        if not has_output:
+            print("[WARNING] Missing output phase")  # <- 打印警告
+        
+        return completeness
+
+    def _detect_execution_skips(self, tool_calls: List[str]) -> float:  # <- 新增方法
+        """检测执行流中的跳步（可能的幻觉）"""
+        if len(tool_calls) < 3:
+            return 0.0  # 太短，无法判断
+        
+        skip_penalty = 0.0
+        
+        # 检查是否有工具被跳过（依赖未满足就执行后续工具）
+        for i in range(2, len(tool_calls)):
+            current = tool_calls[i]
+            previous = tool_calls[i-1]
+            
+            # 如果当前工具依赖前前个工具，但中间的工具不相关，可能是跳步
+            deps = self.verifier.get_tool_dependencies(current)
+            if deps:
+                for dep in deps:
+                    if dep in tool_calls[:i-1] and dep != previous:
+                        # 检查中间是否有相关工具
+                        intermediate_related = False
+                        for j in range(tool_calls.index(dep) + 1, i):
+                            intermediate_tool = tool_calls[j]
+                            intermediate_deps = self.verifier.get_tool_dependencies(intermediate_tool)
+                            if dep in intermediate_deps or current in self.verifier.get_tool_dependencies(intermediate_tool):
+                                intermediate_related = True
+                                break
+                        
+                        if not intermediate_related:
+                            skip_penalty += 0.1
+                            print(f"[HALLUCINATION] Possible skip detected: {dep} -> ... -> {current}")  # <- 打印幻觉检测
+        
+        return min(skip_penalty, 0.5)  # 最多惩罚50%
+
+    def _is_logical_transition(self, tool1: str, tool2: str) -> bool:
+        """判断两个工具之间的转换是否符合逻辑"""
+        # 常见的逻辑转换模式
+        logical_patterns = [
+            ('read', 'validat'),
+            ('load', 'process'),
+            ('fetch', 'parse'),
+            ('validat', 'transform'),
+            ('process', 'filter'),
+            ('transform', 'export'),
+            ('filter', 'write'),
+            ('aggregat', 'save')
+        ]
+        
+        # 检查是否匹配任何逻辑模式
+        for pattern in logical_patterns:
+            if pattern[0] in tool1 and pattern[1] in tool2:
+                return True
+        
+        # 检查同类工具的连续调用（可能是批处理）
+        tool1_parts = set(tool1.split('_'))
+        tool2_parts = set(tool2.split('_'))
+        if len(tool1_parts & tool2_parts) >= 2:
+            return True  # 相似工具，可能是合理的
+        
+        return False
+
+    def _detect_error_correction_patterns(self, execution_trace: List[Dict]) -> Dict[str, bool]:
+        """检测执行轨迹中的纠错行为模式"""
+        patterns = {
+            'successful_retry': False,
+            'attempted_retry': False,
+            'alternative_tool': False,
+            'graceful_degradation': False,
+            'has_error_no_handling': False
+        }
+        
+        # 如果没有执行轨迹，返回默认值
+        if not execution_trace:
+            return patterns
+        
+        # 分析执行轨迹
+        error_indices = []
+        retry_indices = []
+        tool_sequence = []
+        
+        for i, step in enumerate(execution_trace):
+            tool_name = step.get('tool', '')
+            status = step.get('status', '')
+            
+            if tool_name:
+                tool_sequence.append(tool_name)
+            
+            if status == 'error' or step.get('error'):
+                error_indices.append(i)
+            
+            if status == 'retry' or step.get('is_retry'):
+                retry_indices.append(i)
+        
+        # 检测模式
+        if error_indices:
+            # 有错误发生
+            if retry_indices:
+                # 有重试行为
+                patterns['attempted_retry'] = True
+                # 检查重试是否成功
+                for retry_idx in retry_indices:
+                    if retry_idx < len(execution_trace) - 1:
+                        next_step = execution_trace[retry_idx + 1]
+                        if next_step.get('status') == 'success':
+                            patterns['successful_retry'] = True
+                            break
+            else:
+                # 有错误但没有重试
+                patterns['has_error_no_handling'] = True
+        
+        # 检测替代工具使用（相似功能的不同工具）
+        if len(tool_sequence) > 1:
+            for i in range(1, len(tool_sequence)):
+                if self._are_tools_similar(tool_sequence[i-1], tool_sequence[i]):
+                    patterns['alternative_tool'] = True
+                    break
+        
+        # 检测优雅降级（跳过失败步骤继续执行）
+        if error_indices and len(execution_trace) > max(error_indices) + 1:
+            patterns['graceful_degradation'] = True
+        
+        return patterns
+
+    def _are_tools_similar(self, tool1: str, tool2: str) -> bool:
+        """判断两个工具是否有相似功能"""
+        # 简单的相似性判断逻辑
+        # 可以基于工具名称的相似部分
+        tool1_parts = set(tool1.lower().split('_'))
+        tool2_parts = set(tool2.lower().split('_'))
+        
+        # 如果有共同的操作词，认为相似
+        common_operations = {'read', 'write', 'parse', 'transform', 'validate', 'fetch', 'process'}
+        tool1_ops = tool1_parts & common_operations
+        tool2_ops = tool2_parts & common_operations
+        
+        return bool(tool1_ops & tool2_ops) and tool1 != tool2
+
+    def _detect_retry_behavior(self, execution_result: Dict) -> Dict[str, bool]:  # <- 新增函数
+        """检测执行过程中的重试行为"""
+        tool_calls = execution_result.get('tool_calls', [])
+        execution_trace = execution_result.get('execution_trace', [])
+        
+        retry_patterns = {
+            'successful_retry': False,
+            'attempted_retry': False,
+            'multiple_attempts': False
+        }
+        
+        # 检查工具调用中的重试模式
+        for i in range(1, len(tool_calls)):
+            if tool_calls[i] == tool_calls[i-1]:
+                retry_patterns['attempted_retry'] = True
+                
+        # 检查执行轨迹中的成功重试
+        for event in execution_trace:
+            if event.get('action') == 'retry' and event.get('success'):
+                retry_patterns['successful_retry'] = True
+            if event.get('retry_count', 0) > 1:
+                retry_patterns['multiple_attempts'] = True
+                
+        return retry_patterns
+
+# ======================
+# Data Classes
+# ======================
+
+@dataclass
+class WorkflowQuality:
+    """Metrics for workflow quality"""
+    success_rate: float
+    tool_count: int
+    has_error_handling: bool
+    optimal_sequence_length: int
+    key_tools_identified: int
+    dag_nodes: int
+    dag_edges: int
+    structure_score: float = 0.0
+    prompt_clarity: float = 0.0
+    overall_score: float = field(init=False)
+    
+    def __post_init__(self):
+        # Calculate overall score - 修复：增加默认值和更好的计算逻辑
+        # 确保每个组成部分都有合理的值
+        self.success_rate = max(0.0, min(1.0, self.success_rate))
+        
+        # 计算结构得分
+        if self.dag_nodes > 0:
+            self.structure_score = min(1.0, self.dag_edges / (self.dag_nodes * 2))
+        else:
+            # 如果没有DAG节点，基于工具数量给一个基础分数
+            self.structure_score = min(1.0, self.tool_count / 10.0) if self.tool_count > 0 else 0.0
+        
+        # 计算提示清晰度（基于工具序列长度和关键工具识别）
+        if self.optimal_sequence_length > 0:
+            self.prompt_clarity = min(1.0, 
+                (self.key_tools_identified / self.optimal_sequence_length) * 0.5 +
+                (1.0 if self.has_error_handling else 0.0) * 0.5
+            )
+        else:
+            self.prompt_clarity = 0.0
+        
+        # 计算总体分数，确保每个部分都有贡献
+        self.overall_score = (
+            0.4 * self.success_rate +
+            0.3 * self.structure_score +
+            0.3 * self.prompt_clarity
+        )
+
+
+@dataclass
+class ExecutionResult:
+    """Result of a single execution test"""
+    task_type: str
+    test_id: str
+    success: bool
+    execution_time: float
+    tool_calls: List[str]
+    error_message: Optional[str] = None
+    with_prompt: bool = False
+    prompt_type: str = "baseline"
+    llm_response: Optional[str] = None
+    execution_trace: List[Dict] = field(default_factory=list)
+    metrics: Dict[str, float] = field(default_factory=dict)
+    workflow_followed: bool = False
+    adherence_scores: Dict[str, float] = field(default_factory=dict)
+    final_score: float = 0.0  # Phase 2: unified score
+    cot_reasoning: Optional[str] = None  # 添加CoT推理记录
+
+
+# ======================
+# Tool Call Verification
+# ======================
+
+# 文件：workflow_quality_test_flawed.py
+# 类：ToolCallVerifier（增强版）
+# 位置：第98-260行
+
+class ToolCallVerifier:
+    """Verifies tool calls against registry"""
+    
+    def __init__(self, tool_registry: Dict[str, Any]):
+        self.tool_registry = tool_registry
+        self.tool_names = set(tool_registry.keys())
+        # 新增：输出类工具识别
+        # 新增：输出类工具识别
+        self.output_tools = self._identify_output_tools(tool_registry)
+        # 新增：工具依赖图  # <- 新增
+        self.tool_dependencies = self._build_dependency_map(tool_registry)  # <- 新增
+        # 新增：工具类别映射  # <- 新增
+        self.tool_categories = self._build_category_map(tool_registry)  # <- 新增
+
+    def _build_dependency_map(self, tool_registry: Dict[str, Any]) -> Dict[str, List[str]]:  # <- 新增方法
+        """Build tool dependency map from registry"""
+        dep_map = {}
+        
+        for tool_name, tool_data in tool_registry.items():
+            dependencies = []
+            
+            # 处理ToolCapability对象
+            if hasattr(tool_data, 'dependencies'):
+                dependencies = tool_data.dependencies if tool_data.dependencies else []
+            elif isinstance(tool_data, dict):
+                dependencies = tool_data.get('dependencies', [])
+            
+            dep_map[tool_name] = dependencies
+            
+        print(f"[DEPENDENCY] Built dependency map for {len(dep_map)} tools")  # <- 打印信息
+        return dep_map
+    
+    def _build_category_map(self, tool_registry: Dict[str, Any]) -> Dict[str, str]:  # <- 新增方法
+        """Build tool category map from registry"""
+        cat_map = {}
+        
+        for tool_name, tool_data in tool_registry.items():
+            category = 'general'
+            
+            # 处理ToolCapability对象
+            if hasattr(tool_data, 'metadata') and tool_data.metadata:
+                category = tool_data.metadata.get('category', 'general')
+            elif isinstance(tool_data, dict):
+                category = tool_data.get('metadata', {}).get('category', 'general')
+            
+            cat_map[tool_name] = category
+            
+        # 统计类别分布
+        from collections import Counter
+        cat_counts = Counter(cat_map.values())
+        print(f"[CATEGORY] Tool categories: {dict(cat_counts)}")  # <- 打印信息
+        
+        return cat_map
+        
+    def _identify_output_tools(self, tool_registry: Dict[str, Any]) -> Set[str]:  # <- 修改后的方法
+        """Identify tools that generate output"""
+        output_tools = set()
+        output_keywords = ['write', 'export', 'save', 'output', 'notify', 'post', 'send', 'upload']
+        
+        for tool_name, tool_data in tool_registry.items():
+            # 处理ToolCapability对象  # <- 修改：添加对象处理
+            if hasattr(tool_data, 'name'):  # 如果是ToolCapability对象
+                # 检查工具名称
+                if any(keyword in tool_name.lower() for keyword in output_keywords):
+                    output_tools.add(tool_name)
+                    
+                # 检查工具描述
+                if hasattr(tool_data, 'description'):
+                    desc = tool_data.description.lower() if tool_data.description else ''
+                    if any(keyword in desc for keyword in output_keywords):
+                        output_tools.add(tool_name)
+                        
+                # 检查操作类型
+                if hasattr(tool_data, 'metadata') and tool_data.metadata:
+                    operation = tool_data.metadata.get('operation', '').lower()
+                    if operation in ['writer', 'exporter', 'notifier', 'poster']:
+                        output_tools.add(tool_name)
+                        
+            elif isinstance(tool_data, dict):  # 如果是字典
+                # 检查工具名称
+                if any(keyword in tool_name.lower() for keyword in output_keywords):
+                    output_tools.add(tool_name)
+                    
+                # 检查工具描述
+                desc = tool_data.get('description', '').lower()
+                if any(keyword in desc for keyword in output_keywords):
+                    output_tools.add(tool_name)
+                    
+                # 检查操作类型
+                operation = tool_data.get('metadata', {}).get('operation', '').lower()
+                if operation in ['writer', 'exporter', 'notifier', 'poster']:
+                    output_tools.add(tool_name)
+        
+        logger.info(f"Identified {len(output_tools)} output tools: {sorted(list(output_tools))[:5]}...")
+        return output_tools
+    
+    def get_tool_dependencies(self, tool_name: str) -> List[str]:  # <- 新增方法
+        """Get dependencies for a specific tool"""
+        return self.tool_dependencies.get(tool_name, [])
+    
+    def get_tool_category(self, tool_name: str) -> str:
+        """获取工具的类别"""
+        # 首先尝试从已构建的类别映射中获取
+        if hasattr(self, 'tool_categories') and tool_name in self.tool_categories:
+            category = self.tool_categories[tool_name]
+            if category and category != 'general':
+                return category
+        
+        # 如果映射中没有或是general，尝试从工具名称推断
+        # 工具名称通常是 category_operation_number 格式
+        parts = tool_name.split('_')
+        if len(parts) >= 2:
+            # 第一部分通常是类别
+            inferred_category = parts[0].lower()
+            
+            # 验证是否是合理的类别名
+            known_categories = {
+                'file', 'data', 'network', 'computation', 
+                'integration', 'utility', 'validation', 'api'
+            }
+            
+            if inferred_category in known_categories:
+                print(f"[CATEGORY] Inferred category '{inferred_category}' for tool '{tool_name}'")
+                return inferred_category
+            
+            # 检查是否是类别的变体
+            category_mappings = {
+                'files': 'file',
+                'compute': 'computation',
+                'net': 'network',
+                'util': 'utility',
+                'valid': 'validation',
+                'process': 'data',
+                'transform': 'data'
+            }
+            
+            mapped = category_mappings.get(inferred_category)
+            if mapped:
+                print(f"[CATEGORY] Mapped '{inferred_category}' to '{mapped}' for tool '{tool_name}'")
+                return mapped
+        
+        # 最后的备选：基于工具名称中的关键词
+        tool_lower = tool_name.lower()
+        
+        if any(kw in tool_lower for kw in ['read', 'write', 'file', 'scan']):
+            return 'file_operations'
+        elif any(kw in tool_lower for kw in ['parse', 'transform', 'filter', 'process']):
+            return 'data_processing'
+        elif any(kw in tool_lower for kw in ['fetch', 'post', 'api', 'request']):
+            return 'network'
+        elif any(kw in tool_lower for kw in ['compute', 'calculate', 'analyze']):
+            return 'computation'
+        elif any(kw in tool_lower for kw in ['connect', 'integrate', 'map']):
+            return 'integration'
+        elif any(kw in tool_lower for kw in ['validate', 'verify', 'check']):
+            return 'validation'
+        else:
+            print(f"[WARNING] Could not determine category for tool '{tool_name}', using 'utility'")
+            return 'utility'
+
+        
+    def parse_tool_calls(self, llm_response: str) -> Tuple[List[str], List[str]]:  # <- 修改：返回类型
+        """Extract tool calls from LLM response, return (valid_tools, invalid_tools)"""
+        tool_calls = []
+        invalid_tools = []  # <- 新增：记录无效工具
+        
+        # 添加调试信息
+        logger.debug(f"Parsing LLM response: {llm_response[:200]}...")
+        
+        # Pattern 1: <tool_call>tool_name</tool_call>
+        pattern1 = r'<tool_call>(.*?)</tool_call>'
+        
+        # Pattern 2: Tool: tool_name
+        pattern2 = r'Tool:\s*([a-zA-Z0-9_]+)'
+        
+        # Pattern 3: Function call notation
+        pattern3 = r'([a-zA-Z0-9_]+)\([^)]*\)'
+        
+        # Pattern 4: 处理带下划线的工具名
+        pattern4 = r'<tool_call>([a-zA-Z0-9_]+)</tool_call>'
+        
+        # Pattern 5: 更宽松的模式 - 捕获动作词+名词组合  # <- 新增
+        pattern5 = r'\b(process|filter|helper|mapper|cache|validate|transform|read|write|parse)\s*(?:the\s*)?(?:data|input|output|file|api)?\b'
+        
+        # Try all patterns
+        all_patterns = [pattern1, pattern2, pattern3, pattern4, pattern5]
+        for pattern in all_patterns:
+            matches = re.findall(pattern, llm_response, re.IGNORECASE | re.DOTALL)
+            for match in matches:
+                if isinstance(match, tuple):
+                    match = match[0]
+                
+                match_text = match.strip().lower()
+                
+                # 改进的模糊匹配逻辑  # <- 修改部分
+                best_match = None
+                best_score = 0
+                
+                for tool_name in self.tool_names:
+                    tool_lower = tool_name.lower()
+                    
+                    # 精确匹配
+                    if match_text == tool_lower:
+                        best_match = tool_name
+                        best_score = 1.0
+                        break
+                    
+                    # 计算相似度分数
+                    score = 0
+                    
+                    # 检查是否包含关键词
+                    if match_text in tool_lower:
+                        score = len(match_text) / len(tool_lower)
+                    elif tool_lower in match_text:
+                        score = len(tool_lower) / len(match_text)
+                    
+                    # 检查关键组件匹配
+                    match_parts = match_text.replace('_', ' ').split()
+                    tool_parts = tool_lower.replace('_', ' ').split()
+                    
+                    for part in match_parts:
+                        if any(part in tp for tp in tool_parts):
+                            score += 0.3
+                    
+                    if score > best_score:
+                        best_score = score
+                        best_match = tool_name
+                
+                # 接受相似度超过阈值的匹配
+                if best_match and best_score > 0.3:
+                    if best_match not in tool_calls:
+                        tool_calls.append(best_match)
+                        logger.debug(f"Matched '{match_text}' to '{best_match}' (score: {best_score:.2f})")
+                elif best_score < 0.3 and match_text:  # <- 新增：记录无效工具
+                    invalid_tools.append(match_text)
+                    print(f"[ERROR] Tool not found in registry: '{match_text}'")  # <- 新增：打印错误
+        
+        # 如果没有找到任何工具，尝试更激进的匹配  # <- 新增
+        if not tool_calls and llm_response:
+            # 查找任何提到的动作词
+            action_words = ['process', 'filter', 'transform', 'read', 'write', 'validate', 'parse', 'map', 'cache']
+            for action in action_words:
+                if action in llm_response.lower():
+                    # 找到包含这个动作的工具
+                    matching_tools = [t for t in self.tool_names if action in t.lower()]
+                    if matching_tools:
+                        tool_calls.append(matching_tools[0])
+                        logger.debug(f"Fallback matched action '{action}' to '{matching_tools[0]}'")
+                        break
+                    else:  # <- 新增：没有找到匹配的工具
+                        invalid_tools.append(action)
+                        print(f"[ERROR] No tool found for action: '{action}'")  # <- 新增：打印错误
+        
+        logger.debug(f"Extracted tool calls: {tool_calls}")
+        if invalid_tools:  # <- 新增：记录无效工具
+            logger.warning(f"Invalid tools mentioned: {invalid_tools}")
+            
+        return tool_calls, invalid_tools  # <- 修改：返回两个列表
+    
+    def has_output_tool(self, tool_calls: List[str]) -> bool:
+        """Check if any of the tool calls is an output tool"""
+        return any(tool in self.output_tools for tool in tool_calls)
+
+
+
+
+class InteractionSimulator:
+    """Simulates tool execution to detect hallucinations and improper error handling"""
+    
+    def __init__(self, tool_registry: Dict[str, Any]):
+        self.tool_registry = tool_registry
+        self.tool_success_rate = 0.8  # 基础成功率
+        
+
+    def simulate_execution(self, tool_calls: List[str], invalid_tools: List[str], 
+                        task_requirements: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Simulate the execution of tool calls and detect hallucinations
+        
+        Returns execution trace with error detection
+        """
+        execution_trace = []
+        hallucination_detected = False
+        error_ignored_count = 0
+        successful_tools = []
+        failed_tools = []
+        skip_detected = False  # <- 新增：跳步检测
+        
+        # 如果有无效工具，立即标记为幻觉
+        if invalid_tools:
+            hallucination_detected = True
+            print(f"[HALLUCINATION] LLM claimed to use non-existent tools: {invalid_tools}")
+            for tool in invalid_tools:
+                execution_trace.append({
+                    'tool': tool,
+                    'status': 'error',
+                    'error': 'TOOL_NOT_FOUND',
+                    'message': f"Tool '{tool}' does not exist in the registry"
+                })
+        
+        # 模拟每个工具的执行
+        for i, tool in enumerate(tool_calls):
+            # 检查工具依赖
+            tool_info = self.tool_registry.get(tool, {})
+            
+            # 处理ToolCapability对象或字典
+            if hasattr(tool_info, 'dependencies'):
+                dependencies = tool_info.dependencies if tool_info.dependencies else []
+                category = tool_info.metadata.get('category', 'general') if hasattr(tool_info, 'metadata') and tool_info.metadata else 'general'
+            elif isinstance(tool_info, dict):
+                dependencies = tool_info.get('dependencies', [])
+                category = tool_info.get('metadata', {}).get('category', 'general')
+            else:
+                dependencies = []
+                category = 'general'
+            
+            dependency_failed = False
+            
+            # 检查依赖是否满足（增强：检测跳步）  # <- 修改：增强依赖检查
+            unmet_dependencies = []
+            for dep in dependencies:
+                if dep not in successful_tools:
+                    unmet_dependencies.append(dep)
+                    dependency_failed = True
+            
+            if unmet_dependencies:
+                print(f"[DEPENDENCY ERROR] Tool '{tool}' has unmet dependencies: {unmet_dependencies}")
+                
+                # 检查是否是跳步（依赖在tool_calls中但还未成功）
+                skipped_deps = [dep for dep in unmet_dependencies if dep in tool_calls]
+                if skipped_deps:
+                    skip_detected = True
+                    print(f"[HALLUCINATION] Skip detected! Tool '{tool}' called before dependencies: {skipped_deps}")
+            
+            # 模拟执行
+            if dependency_failed:
+                success = False
+                error_type = 'DEPENDENCY_ERROR'
+            else:
+                # 基于工具类型调整成功率
+                if category == 'network':
+                    success_rate = self.tool_success_rate * 0.9
+                elif category == 'file_operations':
+                    success_rate = self.tool_success_rate * 0.95
+                else:
+                    success_rate = self.tool_success_rate
+                
+                success = np.random.random() < success_rate
+                error_type = 'EXECUTION_ERROR' if not success else None
+            
+            # 记录执行结果
+            step_result = {
+                'step': i + 1,
+                'tool': tool,
+                'status': 'success' if success else 'error',
+                'error': error_type,
+                'unmet_dependencies': unmet_dependencies if dependency_failed else []  # <- 新增
+            }
+            
+            if success:
+                successful_tools.append(tool)
+                print(f"[SUCCESS] Step {i+1}: {tool} executed successfully")
+            else:
+                failed_tools.append(tool)
+                print(f"[ERROR] Step {i+1}: {tool} failed with {error_type}")
+                
+                # 检查后续是否还有工具调用（增强的幻觉检测）
+                if i < len(tool_calls) - 1:
+                    next_tool = tool_calls[i + 1]
+                    
+                    # 检查是否依赖失败的工具
+                    next_tool_info = self.tool_registry.get(next_tool, {})
+                    if hasattr(next_tool_info, 'dependencies'):
+                        next_deps = next_tool_info.dependencies if next_tool_info.dependencies else []
+                    elif isinstance(next_tool_info, dict):
+                        next_deps = next_tool_info.get('dependencies', [])
+                    else:
+                        next_deps = []
+                    
+                    if tool in next_deps:
+                        # 下一个工具依赖当前失败的工具
+                        print(f"[HALLUCINATION] Tool '{next_tool}' depends on failed tool '{tool}'")
+                        hallucination_detected = True
+                    elif next_tool != tool:
+                        # 不是重试，继续执行其他工具
+                        error_ignored_count += 1
+                        print(f"[WARNING] Continuing after error without proper handling")
+                        if error_ignored_count >= 2:
+                            hallucination_detected = True
+                            print(f"[HALLUCINATION] Multiple errors ignored, likely hallucinating task completion")
+                    else:
+                        # 是重试
+                        print(f"[RETRY] Attempting to retry {tool}")
+                        step_result['retry_attempted'] = True
+            
+            execution_trace.append(step_result)
+        
+        # 分析执行结果
+        total_steps = len(execution_trace)
+        successful_steps = len([s for s in execution_trace if s['status'] == 'success'])
+        
+        # 如果检测到跳步，也是幻觉
+        if skip_detected:
+            hallucination_detected = True
+        
+        return {
+            'execution_trace': execution_trace,
+            'hallucination_detected': hallucination_detected,
+            'error_ignored_count': error_ignored_count,
+            'successful_tools': successful_tools,
+            'failed_tools': failed_tools,
+            'completion_rate': successful_steps / total_steps if total_steps > 0 else 0,
+            'has_unhandled_errors': error_ignored_count > 0,
+            'skip_detected': skip_detected  # <- 新增
+        }
+
+# ======================
+# Workflow Quality Tester
+# ======================
+
+class WorkflowQualityTester:
+    """Enhanced workflow quality tester with Phase 2 scoring and CoT"""
+    
+    def __init__(self, generator: MDPWorkflowGenerator, 
+                output_dir: str = "workflow_quality_results",
+                use_phase2_scoring: bool = True,
+                max_workers: int = 10,
+                rate_limit_per_minute: int = 60,
+                save_logs: bool = False):  # <- 新增参数
+        self.generator = generator
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(exist_ok=True)
+        
+        # Initialize OpenAI client
+        self.client = OpenAI()
+        
+        # Create verifier
+        self.verifier = ToolCallVerifier(generator.tool_capabilities)
+        
+        # Results storage
+        self.results = defaultdict(list)
+        self.workflow_metrics = {}
+        
+        # Test configuration
+        self.test_config = {
+            'num_tests_per_task': 10,
+            'max_retries': 3,
+            'timeout': 30
+        }
+        
+        # Phase 2: Initialize stable scorer
+        self.use_phase2_scoring = use_phase2_scoring
+        if use_phase2_scoring:
+            self.stable_scorer = StableScorer(verifier=self.verifier)
+            logger.info("Phase 2 stable scoring system enabled")
+        
+        # Load task instances for required tools
+        self.task_instances = {}
+        self._load_task_instances()
+        
+        # 并行化配置
+        self.max_workers = max_workers
+        self.rate_limiter = Semaphore(rate_limit_per_minute)
+        self.results_lock = Lock()
+        
+        # 日志保存选项  # <- 新增
+        self.save_logs = save_logs
+        if save_logs:
+            logger.info("Test logging enabled - logs will be saved to test_logs/")
+        
+        # 并行化配置  # <- 新增
+        self.max_workers = max_workers
+        self.rate_limiter = Semaphore(rate_limit_per_minute)
+        self.results_lock = Lock()
+        self.progress_lock = Lock()
+        self.completed_tests = 0
+        self.total_tests = 0
+
+    def _save_test_log(self, log_data: Dict, result: ExecutionResult):
+        """保存测试日志到文件"""
+        log_dir = self.output_dir / "test_logs"
+        log_dir.mkdir(exist_ok=True)
+        
+        # 使用test_id作为文件名
+        log_file = log_dir / f"{log_data['test_id']}_log.json"
+        
+        # 添加结果信息
+        log_data['result'] = {
+            'success': result.success,
+            'final_score': result.final_score,
+            'execution_time': result.execution_time,
+            'metrics': result.metrics if hasattr(result, 'metrics') else None
+        }
+        
+        # 保存为格式化的JSON
+        with open(log_file, 'w', encoding='utf-8') as f:
+            json.dump(log_data, f, indent=2, ensure_ascii=False)
+        
+        # 同时保存一份人类可读的文本版本
+        text_file = log_dir / f"{log_data['test_id']}_log.txt"
+        with open(text_file, 'w', encoding='utf-8') as f:
+            f.write(f"Test Log: {log_data['test_id']}\n")
+            f.write("=" * 80 + "\n\n")
+            
+            f.write(f"Task Type: {log_data['task_type']}\n")
+            f.write(f"Prompt Type: {log_data['prompt_type']}\n")
+            f.write(f"Timestamp: {log_data['timestamp']}\n\n")
+            
+            f.write("Task Instance:\n")
+            f.write("-" * 40 + "\n")
+            if log_data['task_instance']:
+                f.write(f"Required Tools: {log_data['task_instance'].get('required_tools', [])}\n")
+                f.write(f"Description: {log_data['task_instance'].get('description', 'N/A')}\n")
+            f.write("\n")
+            
+            f.write("Prompt:\n")
+            f.write("-" * 40 + "\n")
+            f.write(log_data['prompt'] + "\n\n")
+            
+            f.write("LLM Response:\n")
+            f.write("-" * 40 + "\n")
+            f.write(log_data['llm_response'] + "\n\n")
+            
+            f.write("Extracted Tool Calls:\n")
+            f.write("-" * 40 + "\n")
+            f.write(str(log_data['extracted_tool_calls']) + "\n\n")
+            
+            f.write("Result:\n")
+            f.write("-" * 40 + "\n")
+            f.write(json.dumps(log_data['result'], indent=2) + "\n")
+
+    def _append_score_to_log(self, test_id: str, scoring_data: Dict):
+        """追加评分信息到已有的日志"""
+        log_dir = self.output_dir / "test_logs"
+        log_file = log_dir / f"{test_id}_log.json"
+        
+        if log_file.exists():
+            with open(log_file, 'r') as f:
+                data = json.load(f)
+            data['scoring'] = scoring_data
+            with open(log_file, 'w') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+
+    def _save_error_log(self, error_data: Dict):
+        """保存错误日志"""
+        log_dir = self.output_dir / "test_logs"
+        log_dir.mkdir(exist_ok=True)
+        
+        error_file = log_dir / "errors.log"
+        with open(error_file, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(error_data) + "\n")
+    
+    def run_comprehensive_test_parallel(self, task_types: List[str], 
+                                    test_flawed: bool = False,
+                                    batch_size: int = 5,
+                                    instances_per_type: int = 1) -> Dict[str, Any]:  # <- 新增参数
+        """Run comprehensive workflow quality test with parallel execution"""
+        logger.info("Starting PARALLEL comprehensive workflow quality test with Phase 2 scoring")
+        
+        # 不在这里处理'all'，让_prepare_test_tasks处理
+        logger.info(f"Task types: {task_types}")
+        logger.info(f"Tests per task: {self.test_config['num_tests_per_task']}")
+        logger.info(f"Instances per type: {instances_per_type}")  # <- 新增
+        logger.info(f"Parallel workers: {self.max_workers}")
+        
+        all_results = {}
+        start_time = time.time()
+        
+        # 准备所有测试任务
+        test_tasks = self._prepare_test_tasks(task_types, test_flawed, instances_per_type)
+        self.total_tests = len(test_tasks)
+        self.completed_tests = 0
+        
+        logger.info(f"Total test tasks to execute: {self.total_tests}")
+        
+        # 执行并行测试
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            # 提交任务批次
+            futures_to_task = {}
+            
+            # 分批提交以避免内存过载
+            for i in range(0, len(test_tasks), batch_size * self.max_workers):
+                batch_end = min(i + batch_size * self.max_workers, len(test_tasks))
+                batch = test_tasks[i:batch_end]
+                
+                batch_futures = {}
+                for task in batch:
+                    future = executor.submit(self._execute_test_task_with_rate_limit, task)
+                    batch_futures[future] = task
+                
+                # 处理这批完成的任务
+                for future in as_completed(batch_futures):
+                    task = batch_futures[future]
+                    try:
+                        result = future.result()
+                        
+                        # 线程安全地存储结果
+                        with self.results_lock:
+                            task_type = task['task_type']
+                            if task_type not in all_results:
+                                all_results[task_type] = []
+                            all_results[task_type].append(result)
+                        
+                        # 更新进度
+                        with self.progress_lock:
+                            self.completed_tests += 1
+                            if self.completed_tests % 10 == 0 or self.completed_tests == self.total_tests:
+                                elapsed = time.time() - start_time
+                                rate = self.completed_tests / elapsed if elapsed > 0 else 0
+                                eta = (self.total_tests - self.completed_tests) / rate if rate > 0 else 0
+                                progress_pct = (self.completed_tests / self.total_tests * 100) if self.total_tests > 0 else 0
+                                logger.info(f"Progress: {self.completed_tests}/{self.total_tests} "
+                                        f"({progress_pct:.1f}%) "
+                                        f"- Rate: {rate:.1f} tests/sec - ETA: {eta:.0f}s")
+                    
+                    except Exception as e:
+                        logger.error(f"Test task failed: {task.get('test_id', 'unknown')} - {e}")
+                        if hasattr(e, '__traceback__'):
+                            import traceback
+                            logger.error(traceback.format_exc())
+        
+        # 计算总执行时间
+        total_time = time.time() - start_time
+        logger.info(f"Parallel execution completed in {total_time:.1f} seconds")
+        logger.info(f"Average: {total_time/self.total_tests:.2f} seconds per test" if self.total_tests > 0 else "No tests executed")
+        
+        # 后续处理保持不变...
+        
+        # 生成可视化和报告（与原方法相同）
+        self._generate_visualizations(all_results)
+        
+        # Compile final results
+        final_results = {
+            'test_results': all_results,
+            'workflow_metrics': self.workflow_metrics,
+            'test_config': self.test_config,
+            'timestamp': datetime.now().isoformat(),
+            'phase2_scoring': self.use_phase2_scoring,
+            'execution_time': total_time,
+            'parallel_workers': self.max_workers
+        }
+        
+        # Save results
+        results_path = self.output_dir / "test_results.json"
+        with open(results_path, 'w') as f:
+            json.dump(final_results, f, indent=2, default=str)
+        
+        # Generate report
+        self.generate_report(final_results)
+        
+        # Calculate summary statistics (与原方法相同)
+        summary = self._calculate_summary_statistics(all_results)
+        summary['execution_time'] = total_time
+        summary['tests_per_second'] = self.total_tests / total_time
+        
+        return {
+            'test_results': all_results,
+            'summary': summary
+        }
+    
+    def _prepare_test_tasks(self, task_types: List[str], test_flawed: bool,
+                        instances_per_type: int = 1) -> List[Dict]:
+        """Prepare all test tasks for parallel execution with random sampling"""
+        test_tasks = []
+        
+        # 如果是'all'，获取所有任务类型
+        if 'all' in task_types:
+            task_type_counts = self._get_all_task_types_from_library()
+            task_types = list(task_type_counts.keys())
+            logger.info(f"Testing all task types: {task_types}")
+            logger.info(f"Task type distribution: {task_type_counts}")
+        
+        for task_type in task_types:
+            # 验证任务类型
+            if not self._validate_task_type(task_type):
+                logger.warning(f"Task type '{task_type}' not found in registry, skipping...")
+                continue
+            
+            # 分析workflow质量（只需要一次）
+            quality = self.analyze_workflow_quality(task_type)
+            logger.info(f"{task_type} - Workflow quality score: {quality.overall_score:.2f}")
+            
+            # 生成workflow（只需要一次）
+            workflow = self.generator.generate_workflow(task_type)
+            
+            # 随机抽取任务实例  # <- 关键修复
+            sampled_instances = self._sample_task_instances(task_type, instances_per_type)
+            
+            if not sampled_instances:
+                # 如果没有实例，创建一个虚拟实例
+                logger.warning(f"No instances for {task_type}, using default")
+                sampled_instances = [{
+                    'task_type': task_type,
+                    'required_tools': [],
+                    'description': f'Default {task_type} task'
+                }]
+            
+            # 对每个抽样的实例进行测试
+            for instance_idx, task_instance in enumerate(sampled_instances):
+                # 对每个实例运行num_tests次测试
+                for test_idx in range(self.test_config['num_tests_per_task']):
+                    test_id_base = f"{task_type}_inst{instance_idx}_test{test_idx}"
+                    
+                    # Baseline测试
+                    test_tasks.append({
+                        'task_type': task_type,
+                        'test_id': f"{test_id_base}_baseline",
+                        'workflow': workflow,
+                        'prompt_type': 'baseline',
+                        'fixed_task_instance': task_instance
+                    })
+                    
+                    # Optimal测试
+                    test_tasks.append({
+                        'task_type': task_type,
+                        'test_id': f"{test_id_base}_optimal",
+                        'workflow': workflow,
+                        'prompt_type': 'optimal',
+                        'fixed_task_instance': task_instance
+                    })
+                    
+                    # CoT测试
+                    test_tasks.append({
+                        'task_type': task_type,
+                        'test_id': f"{test_id_base}_cot",
+                        'workflow': workflow,
+                        'prompt_type': 'cot',
+                        'fixed_task_instance': task_instance
+                    })
+            
+            # Flawed workflow测试（如果需要）
+            if test_flawed and FlawedWorkflowGenerator:
+                # 简化：只对第一个实例测试flawed workflows
+                pass
+        
+        logger.info(f"Prepared {len(test_tasks)} test tasks")
+        return test_tasks
+    
+    def _execute_test_task_with_rate_limit(self, task: Dict) -> ExecutionResult:
+        """Execute a single test task with rate limiting"""
+        # 简单的速率限制（可以改进为更复杂的令牌桶算法）
+        with self.rate_limiter:
+            return self._execute_single_test(
+                task['task_type'],
+                task['test_id'],
+                task['workflow'],
+                task['prompt_type'],
+                task.get('fixed_task_instance')
+            )
+    
+    def _calculate_summary_statistics(self, all_results: Dict[str, List[ExecutionResult]]) -> Dict:
+        """Calculate summary statistics from results"""
+        total_baseline = sum(1 for results in all_results.values() 
+                           for r in results if r.prompt_type == "baseline")
+        total_optimal = sum(1 for results in all_results.values() 
+                          for r in results if r.prompt_type == "optimal")
+        total_cot = sum(1 for results in all_results.values() 
+                       for r in results if r.prompt_type == "cot")
+        
+        success_baseline = sum(1 for results in all_results.values() 
+                             for r in results if r.prompt_type == "baseline" and r.success)
+        success_optimal = sum(1 for results in all_results.values() 
+                            for r in results if r.prompt_type == "optimal" and r.success)
+        success_cot = sum(1 for results in all_results.values() 
+                         for r in results if r.prompt_type == "cot" and r.success)
+        
+        # Calculate score improvements
+        baseline_scores = [r.final_score for results in all_results.values() 
+                         for r in results if r.prompt_type == "baseline"]
+        optimal_scores = [r.final_score for results in all_results.values() 
+                        for r in results if r.prompt_type == "optimal"]
+        cot_scores = [r.final_score for results in all_results.values() 
+                     for r in results if r.prompt_type == "cot"]
+        
+        avg_baseline_score = np.mean(baseline_scores) if baseline_scores else 0
+        avg_optimal_score = np.mean(optimal_scores) if optimal_scores else 0
+        avg_cot_score = np.mean(cot_scores) if cot_scores else 0
+        
+        # Calculate stability
+        all_scores = baseline_scores + optimal_scores + cot_scores
+        score_stability = 1.0 - (np.std(all_scores) / (np.mean(all_scores) + 1e-10)) if all_scores else 0
+        
+        return {
+            'total_tests': total_baseline + total_optimal + total_cot,
+            'baseline_success_rate': success_baseline / total_baseline if total_baseline > 0 else 0,
+            'optimal_success_rate': success_optimal / total_optimal if total_optimal > 0 else 0,
+            'cot_success_rate': success_cot / total_cot if total_cot > 0 else 0,
+            'success_rate_improvement': (success_optimal / total_optimal if total_optimal > 0 else 0) - 
+                                      (success_baseline / total_baseline if total_baseline > 0 else 0),
+            'avg_baseline_score': avg_baseline_score,
+            'avg_optimal_score': avg_optimal_score,
+            'avg_cot_score': avg_cot_score,
+            'score_improvement': avg_optimal_score - avg_baseline_score,
+            'score_stability': score_stability,
+            'report_path': str(self.output_dir / "workflow_quality_report.md"),
+            'output_dir': str(self.output_dir)
+        }
+    
+    def _load_task_instances(self):
+        """Load task instances from task library"""
+        task_lib_path = Path("mcp_generated_library/task_library.json")
+        
+        if not task_lib_path.exists():
+            logger.warning(f"Task library not found at {task_lib_path}")
+            return
+        
+        try:
+            with open(task_lib_path, 'r') as f:
+                task_data = json.load(f)
+            
+            # Process tasks
+            if isinstance(task_data, dict) and 'tasks' in task_data:
+                tasks = task_data['tasks']
+            elif isinstance(task_data, list):
+                tasks = task_data
+            else:
+                logger.warning("Unexpected task library format")
+                return
+            
+            # Index by task type
+            for task in tasks:
+                task_type = task.get('task_type', 'unknown')
+                if task_type not in self.task_instances:
+                    self.task_instances[task_type] = []
+                self.task_instances[task_type].append(task)
+            
+            logger.info(f"Loaded {len(tasks)} task instances")
+            for task_type, instances in self.task_instances.items():
+                logger.info(f"  {task_type}: {len(instances)} instances")
+                
+        except Exception as e:
+            logger.error(f"Failed to load task instances: {e}")
+
+    def _sample_task_instances(self, task_type: str, num_samples: int = 1) -> List[Dict]:
+        """Randomly sample task instances for a given task type"""
+        if task_type not in self.task_instances:
+            logger.warning(f"No instances found for task type: {task_type}")
+            return []
+        
+        instances = self.task_instances[task_type]
+        if len(instances) <= num_samples:
+            return instances
+        
+        # 随机抽取
+        sampled = random.sample(instances, num_samples)
+        logger.info(f"Sampled {len(sampled)} out of {len(instances)} instances for {task_type}")
+        return sampled
+
+    def _get_all_task_types_from_library(self) -> Dict[str, int]:
+        """Get all task types and their instance counts from the loaded library"""
+        task_type_counts = {}
+        
+        # 从已加载的task_instances获取
+        for task_type, instances in self.task_instances.items():
+            if instances:  # 只包含有实例的类型
+                task_type_counts[task_type] = len(instances)
+        
+        # 确保包含核心类型（即使没有实例）
+        core_types = {'basic_task', 'simple_task', 'data_pipeline', 'api_integration', 'multi_stage_pipeline'}
+        for core_type in core_types:
+            if core_type not in task_type_counts:
+                task_type_counts[core_type] = 0
+        
+        return task_type_counts            
+    
+    def analyze_workflow_quality(self, task_type: str) -> WorkflowQuality:
+        """Analyze the quality of generated workflow"""
+        workflow = self.generator.generate_workflow(task_type)
+        
+        # 修复：确保 workflow_quality 存在
+        if 'workflow_quality' not in workflow:
+            workflow['workflow_quality'] = self.generator._calculate_workflow_quality(workflow)
+        
+        # Extract metrics with better defaults
+        metrics = WorkflowQuality(
+            success_rate=workflow.get('success_probability', 0.5),  # 默认0.5而不是0
+            tool_count=len(workflow.get('optimal_sequence', [])),
+            has_error_handling='error_handling' in str(workflow),
+            optimal_sequence_length=len(workflow.get('optimal_sequence', [])),
+            key_tools_identified=len(workflow.get('critical_tools', [])),
+            dag_nodes=workflow.get('workflow_dag', {}).get('nodes', 0),
+            dag_edges=workflow.get('workflow_dag', {}).get('edges', 0)
+        )
+        
+        # Store workflow
+        self.workflow_metrics[task_type] = metrics
+        
+        return metrics
+    
+    def test_scoring_stability(self, task_type: str):
+        """Test Phase 2 scoring stability"""
+        logger.info(f"\n🧪 Testing Phase 2 Scoring Stability for {task_type}")
+        
+        # Generate workflow
+        workflow = self.generator.generate_workflow(task_type)
+        
+        # Create test scenarios
+        test_scenarios = [
+            {
+                'name': 'Perfect Match',
+                'tool_calls': workflow['optimal_sequence'],
+                'execution_time': 5.0,
+                'has_error': False
+            },
+            {
+                'name': 'Partial Match',
+                'tool_calls': workflow['optimal_sequence'][:len(workflow['optimal_sequence'])//2],
+                'execution_time': 3.0,
+                'has_error': False
+            },
+            {
+                'name': 'No Match',
+                'tool_calls': ['wrong_tool_1', 'wrong_tool_2'],
+                'execution_time': 5.0,
+                'has_error': False
+            },
+            {
+                'name': 'With Error',
+                'tool_calls': workflow['optimal_sequence'],
+                'execution_time': 5.0,
+                'has_error': True
+            }
+        ]
+        
+        # Get required tools for task
+        required_tools = []
+        if task_type in self.task_instances and self.task_instances[task_type]:
+            task_instance = self.task_instances[task_type][0]
+            required_tools = task_instance.get('required_tools', [])
+        
+        results = []
+        for scenario in test_scenarios:
+            # Create execution result
+            execution_result = {
+                'tool_calls': scenario['tool_calls'],
+                'execution_time': scenario['execution_time'],
+                'output_generated': not scenario['has_error'],
+                'error_message': 'Test error' if scenario['has_error'] else None
+            }
+            
+            # Create evaluation context
+            evaluation_context = {
+                'workflow': workflow,
+                'required_tools': required_tools,
+                'expected_time': 10.0,
+                'adherence_scores': {
+                    'overall_adherence': 1.0 if scenario['name'] == 'Perfect Match' else 0.5
+                }
+            }
+            
+            # Calculate score
+            score, breakdown = self.stable_scorer.calculate_stable_score(
+                execution_result, evaluation_context
+            )
+            
+            results.append({
+                'scenario': scenario['name'],
+                'score': score,
+                'breakdown': breakdown
+            })
+            
+            logger.info(f"\n{scenario['name']}:")
+            logger.info(f"  Final Score: {score:.3f}")
+            logger.info(f"  Task Achievement: {breakdown['task_achievement']:.3f}")
+            logger.info(f"  Execution Quality: {breakdown['execution_quality']:.3f}")
+        
+        # Calculate stability metrics
+        scores = [r['score'] for r in results]
+        stability = 1.0 - (np.std(scores) / (np.mean(scores) + 1e-10))
+        
+        logger.info(f"\n📊 Stability Analysis:")
+        logger.info(f"  Score Range: [{min(scores):.3f}, {max(scores):.3f}]")
+        logger.info(f"  Mean Score: {np.mean(scores):.3f}")
+        logger.info(f"  Std Dev: {np.std(scores):.3f}")
+        logger.info(f"  Stability: {stability:.3f}")
+        
+        return results
+    
+    def _validate_required_tools(self, required_tools: List[str]) -> List[str]:
+        """Validate and fix required tools against registry"""
+        validated_tools = []
+        
+        for tool in required_tools:
+            if tool in self.verifier.tool_names:
+                validated_tools.append(tool)
+            else:
+                # 尝试找到最接近的工具
+                logger.warning(f"Tool '{tool}' not in registry, searching for similar...")
+                
+                # 查找包含相同关键词的工具
+                tool_lower = tool.lower()
+                candidates = []
+                
+                for registry_tool in self.verifier.tool_names:
+                    registry_lower = registry_tool.lower()
+                    # 检查是否有共同的关键词
+                    tool_parts = set(tool_lower.replace('_', ' ').split())
+                    registry_parts = set(registry_lower.replace('_', ' ').split())
+                    
+                    common_parts = tool_parts & registry_parts
+                    if common_parts:
+                        candidates.append((registry_tool, len(common_parts)))
+                
+                if candidates:
+                    # 选择最匹配的
+                    candidates.sort(key=lambda x: x[1], reverse=True)
+                    best_match = candidates[0][0]
+                    validated_tools.append(best_match)
+                    logger.info(f"Mapped '{tool}' to '{best_match}'")
+                else:
+                    logger.warning(f"No match found for '{tool}'")
+        
+        return validated_tools
+    
+    def _execute_workflow_tests(self, task_type: str, num_tests: int) -> List[ExecutionResult]:
+        """Execute workflow tests with baseline, optimal and CoT prompts"""
+        results = []
+        workflow = self.generator.generate_workflow(task_type)
+        
+        # 修复：为这个任务类型选择一个固定的任务实例，确保公平  # <- 新增
+        fixed_task_instance = None
+        fixed_required_tools = []
+        if task_type in self.task_instances and self.task_instances[task_type]:
+            # 使用第一个实例作为标准，而不是随机选择
+            fixed_task_instance = self.task_instances[task_type][0]  # <- 修改：固定实例
+            fixed_required_tools = fixed_task_instance.get('required_tools', [])
+            logger.info(f"Using fixed required_tools for {task_type}: {fixed_required_tools}")
+        
+        for i in range(num_tests):
+            test_id = f"{task_type}_{i}"
+            
+            # Test 1: Baseline (no workflow)
+            baseline_result = self._execute_single_test(
+                task_type, test_id + "_baseline", workflow, "baseline",
+                fixed_task_instance=fixed_task_instance  # <- 传递固定实例
+            )
+            results.append(baseline_result)
+            
+            # Test 2: Optimal (with workflow)
+            optimal_result = self._execute_single_test(
+                task_type, test_id + "_optimal", workflow, "optimal",
+                fixed_task_instance=fixed_task_instance  # <- 传递固定实例
+            )
+            results.append(optimal_result)
+            
+            # Test 3: Chain of Thought
+            cot_result = self._execute_single_test(
+                task_type, test_id + "_cot", workflow, "cot",
+                fixed_task_instance=fixed_task_instance  # <- 传递固定实例
+            )
+            results.append(cot_result)
+            
+            # Log progress
+            if (i + 1) % 5 == 0:
+                logger.info(f"Completed {i + 1}/{num_tests} tests")
+        
+        return results
+
+    def _execute_single_test(self, task_type: str, test_id: str, 
+                            workflow: Dict, prompt_type: str,
+                            fixed_task_instance: Optional[Dict] = None) -> ExecutionResult:
+        """Execute a single test with a specific prompt type - 交互式版本"""
+        try:
+            start_time = time.time()
+            
+            # 准备日志数据结构
+            log_data = {
+                'test_id': test_id,
+                'task_type': task_type,
+                'prompt_type': prompt_type,
+                'timestamp': datetime.now().isoformat(),
+                'task_instance': fixed_task_instance,
+                'workflow': workflow,
+                'execution_mode': 'interactive'  # 新增标记
+            }
+            
+            # Generate prompt based on type
+            if prompt_type == "baseline":
+                prompt = self._create_baseline_prompt(task_type, fixed_task_instance)
+            elif prompt_type == "optimal":
+                prompt = self._create_optimal_prompt(task_type, workflow, prompt_type, fixed_task_instance)
+            elif prompt_type == "cot":
+                prompt = self._create_cot_prompt(task_type, workflow, fixed_task_instance)
+            else:
+                raise ValueError(f"Unknown prompt type: {prompt_type}")
+            
+            # 保存prompt内容
+            log_data['prompt'] = prompt
+            
+            # === 使用交互式执行器 ===
+            print(f"\n[INFO] Starting interactive execution for {test_id}")
+            print(f"[INFO] Task type: {task_type}, Prompt type: {prompt_type}")
+            
+            # 创建交互式执行器
+            interactive_executor = InteractiveExecutor(
+                tool_registry=self.verifier.tool_registry,
+                llm_client=self.client,
+                max_turns=10,  # 最多10轮对话
+                success_rate=0.8  # 基础成功率80%
+            )
+            
+            # 执行交互式流程
+            execution_result = interactive_executor.execute_interactive(
+                initial_prompt=prompt,
+                task_instance=fixed_task_instance or {},
+                workflow=workflow,
+                prompt_type=prompt_type
+            )
+            
+            # 提取结果
+            state = execution_result['state']
+            tool_calls = execution_result['tool_calls']
+            execution_history = execution_result['execution_history']
+            conversation_history = execution_result['conversation_history']
+            
+            print(f"[INFO] Execution completed: {len(tool_calls)} tools called, Success: {execution_result['success']}")
+            
+            # 保存交互历史
+            log_data['conversation_history'] = conversation_history
+            log_data['execution_history'] = [
+                {
+                    'tool': h.tool_name,
+                    'success': h.success,
+                    'output': h.output,
+                    'error': h.error,
+                    'execution_time': h.execution_time
+                }
+                for h in execution_history
+            ]
+            log_data['execution_summary'] = execution_result['final_outputs']['summary']
+            
+            # 提取用于评分的数据
+            success = execution_result['success']
+            execution_time = execution_result['execution_time']
+            
+            # 将完整对话保存为llm_response（用于日志）
+            llm_response = json.dumps({
+                'conversation': conversation_history,
+                'final_state': {
+                    'task_completed': state.task_completed,
+                    'tools_executed': state.executed_tools,
+                    'total_turns': len([h for h in conversation_history if h['role'] == 'assistant'])
+                }
+            }, indent=2)
+            
+            # 检查workflow遵循度（仅对optimal）
+            workflow_followed = False
+            adherence_scores = {}
+            
+            if prompt_type == 'optimal' and workflow:
+                expected_sequence = workflow.get('optimal_sequence', [])
+                if expected_sequence and tool_calls:
+                    # 计算多个维度的遵循度
+                    adherence_scores = self._calculate_workflow_adherence_interactive(
+                        expected_sequence, tool_calls, execution_history
+                    )
+                    workflow_followed = adherence_scores.get('overall_score', 0) > 0.7
+                    log_data['workflow_adherence'] = adherence_scores
+            
+            # 构建ExecutionResult
+            result = ExecutionResult(
+                task_type=task_type,
+                test_id=test_id,
+                success=success,
+                execution_time=execution_time,
+                tool_calls=tool_calls,
+                prompt_type=prompt_type,
+                llm_response=llm_response,
+                workflow_followed=workflow_followed,
+                adherence_scores=adherence_scores,
+                execution_trace=[{
+                    'tool': h.tool_name,
+                    'status': 'success' if h.success else 'error',
+                    'error': h.error,
+                    'output': h.output if h.success else None,
+                    'timestamp': h.metadata.get('timestamp', '')
+                } for h in execution_history],
+                error_message=None
+            )
+            
+            # Calculate detailed metrics with Phase 2 scoring
+            if self.use_phase2_scoring:
+                # 准备评分所需的数据
+                required_tools = []
+                task_objectives = []
+                task_complexity = 'medium'
+                
+                if fixed_task_instance:
+                    required_tools = fixed_task_instance.get('required_tools', [])
+                    task_objectives = fixed_task_instance.get('objectives', [])
+                    task_complexity = fixed_task_instance.get('complexity', 'medium')
+                
+                # 检查是否有输出工具
+                output_generated = any(
+                    'writer' in tool or 'export' in tool or 'post' in tool
+                    for tool in tool_calls
+                )
+                
+                # 创建execution_result用于评分
+                scoring_execution_result = {
+                    'tool_calls': tool_calls,
+                    'execution_time': execution_time,
+                    'output_generated': output_generated,
+                    'success': success,
+                    'execution_trace': execution_history,  # 真实的执行历史
+                    'conversation_turns': len([h for h in conversation_history if h['role'] == 'assistant'])
+                }
+                
+                # 创建evaluation_context
+                evaluation_context = {
+                    'task_type': task_type,
+                    'prompt_type': prompt_type,
+                    'required_tools': required_tools,
+                    'objectives': task_objectives,
+                    'task_complexity': task_complexity
+                }
+                
+                # 计算Phase 2指标
+                task_score, task_details = self._calculate_task_achievement(
+                    scoring_execution_result, evaluation_context
+                )
+                
+                exec_score, exec_details = self._calculate_execution_quality(
+                    scoring_execution_result, evaluation_context
+                )
+                
+                # 使用真实的执行历史进行幻觉检测
+                exec_details['hallucination_detected'] = self._detect_hallucination_interactive(
+                    execution_history
+                )
+                
+                # 检测跳步（基于真实执行）
+                exec_details['skip_detected'] = self._detect_skip_interactive(
+                    execution_history, self.verifier.tool_registry
+                )
+                
+                # 使用Phase 2权重计算最终分数
+                final_score = (
+                    self.phase2_config['task_achievement_weight'] * task_score +
+                    self.phase2_config['execution_quality_weight'] * exec_score
+                )
+                
+                result.metrics = {
+                    'final_score': final_score,
+                    'task_achievement': task_score,
+                    'execution_quality': exec_score,
+                    'task_achievement_details': task_details,
+                    'execution_quality_details': exec_details
+                }
+                
+                result.final_score = final_score
+                result.success = final_score >= self.phase2_config['success_threshold']
+                
+                print(f"[SCORE] Final: {final_score:.3f}, Task: {task_score:.3f}, Exec: {exec_score:.3f}")
+            
+            # 保存详细日志
+            self._save_test_log(test_id, log_data)
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Test {test_id} failed with error: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            return ExecutionResult(
+                task_type=task_type,
+                test_id=test_id,
+                success=False,
+                execution_time=time.time() - start_time,
+                tool_calls=[],
+                error_message=str(e),
+                prompt_type=prompt_type,
+                execution_trace=[]
+            )
+
+
+    def _calculate_workflow_adherence_interactive(self, expected_sequence: List[str], 
+                                                actual_sequence: List[str],
+                                                execution_history: List[ToolExecutionResult]) -> Dict[str, float]:
+        """计算交互式执行的workflow遵循度"""
+        if not expected_sequence or not actual_sequence:
+            return {'overall_score': 0.0}
+        
+        # 1. 序列覆盖度
+        expected_set = set(expected_sequence)
+        actual_set = set(actual_sequence)
+        coverage = len(expected_set & actual_set) / len(expected_set)
+        
+        # 2. 顺序保持度（使用最长公共子序列）
+        lcs_length = self._longest_common_subsequence(expected_sequence, actual_sequence)
+        order_score = lcs_length / len(expected_sequence)
+        
+        # 3. 效率评分（避免重复和无关工具）
+        efficiency = len(set(actual_sequence)) / len(actual_sequence) if actual_sequence else 0
+        
+        # 4. 成功率（基于执行历史）
+        success_rate = sum(1 for h in execution_history if h.success) / len(execution_history) if execution_history else 0
+        
+        # 5. 错误恢复评分
+        recovery_score = self._calculate_recovery_score(execution_history)
+        
+        # 综合评分
+        overall = (
+            0.3 * coverage +      # 覆盖必需工具
+            0.3 * order_score +   # 保持顺序
+            0.2 * efficiency +    # 执行效率
+            0.1 * success_rate +  # 成功率
+            0.1 * recovery_score  # 错误恢复
+        )
+        
+        return {
+            'overall_score': overall,
+            'coverage': coverage,
+            'order_score': order_score,
+            'efficiency': efficiency,
+            'success_rate': success_rate,
+            'recovery_score': recovery_score
+        }
+
+
+    def _longest_common_subsequence(self, seq1: List[str], seq2: List[str]) -> int:
+        """计算最长公共子序列长度"""
+        m, n = len(seq1), len(seq2)
+        dp = [[0] * (n + 1) for _ in range(m + 1)]
+        
+        for i in range(1, m + 1):
+            for j in range(1, n + 1):
+                if seq1[i-1] == seq2[j-1]:
+                    dp[i][j] = dp[i-1][j-1] + 1
+                else:
+                    dp[i][j] = max(dp[i-1][j], dp[i][j-1])
+        
+        return dp[m][n]
+
+
+    def _calculate_recovery_score(self, execution_history: List[ToolExecutionResult]) -> float:
+        """计算错误恢复能力评分"""
+        if len(execution_history) < 2:
+            return 1.0
+        
+        recovery_count = 0
+        failure_count = 0
+        
+        for i in range(len(execution_history) - 1):
+            if not execution_history[i].success:
+                failure_count += 1
+                # 检查是否在后续步骤中恢复
+                if execution_history[i + 1].success:
+                    recovery_count += 1
+        
+        if failure_count == 0:
+            return 1.0  # 没有失败，完美执行
+        
+        return recovery_count / failure_count
+
+
+    def _detect_hallucination_interactive(self, execution_history: List[ToolExecutionResult]) -> bool:
+        """基于交互式执行历史检测幻觉"""
+        # 在交互式执行中，不存在的工具会在执行时被捕获
+        # 这里主要检查是否有工具执行了但没有实际效果
+        
+        for result in execution_history:
+            # 检查是否有工具名称不在registry中（不应该发生，但以防万一）
+            if result.tool_name not in self.verifier.tool_registry:
+                print(f"[HALLUCINATION] Non-existent tool executed: {result.tool_name}")
+                return True
+            
+            # 检查是否有工具声称成功但没有输出
+            if result.success and result.output is None:
+                print(f"[HALLUCINATION] Tool {result.tool_name} claimed success but no output")
+                return True
+        
+        return False
+
+
+    def _detect_skip_interactive(self, execution_history: List[ToolExecutionResult], 
+                            tool_registry: Dict[str, Any]) -> bool:
+        """基于交互式执行历史检测跳步"""
+        executed_tools = set()
+        
+        for i, result in enumerate(execution_history):
+            tool_info = tool_registry.get(result.tool_name, {})
+            dependencies = tool_info.get('dependencies', [])
+            
+            # 检查依赖是否满足
+            for dep in dependencies:
+                if dep not in executed_tools:
+                    print(f"[SKIP] Tool {result.tool_name} executed without dependency {dep}")
+                    return True
+            
+            # 记录已执行的工具
+            if result.success:  # 只有成功的工具才算满足依赖
+                executed_tools.add(result.tool_name)
+        
+        return False
+    
+    def _determine_task_success(self, tool_calls: List[str], 
+                            fixed_task_instance: Optional[Dict],
+                            task_type: str) -> bool:
+        """Determine task success based on objectives and requirements - 更灵活的标准"""
+        
+        if not tool_calls:
+            print(f"[SUCCESS] Task {task_type}: FAILED - No tools called")
+            return False
+        
+        unique_tools_used = len(set(tool_calls))
+        has_output = self.verifier.has_output_tool(tool_calls)
+        
+        # 获取任务信息
+        task_objectives = []
+        required_tools = []
+        task_complexity = 'medium'
+        
+        if fixed_task_instance:
+            task_objectives = fixed_task_instance.get('objectives', [])
+            required_tools = fixed_task_instance.get('required_tools', [])
+            task_complexity = fixed_task_instance.get('complexity', 'medium')
+        elif task_type in self.task_instances and self.task_instances[task_type]:
+            first_instance = self.task_instances[task_type][0]
+            task_objectives = first_instance.get('objectives', [])
+            required_tools = first_instance.get('required_tools', [])
+            task_complexity = first_instance.get('complexity', 'medium')
+        
+        # 基于实际需求的动态标准  # <- 修改了这部分
+        num_required_tools = len(required_tools) if required_tools else 1  # <- 新增：计算实际需求数量
+        
+        # 动态计算最小工具数量，基于实际需求而非硬编码  # <- 修改了这部分
+        complexity_thresholds = {
+            'easy': {
+                'objective_ratio': 0.3,      # <- 修改：从0.5降低到0.3
+                'tool_coverage': 0.4,        # <- 修改：从0.6降低到0.4
+                'min_tools': max(1, int(num_required_tools * 0.5))  # <- 修改：从0.8降低到0.5
+            },
+            'medium': {
+                'objective_ratio': 0.3,      # <- 修改：从0.5降低到0.3
+                'tool_coverage': 0.3,        # <- 修改：从0.5降低到0.3
+                'min_tools': max(1, int(num_required_tools * 0.6))  # <- 修改：从0.9降低到0.6
+            },
+            'hard': {
+                'objective_ratio': 0.2,      # <- 修改：从0.4降低到0.2
+                'tool_coverage': 0.2,        # <- 修改：从0.4降低到0.2
+                'min_tools': max(1, int(num_required_tools * 0.7))  # <- 修改：从1.0降低到0.7
+            }
+        }
+        
+        thresholds = complexity_thresholds.get(task_complexity, complexity_thresholds['medium'])
+    
+    # ... 后续代码保持不变 ...
+        
+        # 计算目标完成度
+        objectives_completed = 0
+        if task_objectives:
+            for obj in task_objectives:
+                obj_desc = obj.get('description', '').lower()
+                success_criteria = obj.get('success_criteria', [])
+                
+                if success_criteria:
+                    # 检查成功标准（放宽到40%）
+                    criteria_met = sum(1 for criterion in success_criteria
+                                    if any(self._flexible_match(criterion.lower(), tool.lower())
+                                        for tool in tool_calls))
+                    if criteria_met >= len(success_criteria) * 0.4:  # <- 修改：降低到40%
+                        objectives_completed += 1
+                        print(f"[SUCCESS] Objective completed: {obj_desc[:50]}...")  # <- 打印完成的目标
+                else:
+                    # 通用判断
+                    if self._check_objective_completion(obj_desc, tool_calls, has_output):
+                        objectives_completed += 1
+                        print(f"[SUCCESS] Objective completed (generic): {obj_desc[:50]}...")  # <- 打印完成的目标
+        
+        # 计算工具覆盖度（使用更灵活的匹配）
+        tool_coverage = 0
+        if required_tools:
+            covered = 0
+            for req_tool in required_tools:
+                # 精确匹配或功能相似
+                if req_tool in tool_calls:
+                    covered += 1
+                else:
+                    # 检查是否有功能相似的工具
+                    for used_tool in tool_calls:
+                        if self.stable_scorer._are_tools_functionally_similar(req_tool, used_tool):  # <- 修改：调用stable_scorer的方法
+                            covered += 0.8  # 相似工具给80%分数
+                            print(f"[SUCCESS] Similar tool used: {used_tool} for {req_tool}")  # <- 打印相似工具
+                            break
+            
+            tool_coverage = covered / len(required_tools)
+        
+        # 综合判定成功（基于复杂度的动态标准）
+        success = False
+        reason = ""
+        
+        if task_objectives:
+            # 有明确目标时
+            objective_ratio = objectives_completed / len(task_objectives)
+            if objective_ratio >= thresholds['objective_ratio']:
+                success = True
+                reason = f"objectives {objectives_completed}/{len(task_objectives)}"
+            else:
+                reason = f"objectives {objectives_completed}/{len(task_objectives)} < {thresholds['objective_ratio']}"
+        elif required_tools:
+            # 有工具要求时
+            if tool_coverage >= thresholds['tool_coverage'] and unique_tools_used >= len(required_tools) * 0.5:
+                success = True
+                reason = f"tool coverage {tool_coverage:.2f}"
+            else:
+                reason = f"tool coverage {tool_coverage:.2f} < {thresholds['tool_coverage']}"
+        else:
+            # 通用情况
+            if unique_tools_used >= thresholds['min_tools'] and has_output:
+                success = True
+                reason = f"generic: {unique_tools_used} tools with output"
+            else:
+                reason = f"generic: {unique_tools_used} tools, output={has_output}"
+        
+        print(f"[SUCCESS] Task {task_type}: {'SUCCESS' if success else 'FAILED'} - {reason}")  # <- 打印判定结果
+        return success
+
+    def _flexible_match(self, criterion: str, tool: str) -> bool:  # <- 新增方法
+        """灵活匹配标准和工具名"""
+        # 分词匹配
+        criterion_parts = set(criterion.replace('_', ' ').split())
+        tool_parts = set(tool.replace('_', ' ').split())
+        
+        # 如果有任何共同的关键词，认为匹配
+        common_parts = criterion_parts & tool_parts
+        return len(common_parts) > 0
+
+    def _check_objective_completion(self, obj_desc: str, tool_calls: List[str], 
+                                has_output: bool) -> bool:
+        """Check if an objective is completed based on tool calls"""
+        # <- 新增：辅助函数
+        obj_lower = obj_desc.lower()
+        
+        # 输出相关目标
+        if any(kw in obj_lower for kw in ['output', 'export', 'save', 'write']):
+            return has_output
+        
+        # 验证相关目标
+        if any(kw in obj_lower for kw in ['validate', 'verify', 'check']):
+            return any('validat' in tool.lower() or 'verif' in tool.lower() 
+                    for tool in tool_calls)
+        
+        # 处理相关目标
+        if any(kw in obj_lower for kw in ['process', 'transform', 'analyze']):
+            # 需要多个工具协作
+            return len(set(tool_calls)) >= 2
+        
+        # 读取相关目标
+        if any(kw in obj_lower for kw in ['read', 'load', 'fetch']):
+            return any('read' in tool.lower() or 'load' in tool.lower() 
+                    or 'fetch' in tool.lower() for tool in tool_calls)
+        
+        # 默认：有工具调用即可
+        return len(tool_calls) > 0
+
+
+    def _get_available_tools_section(self) -> str:
+        """Get formatted list of available tools from registry"""
+        # 从verifier的工具注册表获取所有工具
+        tools_by_category = {}
+        
+        print(f"[INFO] Total tools in registry: {len(self.verifier.tool_registry)}")  # 调试打印
+        
+        # self.verifier.tool_registry 是 generator.tool_capabilities
+        for tool_name, tool_capability in self.verifier.tool_registry.items():
+            # 从工具能力中提取类别
+            category = None
+            
+            # 尝试从metadata获取类别
+            if hasattr(tool_capability, 'metadata') and tool_capability.metadata:
+                category = tool_capability.metadata.get('category')
+            
+            # 尝试从category属性获取
+            if not category and hasattr(tool_capability, 'category'):
+                category = tool_capability.category
+            
+            # 如果还是没有类别，从工具名称推断
+            if not category or category == 'general':
+                # 工具名称通常是 category_operation_number 格式
+                parts = tool_name.split('_')
+                if len(parts) >= 2:
+                    # 第一部分通常是类别
+                    inferred_category = parts[0].lower()
+                    
+                    # 验证是否是合理的类别名
+                    known_categories = {
+                        'file', 'data', 'network', 'computation', 
+                        'integration', 'utility', 'validation', 'api'
+                    }
+                    
+                    # 类别映射（处理变体）
+                    category_mappings = {
+                        'files': 'file',
+                        'file_operations': 'file',
+                        'compute': 'computation', 
+                        'net': 'network',
+                        'util': 'utility',
+                        'utils': 'utility',
+                        'valid': 'validation',
+                        'process': 'data',
+                        'processing': 'data',
+                        'transform': 'data',
+                        'data_processing': 'data'
+                    }
+                    
+                    # 检查是否需要映射
+                    if inferred_category in category_mappings:
+                        category = category_mappings[inferred_category]
+                    elif inferred_category in known_categories:
+                        category = inferred_category
+                    else:
+                        # 基于工具名称中的关键词推断
+                        tool_lower = tool_name.lower()
+                        if any(kw in tool_lower for kw in ['read', 'write', 'file', 'scan']):
+                            category = 'file'
+                        elif any(kw in tool_lower for kw in ['parse', 'transform', 'filter', 'process']):
+                            category = 'data'
+                        elif any(kw in tool_lower for kw in ['fetch', 'post', 'api', 'request']):
+                            category = 'network'
+                        elif any(kw in tool_lower for kw in ['compute', 'calculate', 'analyze']):
+                            category = 'computation'
+                        elif any(kw in tool_lower for kw in ['connect', 'integrate', 'map', 'auth']):
+                            category = 'integration'
+                        elif any(kw in tool_lower for kw in ['validate', 'verify', 'check']):
+                            category = 'validation'
+                        else:
+                            category = 'utility'
+            
+            # 如果还是没有类别，使用默认值
+            if not category:
+                category = 'utility'
+                print(f"[WARNING] No category found for tool {tool_name}, using 'utility'")  # 调试打印
+            
+            if category not in tools_by_category:
+                tools_by_category[category] = []
+            
+            # 获取工具描述
+            description = 'Tool for processing'
+            if hasattr(tool_capability, 'description') and tool_capability.description:
+                description = tool_capability.description
+            elif hasattr(tool_capability, 'semantic_operations') and tool_capability.semantic_operations:
+                ops = tool_capability.semantic_operations[:2]
+                description = f"Performs {', '.join(ops)}" if ops else description
+            elif isinstance(tool_capability, dict):
+                # 如果是字典格式
+                description = tool_capability.get('description', 'Tool for processing')
+                
+            tools_by_category[category].append(f"- {tool_name}: {description}")
+        
+        # 格式化输出 - 显示所有工具，不限制数量
+        sections = []
+        total_tools_shown = 0
+        
+        for category, tools in sorted(tools_by_category.items()):
+            sections.append(f"\n{category.replace('_', ' ').title()}:")
+            # 显示该类别的所有工具，不再限制为5个
+            sections.extend(sorted(tools))  # 排序以保持一致性
+            total_tools_shown += len(tools)
+            print(f"[INFO] Category '{category}': {len(tools)} tools")  # 调试打印
+        
+        print(f"[INFO] Total tools shown: {total_tools_shown}")  # 调试打印
+        
+        # 如果工具太少，添加警告
+        if total_tools_shown < 20:
+            print(f"[WARNING] Only {total_tools_shown} tools shown, expected ~50")
+            # 列出一些未显示的工具用于调试
+            if hasattr(self.generator, 'tool_capabilities'):
+                all_tool_names = set(self.generator.tool_capabilities.keys())
+                shown_tool_names = set()
+                for tools in tools_by_category.values():
+                    for tool_line in tools:
+                        # 从 "- tool_name: description" 格式中提取工具名
+                        tool_name = tool_line.split(':')[0].strip('- ')
+                        shown_tool_names.add(tool_name)
+                missing_tools = all_tool_names - shown_tool_names
+                if missing_tools:
+                    print(f"[WARNING] Missing tools: {list(missing_tools)[:10]}...")
+        
+        return '\n'.join(sections)
+
+
+
+# 相同位置的修复代码
+# 修改的行用注释标注：# <- 修改了这一行
+
+    def _create_baseline_prompt(self, task_type: str, fixed_task_instance: Optional[Dict] = None) -> str:
+        """Create baseline prompt without workflow"""
+        # 使用传入的具体实例，而不是第一个实例
+        if fixed_task_instance:
+            task_description = fixed_task_instance.get('description', 'Complete the task efficiently')
+        else:
+            task_description = self._get_task_description(task_type)
+        
+        available_tools = self._get_available_tools_section()
+        
+        # 如果有fixed_task_instance，使用其描述替换通用描述  # <- 修改了这部分
+        if fixed_task_instance:
+            actual_task_desc = fixed_task_instance.get('description', task_description)
+            # 提取任务ID用于生成准确的任务描述
+            task_id = fixed_task_instance.get('id', 'unknown')
+            # 使用实际的任务描述，包含正确的工具要求
+            task_description = actual_task_desc
+        
+        return f"""Execute a {task_type.replace('_', ' ')} task.
+
+            Task: {task_description}
+
+            Available Tools:
+            {available_tools}
+
+            Use appropriate tools to complete the task. Format tool calls as: <tool_call>tool_name</tool_call>"""
+    
+
+    def _get_task_description(self, task_type: str) -> str:
+        """Get task description from task instances"""
+        if task_type in self.task_instances and self.task_instances[task_type]:
+            # 使用第一个实例的描述作为示例
+            return self.task_instances[task_type][0].get('description', 'Complete the task efficiently')
+        
+        # 为不同任务类型提供通用描述
+        descriptions = {
+            'basic_task': 'Process the input data using appropriate tools',
+            'simple_task': 'Complete a simple processing task',
+            'data_pipeline': 'Execute a data processing pipeline',
+            'api_integration': 'Integrate with external APIs to complete the task',
+            'multi_stage_pipeline': 'Execute a multi-stage processing pipeline'
+        }
+        
+        return descriptions.get(task_type, 'Complete the task efficiently')
+    
+
+    def _create_cot_prompt(self, task_type: str, workflow: Dict, fixed_task_instance: Optional[Dict] = None) -> str:  # <- 修改：添加fixed_task_instance参数
+        """Create Chain of Thought prompt"""
+        
+        # 获取任务描述 - 使用fixed_task_instance如果提供  # <- 修改了这部分
+        if fixed_task_instance:
+            task_description = fixed_task_instance.get('description', 'Complete the task efficiently')
+        else:
+            task_description = self._get_task_description(task_type)
+        
+        # 添加可用工具列表
+        available_tools = self._get_available_tools_section()
+        
+        prompt = f"""Execute a {task_type.replace('_', ' ')} task using Chain of Thought reasoning.
+
+        Task: {task_description}
+
+        Available Tools:
+        {available_tools}
+
+        **Think step by step about which tools to use and why.**
+
+        Please follow this reasoning approach:
+        1. Analyze what the task requires
+        2. Identify the necessary steps to complete the task  
+        3. Select appropriate tools from the available tools listed above
+        4. Consider the order of operations
+        5. Think about dependencies between tools
+
+        Please:
+        1. First explain your reasoning about which tools to use
+        2. Then execute the tools in the order you determined
+        3. Format tool calls as: <tool_call>tool_name</tool_call>
+
+        Begin with "Reasoning:" followed by your thought process, then proceed with the execution."""
+        
+        return prompt
+            
+
+
+    def _create_optimal_prompt(self, task_type: str, workflow: Dict, prompt_type: str, 
+                            fixed_task_instance: Optional[Dict] = None) -> str:  # <- 修改：添加fixed_task_instance参数
+        """Create optimal prompt with workflow guidance"""
+        # 从baseline开始，确保公平对比  # <- 修改：完全重写方法
+        baseline_prompt = self._create_baseline_prompt(task_type, fixed_task_instance)
+        
+        # 提取workflow信息
+        optimal_sequence = workflow.get('optimal_sequence', [])
+        critical_tools = workflow.get('critical_tools', [])
+        success_prob = workflow.get('success_probability', 0.0)
+        
+        # 在baseline基础上添加workflow指导
+        workflow_section = f"""
+
+    ## Workflow Guidance
+
+    This task has an optimized workflow with {success_prob:.0%} success rate:
+
+    **Recommended Sequence:**
+    {self._format_simple_workflow(optimal_sequence)}
+
+    **Critical Tools:** {', '.join(critical_tools) if critical_tools else 'None specified'}
+
+    **Execution Notes:**
+    - Follow the recommended sequence for best results
+    - Critical tools should not be skipped
+    - You may adapt if tools are unavailable
+    """
+        
+        # 在"Use appropriate tools"之前插入workflow指导
+        insertion_point = baseline_prompt.find("Use appropriate tools to complete the task.")
+        
+        if insertion_point > 0:
+            prompt = (baseline_prompt[:insertion_point] + 
+                    workflow_section + "\n" +
+                    baseline_prompt[insertion_point:])
+        else:
+            # 如果找不到插入点，添加到末尾
+            prompt = baseline_prompt + workflow_section
+        
+        return prompt
+
+    def _format_simple_workflow(self, sequence: List[str]) -> str:
+        """Format workflow in a simple, readable way"""
+        if not sequence:
+            return "Use appropriate tools to complete the task."
+        
+        formatted_steps = []
+        for i, tool in enumerate(sequence, 1):
+            formatted_steps.append(f"{i}. {tool}")
+        
+        return '\n'.join(formatted_steps)
+
+
+    def _calculate_task_achievement(self, 
+                                execution_result: Dict,
+                                evaluation_context: Dict) -> Tuple[float, Dict]:
+        """Calculate task achievement score - purely based on execution results"""
+        executed_tools = execution_result.get('tool_calls', [])
+        output_generated = execution_result.get('output_generated', False)
+        
+        # 获取任务需求信息（不涉及prompt类型）  # <- 修改：仅基于任务需求
+        required_tools = set(evaluation_context.get('required_tools', []))
+        task_objectives = evaluation_context.get('objectives', [])
+        
+        # 1. Tool Coverage Score - 基于任务需求的覆盖率  # <- 修改：完全重写
+        if executed_tools:
+            executed_set = set(executed_tools)
+            unique_count = len(executed_set)
+            
+            if required_tools:
+                # 计算必需工具的覆盖率
+                covered = len(executed_set & required_tools)
+                coverage_ratio = covered / len(required_tools)
+                
+                # 计算额外工具的合理性（基于工具关系）
+                extra_tools = executed_set - required_tools
+                reasonable_extras = sum(1 for tool in extra_tools 
+                                    if self._is_related_tool(tool, required_tools))
+                
+                # 综合评分：覆盖率为主，合理的额外工具有小幅加分
+                tool_score = (
+                    0.7 * coverage_ratio +  # 70%权重给覆盖率
+                    0.2 * min(1.0, reasonable_extras / max(len(required_tools), 1)) +  # 20%给合理扩展
+                    0.1 * (1.0 if unique_count >= 2 else 0.5)  # 10%给基本复杂度
+                )
+            else:
+                # 没有明确要求时，基于工具数量和多样性
+                if unique_count >= 4:
+                    tool_score = 0.8
+                elif unique_count >= 2:
+                    tool_score = 0.6
+                else:
+                    tool_score = 0.3
+        else:
+            tool_score = 0.0
+        
+        # 2. Objective Completion Score - 基于目标完成度  # <- 修改：更精确的目标检测
+        if task_objectives:
+            completed_objectives = 0
+            total_objectives = len(task_objectives)
+            
+            for obj in task_objectives:
+                obj_desc = obj.get('description', '').lower()
+                success_criteria = obj.get('success_criteria', [])
+                
+                # 检查成功标准
+                criteria_met = 0
+                for criterion in success_criteria:
+                    criterion_lower = criterion.lower()
+                    # 检查工具调用是否满足标准
+                    if any(self._matches_criterion(tool, criterion_lower) 
+                        for tool in executed_tools):
+                        criteria_met += 1
+                
+                # 如果满足50%以上的标准，认为目标完成
+                if success_criteria and criteria_met >= len(success_criteria) * 0.5:
+                    completed_objectives += 1
+                elif not success_criteria:
+                    # 没有明确标准时的通用判断
+                    if output_generated and ('output' in obj_desc or 'export' in obj_desc):
+                        completed_objectives += 1
+                    elif any(keyword in obj_desc for keyword in ['process', 'transform', 'analyze']):
+                        if unique_count >= 2:
+                            completed_objectives += 1
+            
+            objective_score = completed_objectives / total_objectives if total_objectives > 0 else 0.5
+        else:
+            # 没有明确目标时，基于输出
+            objective_score = 0.8 if output_generated else 0.3
+        
+        # 3. Combined Score - 纯粹基于结果  # <- 修改：移除任何策略相关逻辑
+        task_achievement = (
+            0.6 * tool_score +      # 工具使用占60%
+            0.4 * objective_score   # 目标完成占40%
+        )
+        
+        # 4. Details for debugging
+        details = {
+            'executed_tools': executed_tools,
+            'unique_tools': len(executed_set) if executed_tools else 0,
+            'tool_score': tool_score,
+            'objective_score': objective_score,
+            'coverage_ratio': coverage_ratio if required_tools else 0,
+            'completed_objectives': completed_objectives if task_objectives else 0,
+            'total_objectives': total_objectives if task_objectives else 0
+        }
+        
+        return task_achievement, details
+
+    def _is_related_tool(self, tool: str, required_tools: Set[str]) -> bool:
+        """判断工具是否与必需工具相关（基于工具名称相似性）"""
+        tool_parts = set(tool.lower().split('_'))
+        for req_tool in required_tools:
+            req_parts = set(req_tool.lower().split('_'))
+            # 如果有共同的关键词，认为相关
+            if len(tool_parts & req_parts) >= 2:
+                return True
+        return False
+
+    def _matches_criterion(self, tool: str, criterion: str) -> bool:
+        """检查工具是否匹配成功标准"""
+        tool_lower = tool.lower()
+        # 简单的关键词匹配
+        keywords = criterion.split()
+        return any(keyword in tool_lower for keyword in keywords)
+    
+    def generate_report(self, results: Dict[str, Any]):
+        """Generate comprehensive test report"""
+        report_path = self.output_dir / "workflow_quality_report.md"
+        
+        with open(report_path, 'w') as f:
+            f.write("# Workflow Quality Test Report\n\n")
+            f.write(f"Generated: {datetime.now().isoformat()}\n\n")
+            
+            # Summary statistics
+            f.write("## Summary\n\n")
+            
+            total_tests = sum(len(r) for r in results['test_results'].values())
+            successful_tests = sum(
+                sum(1 for test in task_results if test.success)
+                for task_results in results['test_results'].values()
+            )
+            
+            f.write(f"- Total tests: {total_tests}\n")
+            f.write(f"- Successful tests: {successful_tests}\n")
+            f.write(f"- Success rate: {successful_tests/total_tests:.2%}\n\n")
+            
+            # Task-specific results
+            f.write("## Task Results\n\n")
+            
+            for task_type, task_results in results['test_results'].items():
+                f.write(f"### {task_type}\n\n")
+                
+                # Workflow quality
+                if task_type in self.workflow_metrics:
+                    metrics = self.workflow_metrics[task_type]
+                    f.write(f"**Workflow Quality:**\n")
+                    f.write(f"- Success probability: {metrics.success_rate:.2%}\n")
+                    f.write(f"- Tool count: {metrics.tool_count}\n")
+                    f.write(f"- Critical tools: {metrics.key_tools_identified}\n\n")
+                
+                # Test results
+                baseline_results = [r for r in task_results if r.prompt_type == "baseline"]
+                optimal_results = [r for r in task_results if r.prompt_type == "optimal"]
+                cot_results = [r for r in task_results if r.prompt_type == "cot"]
+                
+                if baseline_results:
+                    baseline_success = sum(1 for r in baseline_results if r.success) / len(baseline_results)
+                    baseline_score = np.mean([r.final_score for r in baseline_results])
+                    f.write(f"- Baseline success rate: {baseline_success:.2%}\n")
+                    f.write(f"- Baseline avg score: {baseline_score:.3f}\n")
+                
+                if optimal_results:
+                    optimal_success = sum(1 for r in optimal_results if r.success) / len(optimal_results)
+                    optimal_score = np.mean([r.final_score for r in optimal_results])
+                    f.write(f"- Optimal success rate: {optimal_success:.2%}\n")
+                    f.write(f"- Optimal avg score: {optimal_score:.3f}\n")
+                    
+                    if baseline_results:
+                        improvement = optimal_success - baseline_success
+                        score_improvement = optimal_score - baseline_score
+                        f.write(f"- Success rate improvement: {improvement:+.2%}\n")
+                        f.write(f"- Score improvement: {score_improvement:+.3f}\n")
+                
+                if cot_results:
+                    cot_success = sum(1 for r in cot_results if r.success) / len(cot_results)
+                    cot_score = np.mean([r.final_score for r in cot_results])
+                    f.write(f"- CoT success rate: {cot_success:.2%}\n")
+                    f.write(f"- CoT avg score: {cot_score:.3f}\n")
+                
+                f.write("\n")
+            
+            # Phase 2 Scoring Analysis
+            if self.use_phase2_scoring:
+                f.write("## Phase 2 Scoring Analysis\n\n")
+                
+                all_scores = []
+                for task_results in results['test_results'].values():
+                    all_scores.extend([r.final_score for r in task_results])
+                
+                if all_scores:
+                    f.write(f"- Mean score: {np.mean(all_scores):.3f}\n")
+                    f.write(f"- Std deviation: {np.std(all_scores):.3f}\n")
+                    f.write(f"- Score range: [{min(all_scores):.3f}, {max(all_scores):.3f}]\n")
+                    
+                    # Score distribution
+                    score_bins = [0, 0.2, 0.4, 0.6, 0.8, 1.0]
+                    hist, _ = np.histogram(all_scores, bins=score_bins)
+                    
+                    f.write("\nScore Distribution:\n")
+                    for i, count in enumerate(hist):
+                        f.write(f"- {score_bins[i]:.1f}-{score_bins[i+1]:.1f}: {count} ({count/len(all_scores):.1%})\n")
+        
+        logger.info(f"Report generated: {report_path}")
+    
+    def run_comprehensive_test(self, task_types: List[str], 
+                            test_flawed: bool = False) -> Dict[str, Any]:
+        """Run comprehensive workflow quality test"""
+        logger.info("Starting comprehensive workflow quality test with Phase 2 scoring")
+        
+        # 修复：处理'all'输入
+        if 'all' in task_types:
+            # 获取所有已注册的任务类型
+            available_types = self._get_all_available_task_types()
+            task_types = available_types
+            logger.info(f"Testing all available task types: {task_types}")
+        else:
+            logger.info(f"Task types: {task_types}")
+        
+        logger.info(f"Tests per task: {self.test_config['num_tests_per_task']}")
+        
+        all_results = {}
+        
+        for task_type in task_types:
+            # 验证任务类型是否存在
+            if not self._validate_task_type(task_type):
+                logger.warning(f"Task type '{task_type}' not found in registry, skipping...")
+                continue
+                
+            logger.info(f"\n{'='*50}")
+            logger.info(f"Testing task type: {task_type}")
+            logger.info(f"{'='*50}")
+            
+            # Analyze workflow quality
+            quality = self.analyze_workflow_quality(task_type)
+            logger.info(f"Workflow quality score: {quality.overall_score:.2f}")
+            
+            # Run execution tests
+            test_results = self._execute_workflow_tests(
+                task_type, 
+                self.test_config['num_tests_per_task']
+            )
+            
+            all_results[task_type] = test_results
+            
+            # Test flawed workflows if requested
+            if test_flawed and FlawedWorkflowGenerator:
+                logger.info("\nTesting flawed workflows...")
+                workflow = self.generator.generate_workflow(task_type)
+                flawed_results = self._test_flawed_workflows(workflow, task_type)
+                all_results[f"{task_type}_flawed"] = flawed_results
+        
+        # Generate visualizations
+        self._generate_visualizations(all_results)
+        
+        # Compile final results
+        final_results = {
+            'test_results': all_results,
+            'workflow_metrics': self.workflow_metrics,
+            'test_config': self.test_config,
+            'timestamp': datetime.now().isoformat(),
+            'phase2_scoring': self.use_phase2_scoring
+        }
+        
+        # Save results
+        results_path = self.output_dir / "test_results.json"
+        with open(results_path, 'w') as f:
+            json.dump(final_results, f, indent=2, default=str)
+        
+        # Generate report - 修复：使用正确的方法名和参数
+        self.generate_report(final_results)
+        
+        # Calculate summary statistics
+        total_baseline = sum(1 for results in all_results.values() 
+                        for r in results if r.prompt_type == "baseline")
+        total_optimal = sum(1 for results in all_results.values() 
+                        for r in results if r.prompt_type == "optimal")
+        
+        success_baseline = sum(1 for results in all_results.values() 
+                            for r in results if r.prompt_type == "baseline" and r.success)
+        success_optimal = sum(1 for results in all_results.values() 
+                            for r in results if r.prompt_type == "optimal" and r.success)
+        
+        # Phase 2: Calculate score improvements
+        baseline_scores = [r.final_score for results in all_results.values() 
+                        for r in results if r.prompt_type == "baseline"]
+        optimal_scores = [r.final_score for results in all_results.values() 
+                        for r in results if r.prompt_type == "optimal"]
+        
+        avg_baseline_score = np.mean(baseline_scores) if baseline_scores else 0
+        avg_optimal_score = np.mean(optimal_scores) if optimal_scores else 0
+        
+        # Calculate stability
+        all_scores = baseline_scores + optimal_scores
+        score_stability = 1.0 - (np.std(all_scores) / (np.mean(all_scores) + 1e-10)) if all_scores else 0
+        
+        # Return summary
+        return {
+            'test_results': all_results,
+            'summary': {
+                'total_tests': total_baseline + total_optimal,
+                'baseline_success_rate': success_baseline / total_baseline if total_baseline > 0 else 0,
+                'optimal_success_rate': success_optimal / total_optimal if total_optimal > 0 else 0,
+                'success_rate_improvement': (success_optimal / total_optimal if total_optimal > 0 else 0) - 
+                                        (success_baseline / total_baseline if total_baseline > 0 else 0),
+                'avg_baseline_score': avg_baseline_score,
+                'avg_optimal_score': avg_optimal_score,
+                'score_improvement': avg_optimal_score - avg_baseline_score,
+                'score_stability': score_stability,
+                'report_path': str(self.output_dir / "workflow_quality_report.md"),
+                'output_dir': str(self.output_dir)
+            }
+        }
+
+    def _get_all_available_task_types(self) -> List[str]:
+        """Get all available task types from task instances and registry"""
+        # 从task_instances获取类型
+        types_from_instances = set(self.task_instances.keys())
+        
+        # 定义核心任务类型（基于tool_and_task_generator.py中的定义）
+        core_types = {'basic_task', 'simple_task', 'data_pipeline', 'api_integration', 'multi_stage_pipeline'}
+        
+        # 合并所有类型
+        all_types = types_from_instances | core_types
+        
+        # 过滤掉空类型
+        return sorted([t for t in all_types if t])  # <- 新增方法
+
+    def _validate_task_type(self, task_type: str) -> bool:
+        """Validate if task type exists in registry"""
+        # 检查task_instances
+        if task_type in self.task_instances and self.task_instances[task_type]:
+            return True
+        
+        # 检查是否是核心类型
+        core_types = {'basic_task', 'simple_task', 'data_pipeline', 'api_integration', 'multi_stage_pipeline'}
+        return task_type in core_types  # <- 新增方法
+    
+    def _test_flawed_workflows(self, task_type: str, original_workflow: Dict) -> Dict[str, List[ExecutionResult]]:
+        """Test flawed workflow variations"""
+        if not FlawedWorkflowGenerator:
+            return {}
+        
+        flawed_gen = FlawedWorkflowGenerator()
+        flawed_variations = flawed_gen.generate_flawed_variations(original_workflow)
+        
+        results = {}
+        for flaw_type, flawed_workflow in flawed_variations.items():
+            logger.info(f"Testing {flaw_type} flawed workflow...")
+            flaw_results = []
+            
+            for i in range(3):  # Test each flaw type 3 times
+                test_id = f"{task_type}_flawed_{flaw_type}_{i}"
+                result = self._execute_single_test(
+                    task_type, test_id, flawed_workflow, "optimal"
+                )
+                flaw_results.append(result)
+            
+            results[flaw_type] = flaw_results
+        
+        return results
+    
+    def _generate_visualizations(self, results: Dict[str, List[ExecutionResult]]):
+        """Generate visualization plots"""
+        # 1. Success rate comparison
+        plt.figure(figsize=(10, 6))
+        
+        task_types = []
+        baseline_rates = []
+        optimal_rates = []
+        cot_rates = []
+        
+        for task_type, task_results in results.items():
+            if '_flawed_' in task_type:
+                continue
+                
+            task_types.append(task_type)
+            
+            baseline = [r for r in task_results if r.prompt_type == "baseline"]
+            optimal = [r for r in task_results if r.prompt_type == "optimal"]
+            cot = [r for r in task_results if r.prompt_type == "cot"]
+            
+            baseline_rate = sum(1 for r in baseline if r.success) / len(baseline) if baseline else 0
+            optimal_rate = sum(1 for r in optimal if r.success) / len(optimal) if optimal else 0
+            cot_rate = sum(1 for r in cot if r.success) / len(cot) if cot else 0
+            
+            baseline_rates.append(baseline_rate)
+            optimal_rates.append(optimal_rate)
+            cot_rates.append(cot_rate)
+        
+        x = np.arange(len(task_types))
+        width = 0.25
+        
+        plt.bar(x - width, baseline_rates, width, label='Baseline', color='skyblue')
+        plt.bar(x, optimal_rates, width, label='Optimal', color='lightgreen')
+        plt.bar(x + width, cot_rates, width, label='CoT', color='lightcoral')
+        
+        plt.xlabel('Task Type')
+        plt.ylabel('Success Rate')
+        plt.title('Workflow Execution Success Rates by Strategy')
+        plt.xticks(x, task_types, rotation=45)
+        plt.legend()
+        plt.tight_layout()
+        
+        success_plot_path = self.output_dir / "success_rates.png"
+        plt.savefig(success_plot_path, dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        # 2. Phase 2 Score Distribution
+        if self.use_phase2_scoring:
+            plt.figure(figsize=(10, 6))
+            
+            all_scores = []
+            score_labels = []
+            
+            for task_type, task_results in results.items():
+                if '_flawed_' in task_type:
+                    continue
+                
+                for result in task_results:
+                    all_scores.append(result.final_score)
+                    score_labels.append(f"{task_type}_{result.prompt_type}")
+            
+            # Create histogram
+            plt.hist(all_scores, bins=20, alpha=0.7, color='purple', edgecolor='black')
+            plt.xlabel('Final Score')
+            plt.ylabel('Frequency')
+            plt.title('Phase 2 Score Distribution')
+            plt.axvline(x=0.6, color='red', linestyle='--', label='Success Threshold (0.6)')
+            plt.legend()
+            plt.grid(True, alpha=0.3)
+            
+            score_dist_path = self.output_dir / "score_distribution.png"
+            plt.savefig(score_dist_path, dpi=300, bbox_inches='tight')
+            plt.close()
+        
+        # 3. Task Achievement vs Execution Quality
+        if self.use_phase2_scoring:
+            plt.figure(figsize=(10, 6))
+            
+            ta_scores = []
+            eq_scores = []
+            labels = []
+            
+            for task_type, task_results in results.items():
+                if '_flawed_' in task_type:
+                    continue
+                
+                for result in task_results:
+                    if hasattr(result, 'metrics') and 'task_achievement' in result.metrics:
+                        ta_scores.append(result.metrics['task_achievement'])
+                        eq_scores.append(result.metrics['execution_quality'])
+                        labels.append(result.prompt_type)
+            
+            # Create scatter plot
+            colors = {'baseline': 'blue', 'optimal': 'green', 'cot': 'red'}
+            for prompt_type in ['baseline', 'optimal', 'cot']:
+                indices = [i for i, l in enumerate(labels) if l == prompt_type]
+                if indices:
+                    plt.scatter(
+                        [ta_scores[i] for i in indices],
+                        [eq_scores[i] for i in indices],
+                        c=colors[prompt_type],
+                        label=prompt_type,
+                        alpha=0.6
+                    )
+            
+            plt.xlabel('Task Achievement Score')
+            plt.ylabel('Execution Quality Score')
+            plt.title('Phase 2: Task Achievement vs Execution Quality')
+            plt.legend()
+            plt.grid(True, alpha=0.3)
+            plt.xlim(0, 1)
+            plt.ylim(0, 1)
+            
+            scatter_path = self.output_dir / "achievement_vs_quality.png"
+            plt.savefig(scatter_path, dpi=300, bbox_inches='tight')
+            plt.close()
+        
+        # 4. Workflow adherence boxplot
+        plt.figure(figsize=(10, 6))
+        
+        adherence_data = defaultdict(list)
+        
+        for task_type, task_results in results.items():
+            if '_flawed_' in task_type:
+                continue
+                
+            for result in task_results:
+                if result.adherence_scores and 'overall_adherence' in result.adherence_scores:
+                    adherence_data[task_type].append(result.adherence_scores['overall_adherence'])
+        
+        if adherence_data:
+            data_by_label = []
+            unique_labels = []
+            
+            for task_type, scores in adherence_data.items():
+                data_by_label.append(scores)
+                unique_labels.append(task_type)
+            
+            plt.boxplot(data_by_label, labels=unique_labels)
+            plt.xlabel('Task Type')
+            plt.ylabel('Workflow Adherence Score')
+            plt.title('Workflow Adherence Distribution by Task Type')
+            plt.xticks(rotation=45)
+            plt.grid(True, axis='y', alpha=0.3)
+            
+            adherence_plot_path = self.output_dir / "workflow_adherence.png"
+            plt.savefig(adherence_plot_path, dpi=300, bbox_inches='tight')
+            plt.close()
+        
+        logger.info(f"Visualizations saved to {self.output_dir}")
+
+
+# ======================
+# Main Function
+# ======================
+
+def main():
+    parser = argparse.ArgumentParser(description='Test workflow quality with different prompting strategies')
+    parser.add_argument('--task-types', nargs='+', 
+                       default=['simple_task', 'data_pipeline', 'api_integration'],
+                       help='Task types to test')
+    parser.add_argument('--num-tests', type=int, default=10,
+                       help='Number of tests per task type')
+    parser.add_argument('--output-dir', type=str, default='workflow_quality_results',
+                       help='Output directory for results')
+    parser.add_argument('--test-flawed', action='store_true',
+                       help='Test with flawed workflows')
+    parser.add_argument('--no-phase2', action='store_true',
+                       help='Disable Phase 2 scoring (use original)')
+    parser.add_argument('--test-scoring', action='store_true',
+                       help='Test scoring stability only')
+    parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+    parser.add_argument('--model-path', type=str, 
+                       default='checkpoints/best_model.pt',
+                       help='Path to trained model')
+    parser.add_argument('--tool-registry', type=str,
+                       default='mcp_generated_library/tool_registry.json',
+                       help='Path to tool registry')
+    parser.add_argument('--use-phase2', action='store_true', default=True,
+                       help='Use Phase 2 scoring system')
+    parser.add_argument('--parallel', action='store_true', default=False,
+                       help='Use parallel execution (much faster)')
+    parser.add_argument('--workers', type=int, default=10,
+                       help='Number of parallel workers (default: 10)')
+    parser.add_argument('--rate-limit', type=int, default=60,
+                       help='API rate limit per minute (default: 60)')
+    parser.add_argument('--instances-per-type', type=int, default=1,
+                       help='Number of task instances to sample per type (default: 1)')
+    parser.add_argument('--max-workers', type=int, default=10,
+                       help='Maximum number of parallel workers')
+    parser.add_argument('--all-instances', action='store_true',
+                       help='Test all instances instead of sampling')
+    parser.add_argument('--save-logs', action='store_true',  # <- 新增参数
+                       help='Save detailed logs for each test')
+                       
+    args = parser.parse_args()
+    
+    # 设置日志级别
+    if args.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+    
+    # Initialize generator with better error handling
+    generator = MDPWorkflowGenerator(args.model_path, args.tool_registry)
+    
+    # Initialize tester with logging option  # <- 修改：传递save_logs参数
+    tester = WorkflowQualityTester(
+        generator, 
+        args.output_dir, 
+        use_phase2_scoring=args.use_phase2,
+        max_workers=args.max_workers,
+        save_logs=args.save_logs
+    )
+    
+    # Configure test parameters
+    tester.test_config['num_tests_per_task'] = args.num_tests
+    
+    if args.test_scoring:
+        # Test scoring stability only
+        for task_type in args.task_types:
+            tester.test_scoring_stability(task_type)
+    else:
+        # 确定实例数
+        instances_per_type = len(tester.task_instances) if args.all_instances else args.instances_per_type
+        
+        if args.parallel:
+            logger.info("Using PARALLEL execution mode")
+            results = tester.run_comprehensive_test_parallel(
+                task_types=args.task_types,
+                test_flawed=args.test_flawed,
+                instances_per_type=instances_per_type  # <- 传递参数
+            )
+        else:
+            logger.info("Using SERIAL execution mode")
+            # 也需要更新串行版本支持instances_per_type
+            results = tester.run_comprehensive_test(
+                task_types=args.task_types,
+                test_flawed=args.test_flawed
+            )
+        
+        print(f"\n✅ Test completed! Results saved to {results['summary']['output_dir']}")
+        print(f"Overall success rate improvement: {results['summary']['success_rate_improvement']:+.2%}")
+        print(f"Overall final score improvement: {results['summary']['score_improvement']:+.3f}")
+        print(f"Score stability: {results['summary']['score_stability']:.3f}")
+        
+        if 'execution_time' in results['summary']:
+            print(f"Execution time: {results['summary']['execution_time']:.1f} seconds")
+            print(f"Tests per second: {results['summary']['tests_per_second']:.1f}")
+
+
+if __name__ == "__main__":
+    main()

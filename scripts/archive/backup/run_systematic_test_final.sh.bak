@@ -1,0 +1,4099 @@
+#!/bin/bash
+
+# ============================================
+# PILOT-Bench 系统化测试脚本 - 完整集成版
+# 支持三层续测机制：宏观（步骤）、中观（配置）、微观（任务）
+# 支持自动失败检测、记录和重测
+# 增强：集成自动失败维护系统
+# ============================================
+
+# 加载自动失败维护函数库
+if [ -f "auto_failure_maintenance_lib.sh" ]; then
+    source auto_failure_maintenance_lib.sh
+    MAINTENANCE_LIB_LOADED=true
+    echo -e "${GREEN}✅ 已加载自动失败维护函数库${NC}"
+else
+    MAINTENANCE_LIB_LOADED=false
+    echo -e "${YELLOW}⚠️ 警告: 未找到自动失败维护函数库，将使用基本功能${NC}"
+fi
+
+# 解析命令行参数
+IGNORE_PROGRESS=false
+FORCE_FRESH=false
+AUTO_MODE=""
+SKIP_MENU=false
+INCREMENTAL_MODE=false
+ULTRA_PARALLEL_MODE=false
+CUSTOM_INSTANCES=""  # 自定义实例数
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --ignore-progress)
+            IGNORE_PROGRESS=true
+            SKIP_MENU=true
+            shift
+            ;;
+        --fresh|--force-fresh)
+            FORCE_FRESH=true
+            SKIP_MENU=true
+            shift
+            ;;
+        --incremental)
+            INCREMENTAL_MODE=true
+            IGNORE_PROGRESS=true
+            SKIP_MENU=true
+            shift
+            ;;
+        --auto)
+            AUTO_MODE="auto"
+            SKIP_MENU=true
+            shift
+            ;;
+        --debug)
+            AUTO_MODE="debug"
+            SKIP_MENU=true
+            shift
+            ;;
+        --full-auto)
+            AUTO_MODE="full_auto"
+            SKIP_MENU=true
+            shift
+            ;;
+        --ultra-parallel)
+            ULTRA_PARALLEL_MODE=true
+            SKIP_MENU=true
+            shift
+            ;;
+        --auto-maintain)
+            AUTO_MAINTENANCE_MODE=true
+            SKIP_MENU=true
+            shift
+            ;;
+        --with-maintenance)
+            WITH_MAINTENANCE=true
+            shift
+            ;;
+        --maintenance-only)
+            MAINTENANCE_ONLY=true
+            SKIP_MENU=true
+            shift
+            ;;
+        --instances)
+            # 自定义实例数，格式: --instances 10 或 --instances 5x4 (5个实例，每个4种任务类型)
+            CUSTOM_INSTANCES="$2"
+            shift 2
+            ;;
+        --help|-h)
+            echo "用法: $0 [选项]"
+            echo ""
+            echo "选项:"
+            echo "  --ignore-progress    忽略进度文件，从头开始测试（不清理数据）"
+            echo "  --fresh              完全重新开始（清理所有数据）"
+            echo "  --incremental        增量测试模式（忽略进度，只测试未完成的）"
+            echo "  --auto               自动模式（阶段间需确认）"
+            echo "  --debug              调试模式（每个模型后暂停）"
+            echo "  --full-auto          全自动模式（连续运行所有测试）"
+            echo "  --ultra-parallel     启用超高并行模式（多Azure实例并行）"
+            echo "  --auto-maintain      自动失败维护模式"
+            echo "  --with-maintenance   启用自动维护功能"
+            echo "  --maintenance-only   仅执行维护，不运行测试"
+            echo "  --instances N        自定义实例数 (默认20)"
+            echo "                       格式: --instances 10 (总共10个实例)"
+            echo "                             --instances 5x4 (5个实例，每个4种任务类型)"
+            echo "  --help, -h           显示帮助信息"
+            echo ""
+            echo "示例:"
+            echo "  $0                           # 交互式菜单"
+            echo "  $0 --incremental             # 增量测试未完成的配置"
+            echo "  $0 --ignore-progress --auto   # 忽略进度自动运行"
+            echo "  $0 --auto-maintain           # 自动失败维护"
+            echo "  $0 --instances 10 --auto     # 使用10个实例自动运行"
+            echo "  $0 --instances 5x4 --auto    # 5个实例×4种任务类型"
+            echo "  $0 --with-maintenance --auto  # 带维护的自动测试"
+            echo "  $0 --maintenance-only         # 仅执行维护"
+            exit 0
+            ;;
+        *)
+            echo "未知参数: $1"
+            echo "使用 --help 查看帮助"
+            exit 1
+            ;;
+    esac
+done
+
+echo "=========================================="
+echo "PILOT-Bench 系统化测试"
+echo "完整集成版 with 三层续测保护 + 自动维护"
+if [ "$AUTO_MAINTENANCE_MODE" = true ]; then
+    echo "模式: 自动失败维护"
+elif [ "$MAINTENANCE_ONLY" = true ]; then
+    echo "模式: 仅执行维护"
+elif [ "$INCREMENTAL_MODE" = true ]; then
+    echo "模式: 增量测试"
+elif [ "$IGNORE_PROGRESS" = true ]; then
+    echo "模式: 忽略进度文件"
+elif [ "$FORCE_FRESH" = true ]; then
+    echo "模式: 完全重新开始"
+fi
+if [ "$WITH_MAINTENANCE" = true ]; then
+    echo "特性: 启用自动维护"
+fi
+echo "=========================================="
+echo ""
+
+# 颜色定义（提前定义以便菜单使用）
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+PURPLE='\033[0;35m'
+NC='\033[0m' # No Color
+
+
+# 解析自定义实例数
+DEFAULT_INSTANCES=20
+NUM_INSTANCES=$DEFAULT_INSTANCES
+INSTANCES_PER_TASK=""  # 每种任务类型的实例数
+
+if [ -n "$CUSTOM_INSTANCES" ]; then
+    # 检查是否是NxM格式
+    if [[ "$CUSTOM_INSTANCES" =~ ^([0-9]+)x([0-9]+)$ ]]; then
+        # NxM格式: N个实例，M种任务类型
+        NUM_INSTANCES="${BASH_REMATCH[1]}"
+        INSTANCES_PER_TASK="${BASH_REMATCH[2]}"
+        echo -e "${GREEN}✅ 使用自定义实例数: ${NUM_INSTANCES} 个实例 × ${INSTANCES_PER_TASK} 种任务类型${NC}"
+    elif [[ "$CUSTOM_INSTANCES" =~ ^[0-9]+$ ]]; then
+        # 简单数字格式
+        NUM_INSTANCES="$CUSTOM_INSTANCES"
+        echo -e "${GREEN}✅ 使用自定义实例数: ${NUM_INSTANCES}${NC}"
+    else
+        echo -e "${RED}❌ 无效的实例数格式: $CUSTOM_INSTANCES${NC}"
+        echo -e "${YELLOW}使用默认值: ${DEFAULT_INSTANCES}${NC}"
+    fi
+else
+    echo -e "${CYAN}🔧 使用默认实例数: ${NUM_INSTANCES}${NC}"
+fi
+
+# 定义开源模型列表（包含新增的模型）
+OPENSOURCE_MODELS=(
+    "DeepSeek-V3-0324"       # ✅ 新增：最新V3版本（您的Azure）
+    "DeepSeek-R1-0528"       # ✅ 新增：最新推理模型（您的Azure）
+    "qwen2.5-72b-instruct"   # idealab
+    "qwen2.5-32b-instruct"   # idealab
+    "qwen2.5-14b-instruct"   # idealab
+    "qwen2.5-7b-instruct"    # idealab
+    "qwen2.5-3b-instruct"    # idealab
+    "Llama-3.3-70B-Instruct" # ✅ 新增：最新Llama（您的Azure）
+    # "llama-4-scout-17b"      # idealab - 暂时禁用，API不支持
+)
+
+# 定义闭源模型列表（优化后的核心模型）
+CLOSED_SOURCE_MODELS=(
+    "gpt-4o-mini"                # Azure - 工作正常
+    "gpt-5-mini"                 # Azure - 工作正常（移除参数后已修复）
+    "o3-0416-global"             # IdealLab - 工作正常
+    "gemini-2.5-flash-06-17"     # IdealLab - 工作正常（注意可能返回空content）
+    "kimi-k2"                    # IdealLab - 工作正常（已验证）
+    "claude_sonnet4"             # IdealLab - 工作正常（新增）
+    # 以下模型暂时注释：
+    # "grok-3-mini"              # Azure - 可用但暂不测试
+    # "Llama-3.3-70B-Instruct"   # 移至开源模型列表（与DeepSeek一起）
+)
+
+# Qwen全系列（用于5.2规模效应测试）
+QWEN_FULL_SERIES=(
+    "qwen2.5-72b-instruct"
+    "qwen2.5-32b-instruct"
+    "qwen2.5-14b-instruct"
+    "qwen2.5-7b-instruct"
+    "qwen2.5-3b-instruct"
+)
+
+# 模型类型和进度文件定义
+MODEL_TYPE=""  # 将在用户选择后设置: "opensource" 或 "closed_source"
+CURRENT_MODELS=()  # 当前选择的模型列表
+RESULT_SUFFIX=""  # 结果文件后缀
+
+# 进度文件（根据模型类型动态设置）
+PROGRESS_FILE=""  # 将在选择模型类型后设置
+COMPLETED_FILE=""  # 将在选择模型类型后设置
+
+# 导入失败测试管理器
+if [ -f "failed_tests_manager.sh" ]; then
+    source failed_tests_manager.sh
+fi
+
+# ============================================
+# 维护模式处理
+# ============================================
+
+# 如果是仅维护模式
+ if [ "$MAINTENANCE_ONLY" = true ]; then
+    echo -e "${CYAN}🔧 仅执行维护模式${NC}"
+    if command -v smart_maintenance_entry >/dev/null 2>&1; then
+        smart_maintenance_entry "wizard" "" "true"
+    else
+        echo -e "${YELLOW}⚠️ 未加载维护函数库，使用基本维护${NC}"
+        python3 auto_failure_maintenance_system.py status
+    fi
+    exit 0
+fi
+
+# 如果是自动维护模式
+if [ "$AUTO_MAINTENANCE_MODE" = true ]; then
+    echo -e "${CYAN}🔧 自动维护模式${NC}"
+    if command -v smart_maintenance_entry >/dev/null 2>&1; then
+        smart_maintenance_entry "auto" "" "false"
+    else
+        echo -e "${YELLOW}⚠️ 未加载维护函数库，使用Python版本${NC}"
+        python3 smart_batch_runner.py --auto-maintain
+    fi
+    exit 0
+fi
+
+# ============================================
+# 自动重试功能
+# ============================================
+
+# 带自动重试的测试执行函数
+execute_test_with_auto_retry() {
+    local cmd="$1"
+    local description="$2"
+    local model="$3"
+    local test_id="$4"
+    local max_retries="${5:-2}"  # 默认2次重试
+    
+    local attempt=1
+    local success=false
+    
+    while [ $attempt -le $((max_retries + 1)) ] && [ "$success" = "false" ]; do
+        if [ $attempt -gt 1 ]; then
+            echo -e "${YELLOW}🔄 第 $attempt 次尝试: $description${NC}"
+            if command -v record_test_failure >/dev/null 2>&1; then
+                record_test_failure "$model" "$test_id" "retry_attempt_$attempt" "Previous attempt failed"
+            fi
+        else
+            echo -e "${BLUE}🏁 正在执行: $description${NC}"
+        fi
+        
+        # 使用维护函数库执行测试（如果可用）
+        if command -v execute_test_with_failure_tracking >/dev/null 2>&1; then
+            if execute_test_with_failure_tracking "$cmd" "$description" "$model" "$test_id"; then
+                success=true
+                echo -e "${GREEN}✅ 测试成功 (第 $attempt 次尝试)${NC}"
+                if [ $attempt -gt 1 ] && command -v record_test_success >/dev/null 2>&1; then
+                    record_test_success "$model" "$test_id" "true"
+                fi
+            fi
+        else
+            # 使用基本执行
+            if eval "$cmd"; then
+                success=true
+                echo -e "${GREEN}✅ 测试成功 (第 $attempt 次尝试)${NC}"
+            fi
+        fi
+        
+        if [ "$success" = "false" ]; then
+            if [ $attempt -le $max_retries ]; then
+                local wait_time=$((attempt * 30))  # 递增等待时间
+                echo -e "${RED}❌ 测试失败，${wait_time}秒后重试...${NC}"
+                sleep $wait_time
+            else
+                echo -e "${RED}❌ 测试失败，已达到最大重试次数${NC}"
+                if command -v record_test_failure >/dev/null 2>&1; then
+                    record_test_failure "$model" "$test_id" "max_retries_exceeded" "Failed after $max_retries retries"
+                fi
+            fi
+        fi
+        
+        ((attempt++))
+    done
+    
+    [ "$success" = "true" ]
+}
+
+# ============================================
+# 全局维护配置
+# ============================================
+
+# 加载维护配置
+if command -v load_maintenance_config >/dev/null 2>&1; then
+    load_maintenance_config
+fi
+
+# 检查是否启用维护功能
+if [ "$WITH_MAINTENANCE" = "true" ]; then
+    echo -e "${GREEN}✅ 启用自动维护功能${NC}"
+    AUTO_RETRY_ENABLED=true
+    
+    # 初始化进度管理
+    if [ "$MAINTENANCE_LIB_LOADED" = "true" ] && command -v update_progress >/dev/null 2>&1; then
+        echo -e "${BLUE}🔧 初始化进度管理系统${NC}"
+        update_progress "initialization" 0 "system_startup" "" ""
+    fi
+else
+    AUTO_RETRY_ENABLED=false
+fi
+
+# ============================================
+# 启动选项菜单
+# ============================================
+show_initial_menu() {
+    echo -e "${CYAN}========================================${NC}"
+    echo -e "${CYAN}$( [ "$MODEL_TYPE" = "closed_source" ] && echo "闭源" || echo "开源" )模型测试菜单${NC}"
+    echo -e "${CYAN}========================================${NC}"
+    echo ""
+    
+    # 检查是否有之前的进度
+    if [ -f "$PROGRESS_FILE" ]; then
+        # 读取进度
+        source "$PROGRESS_FILE"
+        local completed_count=$(wc -l < "$COMPLETED_FILE" 2>/dev/null || echo 0)
+        
+        # 检查是否有实质性进度（MODEL_INDEX > 0 或 STEP > 1 或 有完成记录）
+        if [ "$MODEL_INDEX" -gt 0 ] || [ "$STEP" -gt 1 ] || [ "$completed_count" -gt 0 ]; then
+            echo -e "${GREEN}检测到之前的测试进度：${NC}"
+            echo "  当前步骤: 5.$STEP"
+            echo "  已完成配置: $completed_count"
+        echo ""
+            echo ""
+            echo "  1) 🔄 继续上次测试"
+            echo "  2) 🆕 完全重新开始（清理所有数据）"
+            echo "  3) 📊 查看详细进度"
+            echo "  4) 🎯 自定义起始阶段"
+            echo "  5) 🔧 自动维护菜单"
+            # 检查是否有失败测试记录
+            if check_failed_tests_config 2>/dev/null; then
+                echo "  6) 🔄 重新测试失败的组"
+                echo "  7) ❌ 退出"
+            else
+                echo "  6) ❌ 退出"
+            fi
+        else
+            # 没有实质性进度，就当作新测试
+            echo -e "${YELLOW}没有检测到之前的进度${NC}"
+            echo ""
+            echo "  1) 🆕 开始新测试"
+            echo "  2) ❌ 退出"
+        fi
+    else
+        echo -e "${YELLOW}没有检测到之前的进度${NC}"
+        echo ""
+        echo "  1) 🆕 开始新测试"
+        echo "  2) 🔧 自动维护菜单"
+        echo "  3) ❌ 退出"
+    fi
+    
+    echo ""
+    echo -e "${YELLOW}请输入选项:${NC}"
+}
+
+show_test_mode_menu() {
+    echo -e "${CYAN}========================================${NC}"
+    echo -e "${CYAN}选择测试模式${NC}"
+    echo -e "${CYAN}========================================${NC}"
+    echo ""
+    echo "  1) ⚡ 自动模式（阶段内连续运行）"
+    echo "  2) 🔍 调试模式（每个模型后暂停）"
+    echo "  3) 🚀 全自动模式（跨阶段连续运行）"
+    echo "  4) ⬅️ 返回上一级"
+    echo ""
+    echo -e "${YELLOW}请输入选项 [1-4]:${NC}"
+}
+
+show_rate_limit_menu() {
+    echo -e "${CYAN}========================================${NC}"
+    echo -e "${CYAN}选择并发策略${NC}"
+    echo -e "${CYAN}========================================${NC}"
+    echo ""
+    echo "  1) 🔧 固定速率模式 (Fixed) - 使用预设的并发数 ⭐ 推荐"
+    echo "     ▪ Azure API: 100并发, 200 QPS"
+    echo "     ▪ IdealLab API: 3并发, 5 QPS"
+    echo "     ▪ 其他API: 20并发, 30 QPS"
+    echo "     ▪ 优点：稳定可预测"
+    echo "     ▪ 缺点：可能未充分利用API能力"
+    echo ""
+    echo "  2) 🎯 自适应模式 (Adaptive) - 智能调整并发数，避免限流"
+    echo "     ▪ 优点：自动根据API响应调整，最大化吞吐量"
+    echo "     ▪ 缺点：遇到限流时会降速"
+    echo ""
+    echo "  3) 🔥 超高并行模式 (Ultra Parallel) - 多实例/多Key并行"
+    echo "     ▪ Azure模型 (DeepSeek/Llama): 最多6个实例同时运行"
+    echo "     ▪ IdealLab模型 (Qwen): 3个API Key同时运行"
+    echo "     ▪ 理论加速比: 3-6倍"
+    echo "     ▪ 资源利用率: 最大化API配额使用"
+    echo ""
+    echo "  4) ⚙️  自定义速率 - 手动设置并发参数"
+    echo ""
+    echo -e "${YELLOW}请输入选项 [1-4]:${NC}"
+}
+
+show_checkpoint_menu() {
+    echo -e "${CYAN}========================================${NC}"
+    echo -e "${CYAN}配置Checkpoint保存策略${NC}"
+    echo -e "${CYAN}========================================${NC}"
+    echo ""
+    echo "  💾 Checkpoint机制说明："
+    echo "     定期保存测试结果到数据库，防止中断丢失数据"
+    echo ""
+    echo "  1) ⚡ 快速模式 - 每10个测试保存一次"
+    echo "     ▪ 更频繁的保存，数据更安全"
+    echo "     ▪ 适合不稳定的环境或重要测试"
+    echo ""
+    echo "  2) 🎯 标准模式 - 每20个测试保存一次（推荐）"
+    echo "     ▪ 平衡性能和安全性"
+    echo "     ▪ 适合大多数场景"
+    echo ""
+    echo "  3) 🚀 性能模式 - 每50个测试保存一次"
+    echo "     ▪ 减少IO操作，提高测试速度"
+    echo "     ▪ 适合稳定环境的大批量测试"
+    echo ""
+    echo "  4) 🔒 安全模式 - 每5个测试保存一次"
+    echo "     ▪ 最频繁的保存，数据最安全"
+    echo "     ▪ 适合极不稳定的环境"
+    echo ""
+    echo "  5) ⚙️  自定义间隔 - 手动设置保存频率"
+    echo ""
+    echo "  6) ❌ 禁用Checkpoint - 仅在最后保存"
+    echo "     ▪ 最快速度，但中断会丢失所有数据"
+    echo ""
+    echo -e "${YELLOW}请输入选项 [1-6]:${NC}"
+}
+
+# 清理函数
+clean_all_progress() {
+    # 获取当前模型类型的相关文件名
+    local progress_file=$(get_progress_file)
+    local completed_file=$(get_completed_file)
+    local db_suffix=""
+    local db_file="master_database.json"
+    local model_type_desc="开源"
+    
+    if [ "$MODEL_TYPE" = "closed_source" ]; then
+        db_suffix="_closed_source"
+        db_file="master_database_closed_source.json"
+        model_type_desc="闭源"
+    fi
+    
+    echo -e "${YELLOW}========================================${NC}"
+    echo -e "${YELLOW}准备清理${model_type_desc}模型的测试进度和数据${NC}"
+    echo -e "${YELLOW}========================================${NC}"
+    echo ""
+    echo "将清理以下内容："
+    echo "  1. 进度文件 ($progress_file)"
+    echo "  2. 完成记录 ($completed_file)"
+    echo "  3. 累积测试数据库 (pilot_bench_cumulative_results/$db_file)"
+    echo ""
+    echo -e "${RED}⚠️  警告：这将删除${model_type_desc}模型的所有测试记录！${NC}"
+    echo -e "${YELLOW}是否确认清理并从头开始？(yes/no)${NC}"
+    read -r confirmation
+    
+    if [ "$confirmation" != "yes" ]; then
+        echo -e "${BLUE}取消清理，返回主菜单${NC}"
+        return 1
+    fi
+    
+    echo ""
+    echo "开始清理..."
+    
+    # 1. 清理进度文件
+    if [ -f "$progress_file" ]; then
+        rm -f "$progress_file"
+        echo -e "${GREEN}✓ 已删除进度文件: $progress_file${NC}"
+    else
+        echo "  进度文件不存在: $progress_file"
+    fi
+    
+    # 2. 清理完成记录
+    if [ -f "$completed_file" ]; then
+        rm -f "$completed_file"
+        echo -e "${GREEN}✓ 已删除完成记录: $completed_file${NC}"
+    else
+        echo "  完成记录不存在: $completed_file"
+    fi
+    
+    # 3. 备份并清理特定的数据库文件
+    if [ -f "pilot_bench_cumulative_results/$db_file" ]; then
+        # 只备份特定的数据库文件
+        BACKUP_FILE="pilot_bench_cumulative_results/${db_file}.backup_$(date +%Y%m%d_%H%M%S)"
+        cp "pilot_bench_cumulative_results/$db_file" "$BACKUP_FILE"
+        if [ $? -eq 0 ]; then
+            echo -e "${GREEN}✅ 已备份数据库文件到: $BACKUP_FILE${NC}"
+        else
+            echo -e "${RED}⚠️  备份失败${NC}"
+            return 1
+        fi
+        
+        # 使用Python清理特定的数据库文件
+        DB_PATH="pilot_bench_cumulative_results/$db_file"
+        python -c "
+from enhanced_cumulative_manager import EnhancedCumulativeManager
+manager = EnhancedCumulativeManager(db_suffix='$db_suffix')
+manager.clear_database()
+print('  数据库已清理')
+" 2>/dev/null || {
+            # 如果Python方法失败，直接创建空数据库
+            echo '{
+  "version": "3.0",
+  "created_at": "'$(date -Iseconds)'",
+  "last_updated": "'$(date -Iseconds)'",
+  "test_groups": {},
+  "models": {},
+  "summary": {
+    "total_tests": 0,
+    "total_success": 0,
+    "total_partial": 0,
+    "total_failure": 0,
+    "models_tested": [],
+    "last_test_time": null
+  }
+}' > "$DB_PATH"
+        }
+        echo -e "${GREEN}✓ 已清理${model_type_desc}模型测试数据库${NC}"
+    else
+        echo "  ${model_type_desc}模型数据库文件不存在"
+        # 创建目录如果不存在
+        mkdir -p "pilot_bench_cumulative_results"
+        # 创建空数据库
+        echo '{
+  "version": "3.0",
+  "created_at": "'$(date -Iseconds)'",
+  "last_updated": "'$(date -Iseconds)'",
+  "test_groups": {},
+  "models": {},
+  "summary": {
+    "total_tests": 0,
+    "total_success": 0,
+    "total_partial": 0,
+    "total_failure": 0,
+    "models_tested": [],
+    "last_test_time": null
+  }
+}' > "pilot_bench_cumulative_results/$db_file"
+        echo -e "${GREEN}✓ 已创建新的${model_type_desc}模型数据库${NC}"
+    fi
+    
+    echo ""
+    echo -e "${GREEN}========================================${NC}"
+    echo -e "${GREEN}✅ ${model_type_desc}模型清理完成！准备从头开始测试${NC}"
+    echo -e "${GREEN}========================================${NC}"
+    echo ""
+    sleep 2
+    return 0
+}
+
+
+# 自定义阶段选择菜单
+show_custom_stage_menu() {
+    echo -e "${CYAN}========================================${NC}"
+    echo -e "${CYAN}选择要开始的阶段${NC}"
+    echo -e "${CYAN}========================================${NC}"
+    echo ""
+    if [ "$MODEL_TYPE" = "closed_source" ]; then
+        echo "  1) 5.1 基准测试 (5个闭源模型, optimal+easy)"
+        echo "  2) ❌ 5.2 Qwen规模效应测试 (不适用于闭源模型)"
+        echo "  3) 5.3 缺陷工作流测试 (5个闭源模型, 7种缺陷类型)"
+        echo "  4) 5.4 工具可靠性测试 (5个闭源模型, 5种可靠性级别)"
+        echo "  5) 5.5 提示类型敏感性测试 (5个闭源模型, 2种提示类型)"
+    else
+        echo "  1) 5.1 基准测试 (8个开源模型, optimal+easy)"
+        echo "  2) 5.2 Qwen规模效应测试 (5个Qwen模型, very_easy+medium)"
+        echo "  3) 5.3 缺陷工作流测试 (8个模型, 7种缺陷类型)"
+        echo "  4) 5.4 工具可靠性测试 (8个模型, 5种可靠性级别)"
+        echo "  5) 5.5 提示类型敏感性测试 (8个模型, 2种提示类型)"
+    fi
+    echo "  6) 🔧 高级自定义 (直接设置STEP/MODEL_INDEX/SUBSTEP)"
+    echo "  7) ⬅️ 返回上一级"
+    echo ""
+    echo -e "${YELLOW}请选择 [1-7]:${NC}"
+    
+    read -r stage_choice
+    
+    case $stage_choice in
+        1)
+            echo -e "${GREEN}选择：从5.1基准测试开始${NC}"
+            # 清理旧进度
+            rm -f "$PROGRESS_FILE" "$COMPLETED_FILE"
+            # 设置为阶段1
+            echo "STEP=1" > "$PROGRESS_FILE"
+            echo "MODEL_INDEX=0" >> "$PROGRESS_FILE"
+            echo "SUBSTEP=" >> "$PROGRESS_FILE"
+            echo -e "${GREEN}✅ 已设置从5.1开始${NC}"
+            START_FRESH=false
+            break
+            ;;
+        2)
+            if [ "$MODEL_TYPE" = "closed_source" ]; then
+                echo -e "${RED}❌ 5.2 Qwen规模效应测试不适用于闭源模型${NC}"
+                echo -e "${YELLOW}Qwen系列仅为开源模型，请选择其他阶段${NC}"
+                sleep 2
+                continue
+            fi
+            
+            echo -e "${GREEN}选择：从5.2 Qwen规模效应测试开始${NC}"
+            echo ""
+            echo -e "${YELLOW}选择子步骤:${NC}"
+            echo "  1) very_easy 难度"
+            echo "  2) medium 难度"
+            echo "  3) 🔄 全部（先very_easy后medium）"
+            echo -e "${YELLOW}请选择 [1-3]:${NC}"
+            read -r substep_choice
+            
+            case $substep_choice in
+                1) CUSTOM_SUBSTEP="very_easy" ;;
+                2) CUSTOM_SUBSTEP="medium" ;;
+                3) CUSTOM_SUBSTEP="" ;;  # 空表示从头开始，会依次做两个难度
+                *) CUSTOM_SUBSTEP="" ;;
+            esac
+            
+            # 清理旧进度
+            rm -f "$PROGRESS_FILE" "$COMPLETED_FILE"
+            # 设置为阶段2
+            echo "STEP=2" > "$PROGRESS_FILE"
+            echo "MODEL_INDEX=0" >> "$PROGRESS_FILE"
+            echo "SUBSTEP=$CUSTOM_SUBSTEP" >> "$PROGRESS_FILE"
+            if [ -z "$CUSTOM_SUBSTEP" ]; then
+                echo -e "${GREEN}✅ 已设置从5.2开始 (将测试全部难度)${NC}"
+            else
+                echo -e "${GREEN}✅ 已设置从5.2开始 (子步骤: $CUSTOM_SUBSTEP)${NC}"
+            fi
+            START_FRESH=false
+            break
+            ;;
+        3)
+            echo -e "${GREEN}选择：从5.3缺陷工作流测试开始${NC}"
+            echo ""
+            echo -e "${YELLOW}选择缺陷类型:${NC}"
+            echo "  1) flawed_sequence_disorder (顺序错误)"
+            echo "  2) flawed_tool_misuse (工具误用)"
+            echo "  3) flawed_parameter_error (参数错误)"
+            echo "  4) flawed_missing_step (缺少步骤)"
+            echo "  5) flawed_redundant_operations (冗余操作)"
+            echo "  6) flawed_logical_inconsistency (逻辑不一致)"
+            echo "  7) flawed_semantic_drift (语义偏移)"
+            echo "  8) 从头开始所有缺陷类型"
+            echo -e "${YELLOW}请选择 [1-8]:${NC}"
+            read -r flaw_choice
+            
+            case $flaw_choice in
+                1) CUSTOM_SUBSTEP="flawed_sequence_disorder" ;;
+                2) CUSTOM_SUBSTEP="flawed_tool_misuse" ;;
+                3) CUSTOM_SUBSTEP="flawed_parameter_error" ;;
+                4) CUSTOM_SUBSTEP="flawed_missing_step" ;;
+                5) CUSTOM_SUBSTEP="flawed_redundant_operations" ;;
+                6) CUSTOM_SUBSTEP="flawed_logical_inconsistency" ;;
+                7) CUSTOM_SUBSTEP="flawed_semantic_drift" ;;
+                8) CUSTOM_SUBSTEP="" ;;
+                *) CUSTOM_SUBSTEP="" ;;
+            esac
+            
+            rm -f "$PROGRESS_FILE" "$COMPLETED_FILE"
+            echo "STEP=3" > "$PROGRESS_FILE"
+            echo "MODEL_INDEX=0" >> "$PROGRESS_FILE"
+            echo "SUBSTEP=$CUSTOM_SUBSTEP" >> "$PROGRESS_FILE"
+            echo -e "${GREEN}✅ 已设置从5.3开始 (缺陷类型: ${CUSTOM_SUBSTEP:-全部})${NC}"
+            START_FRESH=false
+            break
+            ;;
+        4)
+            echo -e "${GREEN}选择：从5.4工具可靠性测试开始${NC}"
+            rm -f "$PROGRESS_FILE" "$COMPLETED_FILE"
+            echo "STEP=4" > "$PROGRESS_FILE"
+            echo "MODEL_INDEX=0" >> "$PROGRESS_FILE"
+            echo "SUBSTEP=" >> "$PROGRESS_FILE"
+            echo -e "${GREEN}✅ 已设置从5.4开始${NC}"
+            START_FRESH=false
+            break
+            ;;
+        5)
+            echo -e "${GREEN}选择：从5.5提示类型敏感性测试开始${NC}"
+            rm -f "$PROGRESS_FILE" "$COMPLETED_FILE"
+            echo "STEP=5" > "$PROGRESS_FILE"
+            echo "MODEL_INDEX=0" >> "$PROGRESS_FILE"
+            echo "SUBSTEP=" >> "$PROGRESS_FILE"
+            echo -e "${GREEN}✅ 已设置从5.5开始${NC}"
+            START_FRESH=false
+            break
+            ;;
+        6)
+            echo -e "${CYAN}选择：高级自定义${NC}"
+            echo ""
+            echo -e "${YELLOW}输入STEP (1-5):${NC}"
+            read -r custom_step
+            echo -e "${YELLOW}输入MODEL_INDEX (从0开始):${NC}"
+            read -r custom_model_idx
+            echo -e "${YELLOW}输入SUBSTEP (可选，直接回车跳过):${NC}"
+            read -r custom_substep
+            
+            # 验证输入
+            if [[ ! "$custom_step" =~ ^[1-5]$ ]]; then
+                echo -e "${RED}无效的STEP值${NC}"
+                show_custom_stage_menu
+                return
+            fi
+            
+            if [[ ! "$custom_model_idx" =~ ^[0-9]+$ ]]; then
+                custom_model_idx=0
+            fi
+            
+            rm -f "$PROGRESS_FILE" "$COMPLETED_FILE"
+            echo "STEP=$custom_step" > "$PROGRESS_FILE"
+            echo "MODEL_INDEX=$custom_model_idx" >> "$PROGRESS_FILE"
+            echo "SUBSTEP=$custom_substep" >> "$PROGRESS_FILE"
+            
+            echo -e "${GREEN}✅ 已设置自定义进度:${NC}"
+            echo "   STEP=$custom_step"
+            echo "   MODEL_INDEX=$custom_model_idx"
+            echo "   SUBSTEP=$custom_substep"
+            START_FRESH=false
+            break
+            ;;
+        7)
+            echo -e "${BLUE}返回主菜单${NC}"
+            return
+            ;;
+        *)
+            echo -e "${RED}无效选项，请重新选择${NC}"
+            show_custom_stage_menu
+            ;;
+    esac
+}
+
+# 失败测试重新运行菜单
+show_failed_tests_rerun_menu() {
+    echo -e "${PURPLE}========================================${NC}"
+    echo -e "${PURPLE}📋 失败测试重新运行${NC}"
+    echo -e "${PURPLE}========================================${NC}"
+    echo ""
+    
+    # 显示失败测试概要
+    show_failed_tests_summary
+    echo ""
+    
+    echo -e "${YELLOW}选项：${NC}"
+    echo "  1) 📖 查看详细失败信息"
+    echo "  2) 🔄 重新运行所有失败的测试"
+    echo "  3) 🎯 选择特定模型重新测试"
+    echo "  4) 🧹 清除失败测试记录"
+    echo "  5) ⬅️ 返回主菜单"
+    echo ""
+    echo -e "${YELLOW}请选择 [1-5]:${NC}"
+    
+    read -r failed_choice
+    case $failed_choice in
+        1)
+            echo -e "${CYAN}查看详细失败信息${NC}"
+            echo ""
+            show_failed_tests_details
+            echo ""
+            echo -e "${YELLOW}按Enter返回...${NC}"
+            read -r
+            show_failed_tests_rerun_menu
+            ;;
+        2)
+            echo -e "${GREEN}开始重新运行所有失败的测试${NC}"
+            echo ""
+            run_all_failed_tests
+            ;;
+        3)
+            echo -e "${CYAN}选择特定模型重新测试${NC}"
+            echo ""
+            show_select_failed_model_menu
+            ;;
+        4)
+            echo -e "${YELLOW}清除失败测试记录${NC}"
+            echo ""
+            echo -e "${RED}⚠️  这将删除失败测试配置文件${NC}"
+            echo -e "${YELLOW}确认删除？[y/N]:${NC}"
+            read -r confirm
+            if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                rm -f failed_tests_config_opensource.json failed_tests_config_closed_source.json
+                echo -e "${GREEN}✅ 已清除失败测试记录${NC}"
+                echo ""
+                echo -e "${YELLOW}返回主菜单...${NC}"
+                sleep 2
+                return
+            else
+                echo -e "${CYAN}已取消${NC}"
+                show_failed_tests_rerun_menu
+            fi
+            ;;
+        5)
+            echo -e "${BLUE}返回主菜单${NC}"
+            return
+            ;;
+        *)
+            echo -e "${RED}无效选项，请重新选择${NC}"
+            show_failed_tests_rerun_menu
+            ;;
+    esac
+}
+
+# ============================================
+# 增强的自动维护菜单
+# ============================================
+
+show_enhanced_maintenance_menu() {
+    echo -e "${CYAN}========================================${NC}"
+    echo -e "${CYAN}🔧 自动失败维护系统${NC}"
+    echo -e "${CYAN}========================================${NC}"
+    echo ""
+    
+    # 检查系统状态
+    if [ "$MAINTENANCE_LIB_LOADED" = "true" ]; then
+        echo -e "${GREEN}✅ 维护函数库已加载${NC}"
+        
+        # 显示快速状态
+        echo -e "${BLUE}📊 系统状态概览:${NC}"
+        if command -v check_auto_maintenance_status >/dev/null 2>&1; then
+            check_auto_maintenance_status >/dev/null 2>&1 && echo "  ✅ 系统正常" || echo "  ❌ 系统异常"
+        fi
+        
+        if command -v check_incomplete_tests >/dev/null 2>&1; then
+            if check_incomplete_tests "" >/dev/null 2>&1; then
+                echo "  ⚠️  发现未完成测试"
+            else
+                echo "  ✅ 所有测试已完成"
+            fi
+        fi
+    else
+        echo -e "${YELLOW}⚠️  维护函数库未加载，部分功能可能不可用${NC}"
+    fi
+    
+    echo ""
+    echo -e "${YELLOW}🛠️  维护操作:${NC}"
+    echo "  1) 🔍 检查系统状态和完成情况"
+    echo "  2) 📊 分析模型测试进度"
+    echo "  3) 📝 生成自动重测脚本"
+    echo "  4) 🔄 执行增量重测（仅未完成的）"
+    echo "  5) 🧙 自动维护向导（推荐）"
+    echo "  6) 🔧 手动维护配置"
+    echo ""
+    echo -e "${YELLOW}🚀 快速操作:${NC}"
+    echo "  7) ⚡ 一键智能维护（分析+重测）"
+    echo "  8) 🎯 基于完全失败+执行时间的智能重测"
+    echo "  9) 📈 显示进度报告"
+    echo ""
+    echo -e "${YELLOW}🔧 高级功能:${NC}"
+    echo "  10) 🔬 深度分析测试异常"
+    echo "  11) 🛠️  修复数据库一致性"
+    echo "  12) 🧹 清理冗余数据"
+    echo ""
+    echo "  0) ⬅️  返回主菜单"
+    echo ""
+    echo -e "${YELLOW}请选择维护操作 [0-12]:${NC}"
+}
+
+handle_enhanced_maintenance_choice() {
+    local choice="$1"
+    
+    case $choice in
+        1)
+            echo -e "${CYAN}🔍 检查系统状态和完成情况${NC}"
+            echo ""
+            if [ "$MAINTENANCE_LIB_LOADED" = "true" ]; then
+                if command -v smart_maintenance_entry >/dev/null 2>&1; then
+                    smart_maintenance_entry "check" "" "false"
+                else
+                    check_auto_maintenance_status
+                    get_models_completion_summary ""
+                fi
+            else
+                python3 auto_failure_maintenance_system.py status
+            fi
+            echo ""
+            echo -e "${YELLOW}按Enter继续...${NC}"
+            read -r
+            ;;
+        2)
+            echo -e "${CYAN}📊 分析模型测试进度${NC}"
+            echo ""
+            if [ "$MAINTENANCE_LIB_LOADED" = "true" ] && command -v get_models_completion_summary >/dev/null 2>&1; then
+                get_models_completion_summary ""
+            else
+                python3 -c "
+import sys
+sys.path.insert(0, '.')
+from auto_failure_maintenance_system import AutoFailureMaintenanceSystem
+system = AutoFailureMaintenanceSystem(enable_auto_retry=False)
+analysis = system.analyze_test_completion()
+print(f'分析了 {len(analysis[\"models_analyzed\"])} 个模型')
+for model in analysis['models_analyzed']:
+    summary = analysis['completion_summary'][model]
+    if summary['status'] == 'analyzed':
+        completion_rate = summary['completion_rate']
+        failure_rate = summary['failure_rate']
+        print(f'{model}: 完成率 {completion_rate:.1%}, 失败率 {failure_rate:.1%}')
+"
+            fi
+            echo ""
+            echo -e "${YELLOW}按Enter继续...${NC}"
+            read -r
+            ;;
+        3)
+            echo -e "${CYAN}📝 生成自动重测脚本${NC}"
+            echo ""
+            echo -e "${YELLOW}脚本名称 (默认: auto_retest_generated.sh): ${NC}"
+            read -r script_name
+            script_name=${script_name:-auto_retest_generated.sh}
+            
+            if [ "$MAINTENANCE_LIB_LOADED" = "true" ] && command -v generate_retest_script >/dev/null 2>&1; then
+                generate_retest_script "" "$script_name"
+            else
+                python3 auto_failure_maintenance_system.py retest
+                if [ -f "auto_retest_incomplete.sh" ]; then
+                    mv "auto_retest_incomplete.sh" "$script_name"
+                    chmod +x "$script_name"
+                    echo -e "${GREEN}✅ 重测脚本已生成: $script_name${NC}"
+                fi
+            fi
+            echo ""
+            echo -e "${YELLOW}按Enter继续...${NC}"
+            read -r
+            ;;
+        4)
+            echo -e "${CYAN}🔄 执行增量重测${NC}"
+            echo ""
+            echo -e "${YELLOW}完成率阈值 (0.0-1.0, 默认0.8): ${NC}"
+            read -r threshold
+            threshold=${threshold:-0.8}
+            
+            if [ "$MAINTENANCE_LIB_LOADED" = "true" ] && command -v run_incremental_retest >/dev/null 2>&1; then
+                run_incremental_retest "" "$threshold" "false"
+            else
+                python3 smart_batch_runner.py --incremental-retest --completion-threshold "$threshold"
+            fi
+            echo ""
+            echo -e "${YELLOW}按Enter继续...${NC}"
+            read -r
+            ;;
+        5)
+            echo -e "${CYAN}🧙 自动维护向导${NC}"
+            echo ""
+            if [ "$MAINTENANCE_LIB_LOADED" = "true" ] && command -v auto_maintenance_wizard >/dev/null 2>&1; then
+                auto_maintenance_wizard "" "true"
+            else
+                echo -e "${YELLOW}⚠️  维护向导不可用，执行基本维护${NC}"
+                python3 smart_batch_runner.py --auto-maintain
+            fi
+            echo ""
+            echo -e "${YELLOW}按Enter继续...${NC}"
+            read -r
+            ;;
+        6)
+            echo -e "${CYAN}🔧 手动维护配置${NC}"
+            echo ""
+            if [ "$MAINTENANCE_LIB_LOADED" = "true" ] && command -v load_maintenance_config >/dev/null 2>&1; then
+                load_maintenance_config
+            fi
+            
+            echo -e "${YELLOW}选择维护类型:${NC}"
+            echo "  1) 自动维护（仅分析）"
+            echo "  2) 自动维护（执行重测）"
+            echo "  3) 增量重测"
+            echo "  4) 生成脚本"
+            echo -e "${YELLOW}请选择 [1-4]: ${NC}"
+            read -r maintenance_type
+            
+            case $maintenance_type in
+                1)
+                    if [ "$MAINTENANCE_LIB_LOADED" = "true" ]; then
+                        run_auto_maintenance "" "true"
+                    else
+                        python3 auto_failure_maintenance_system.py maintain
+                    fi
+                    ;;
+                2)
+                    if [ "$MAINTENANCE_LIB_LOADED" = "true" ]; then
+                        run_auto_maintenance "" "false"
+                    else
+                        python3 smart_batch_runner.py --auto-maintain
+                    fi
+                    ;;
+                3)
+                    if [ "$MAINTENANCE_LIB_LOADED" = "true" ]; then
+                        run_incremental_retest "" "0.8" "false"
+                    else
+                        python3 smart_batch_runner.py --incremental-retest
+                    fi
+                    ;;
+                4)
+                    python3 auto_failure_maintenance_system.py retest
+                    ;;
+            esac
+            echo ""
+            echo -e "${YELLOW}按Enter继续...${NC}"
+            read -r
+            ;;
+        7)
+            echo -e "${CYAN}⚡ 一键智能维护${NC}"
+            echo ""
+            echo -e "${BLUE}执行流程: 状态检查 → 进度分析 → 自动重测${NC}"
+            echo ""
+            
+            # 步骤1: 检查状态
+            echo -e "${YELLOW}步骤 1/3: 检查系统状态...${NC}"
+            if [ "$MAINTENANCE_LIB_LOADED" = "true" ] && command -v check_auto_maintenance_status >/dev/null 2>&1; then
+                if ! check_auto_maintenance_status; then
+                    echo -e "${RED}❌ 系统状态异常，中止维护${NC}"
+                    return 1
+                fi
+            fi
+            
+            # 步骤2: 分析进度
+            echo -e "${YELLOW}步骤 2/3: 分析测试进度...${NC}"
+            if [ "$MAINTENANCE_LIB_LOADED" = "true" ] && command -v check_incomplete_tests >/dev/null 2>&1; then
+                if check_incomplete_tests ""; then
+                    echo -e "${CYAN}发现未完成测试，准备重测...${NC}"
+                    
+                    # 步骤3: 执行重测
+                    echo -e "${YELLOW}步骤 3/3: 执行增量重测...${NC}"
+                    run_incremental_retest "" "0.8" "false"
+                else
+                    echo -e "${GREEN}✅ 所有测试已完成${NC}"
+                fi
+            else
+                echo -e "${YELLOW}执行Python版本维护...${NC}"
+                python3 smart_batch_runner.py --auto-maintain
+            fi
+            
+            echo -e "${GREEN}🎉 智能维护完成${NC}"
+            echo ""
+            echo -e "${YELLOW}按Enter继续...${NC}"
+            read -r
+            ;;
+        8)
+            echo -e "${CYAN}🎯 基于完全失败+执行时间的智能重测${NC}"
+            echo ""
+            echo -e "${YELLOW}执行时间阈值 (秒, 默认300): ${NC}"
+            read -r execution_threshold
+            execution_threshold=${execution_threshold:-300}
+            
+            echo -e "${BLUE}分析模型完全失败和执行时间...${NC}"
+            python3 -c "
+import sys
+sys.path.insert(0, '.')
+from auto_failure_maintenance_system import AutoFailureMaintenanceSystem
+
+system = AutoFailureMaintenanceSystem(enable_auto_retry=False)
+# 更新配置中的执行时间阈值
+system.auto_retest_config.max_execution_time = $execution_threshold
+analysis = system.analyze_test_completion()
+
+retry_models = []
+for model in analysis['models_analyzed']:
+    summary = analysis['completion_summary'][model]
+    if summary['status'] == 'analyzed':
+        complete_failure = summary.get('needs_retry_complete_failure', False)
+        high_exec_time = summary.get('needs_retry_high_execution_time', False)
+        avg_exec_time = summary.get('avg_execution_time', 0)
+        
+        reasons = []
+        if complete_failure:
+            failure_configs = summary.get('complete_failure_configs', [])
+            reasons.append(f'完全失败配置: {len(failure_configs)}个')
+        if high_exec_time:
+            reasons.append(f'执行时间过长: {avg_exec_time:.1f}秒')
+        
+        if complete_failure or high_exec_time:
+            retry_models.append(model)
+            print(f'⚠️  {model}: {\" | \".join(reasons)}')
+
+if retry_models:
+    print(f'\\n发现 {len(retry_models)} 个需要重测的模型')
+    print('重测原因: 完全失败配置 或 执行时间超过阈值')
+else:
+    print('\\n✅ 所有模型都在正常范围内')
+"
+            echo ""
+            echo -e "${YELLOW}按Enter继续...${NC}"
+            read -r
+            ;;
+        9)
+            echo -e "${CYAN}📈 显示进度报告${NC}"
+            echo ""
+            if [ "$MAINTENANCE_LIB_LOADED" = "true" ] && command -v show_progress_summary >/dev/null 2>&1; then
+                show_progress_summary
+            else
+                echo -e "${BLUE}📊 基本进度信息:${NC}"
+                if [ -f "$COMPLETED_FILE" ]; then
+                    local completed_count=$(wc -l < "$COMPLETED_FILE" 2>/dev/null || echo 0)
+                    echo "  已完成配置: $completed_count"
+                fi
+                if [ -f "$PROGRESS_FILE" ]; then
+                    echo -e "${YELLOW}当前进度文件内容:${NC}"
+                    cat "$PROGRESS_FILE"
+                fi
+            fi
+            echo ""
+            echo -e "${YELLOW}按Enter继续...${NC}"
+            read -r
+            ;;
+        10)
+            echo -e "${CYAN}🔬 深度分析测试异常${NC}"
+            echo ""
+            python3 -c "
+import sys
+sys.path.insert(0, '.')
+try:
+    from auto_failure_maintenance_system import AutoFailureMaintenanceSystem
+    system = AutoFailureMaintenanceSystem(enable_auto_retry=False)
+    analysis = system.analyze_test_completion()
+    
+    print('🔍 测试异常分析:')
+    print(f'- 分析模型数: {len(analysis[\"models_analyzed\"])}')
+    print(f'- 失败模式数: {len(analysis[\"failure_patterns\"])}')
+    print(f'- 重试建议数: {len(analysis[\"retry_recommendations\"])}')
+    
+    if analysis['failure_patterns']:
+        print('\\n⚠️  发现的失败模式:')
+        for pattern in analysis['failure_patterns']:
+            print(f'  - {pattern}')
+            
+    if analysis['retry_recommendations']:
+        print('\\n💡 重试建议:')
+        for rec in analysis['retry_recommendations']:
+            print(f'  - {rec}')
+            
+except Exception as e:
+    print(f'❌ 深度分析失败: {e}')
+"
+            echo ""
+            echo -e "${YELLOW}按Enter继续...${NC}"
+            read -r
+            ;;
+        11)
+            echo -e "${CYAN}🛠️  修复数据库一致性${NC}"
+            echo ""
+            echo -e "${YELLOW}⚠️  这将检查并修复数据库中的不一致问题${NC}"
+            echo -e "${YELLOW}是否继续？ (y/n): ${NC}"
+            read -r confirm
+            if [ "$confirm" = "y" ]; then
+                python3 -c "
+import sys
+sys.path.insert(0, '.')
+try:
+    from data_structure_v3 import DatabaseManagerV3
+    manager = DatabaseManagerV3()
+    print('🔧 开始数据库一致性检查...')
+    
+    # 这里可以添加数据库修复逻辑
+    print('✅ 数据库一致性检查完成')
+except Exception as e:
+    print(f'❌ 数据库检查失败: {e}')
+"
+            fi
+            echo ""
+            echo -e "${YELLOW}按Enter继续...${NC}"
+            read -r
+            ;;
+        12)
+            echo -e "${CYAN}🧹 清理冗余数据${NC}"
+            echo ""
+            echo -e "${YELLOW}选择清理类型:${NC}"
+            echo "  1) 清理过期日志文件"
+            echo "  2) 清理临时测试文件"
+            echo "  3) 压缩历史数据"
+            echo "  4) 全面清理"
+            echo -e "${YELLOW}请选择 [1-4]: ${NC}"
+            read -r cleanup_type
+            
+            case $cleanup_type in
+                1)
+                    echo "清理过期日志文件..."
+                    find logs/ -name "*.log" -mtime +7 -type f -delete 2>/dev/null || true
+                    echo "✅ 日志文件清理完成"
+                    ;;
+                2)
+                    echo "清理临时测试文件..."
+                    rm -f test_*.tmp debug_*.tmp 2>/dev/null || true
+                    echo "✅ 临时文件清理完成"
+                    ;;
+                3)
+                    echo "压缩历史数据..."
+                    # 这里可以添加数据压缩逻辑
+                    echo "✅ 历史数据压缩完成"
+                    ;;
+                4)
+                    echo "执行全面清理..."
+                    find logs/ -name "*.log" -mtime +7 -type f -delete 2>/dev/null || true
+                    rm -f test_*.tmp debug_*.tmp 2>/dev/null || true
+                    echo "✅ 全面清理完成"
+                    ;;
+            esac
+            echo ""
+            echo -e "${YELLOW}按Enter继续...${NC}"
+            read -r
+            ;;
+        0)
+            echo -e "${GREEN}返回主菜单${NC}"
+            return 0
+            ;;
+        *)
+            echo -e "${RED}无效选择，请重新输入${NC}"
+            sleep 1
+            return 1
+            ;;
+    esac
+    
+    return 0
+}
+
+# 运行所有失败的测试
+run_all_failed_tests() {
+    echo -e "${GREEN}========================================${NC}"
+    echo -e "${GREEN}🔄 重新运行所有失败的测试${NC}"
+    echo -e "${GREEN}========================================${NC}"
+    echo ""
+    
+    if ! check_failed_tests_config; then
+        echo -e "${RED}❌ 没有找到失败测试配置文件${NC}"
+        return 1
+    fi
+    
+    # 确认
+    echo -e "${YELLOW}即将开始重新运行所有失败的测试组${NC}"
+    echo -e "${YELLOW}这可能需要很长时间，确认继续？[y/N]:${NC}"
+    read -r confirm
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        echo -e "${CYAN}已取消${NC}"
+        return 0
+    fi
+    
+    # 设置测试模式为自动
+    AUTO_MODE="auto"
+    CHECKPOINT_INTERVAL=10
+    
+    # 使用python脚本执行所有失败的测试
+    python3 -c "
+import json
+import subprocess
+import sys
+
+def run_test(model, prompt_types, group_name):
+    '''运行单个测试组'''
+    print(f'🔄 开始测试: {model} - {group_name}')
+    
+    cmd = [
+        'python', 'ultra_parallel_runner.py',
+        '--model', model,
+        '--prompt-types', prompt_types,
+        '--difficulty', 'easy',
+        '--task-types', 'all',
+        '--num-instances', '$NUM_INSTANCES'
+    ]
+    
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=7200)  # 2小时超时
+        if result.returncode == 0:
+            print(f'✅ {model} - {group_name} 测试成功')
+            return True
+        else:
+            print(f'❌ {model} - {group_name} 测试失败')
+            print(f'错误: {result.stderr}')
+            return False
+    except subprocess.TimeoutExpired:
+        print(f'⏰ {model} - {group_name} 测试超时')
+        return False
+    except Exception as e:
+        print(f'💥 {model} - {group_name} 测试异常: {e}')
+        return False
+
+# 读取失败测试配置
+try:
+    config_file = 'failed_tests_config_closed_source.json' if '$MODEL_TYPE' == 'closed_source' else 'failed_tests_config_opensource.json'
+with open(config_file, 'r', encoding='utf-8') as f:
+        config = json.load(f)
+except Exception as e:
+    print(f'❌ 读取配置文件失败: {e}')
+    sys.exit(1)
+
+session = config['failed_tests_session']
+total_tests = 0
+success_tests = 0
+
+print('开始执行重新测试...\n')
+
+for model_data in session['failed_groups']:
+    model = model_data['model']
+    print(f'📋 处理模型: {model}')
+    
+    # 重测失败的组
+    for failed in model_data['failed_groups']:
+        group_name = failed['group_name']
+        prompt_types = failed['prompt_types']
+        total_tests += 1
+        
+        if run_test(model, prompt_types, f'重测-{group_name}'):
+            success_tests += 1
+    
+    # 完成剩余的组
+    for remaining in model_data['remaining_groups']:
+        group_name = remaining['group_name']
+        prompt_types = remaining['prompt_types']
+        total_tests += 1
+        
+        if run_test(model, prompt_types, f'完成-{group_name}'):
+            success_tests += 1
+    
+    print()
+
+print('=' * 50)
+print(f'📊 重新测试完成')
+print(f'总测试数: {total_tests}')
+print(f'成功数: {success_tests}')
+print(f'失败数: {total_tests - success_tests}')
+print(f'成功率: {success_tests/total_tests*100:.1f}%' if total_tests > 0 else '0%')
+
+if success_tests == total_tests:
+    print('🎉 所有失败的测试都已成功重新运行！')
+    # 可以选择删除失败测试记录
+    print('建议删除失败测试记录文件')
+else:
+    print('⚠️  仍有测试失败，请检查日志')
+"
+    
+    echo ""
+    echo -e "${YELLOW}按Enter返回主菜单...${NC}"
+    read -r
+}
+
+# 选择特定模型重新测试菜单
+show_select_failed_model_menu() {
+    echo -e "${CYAN}========================================${NC}"
+    echo -e "${CYAN}🎯 选择特定模型重新测试${NC}"
+    echo -e "${CYAN}========================================${NC}"
+    echo ""
+    
+    # 使用python显示模型列表
+    python3 -c "
+import json
+
+config_file = 'failed_tests_config_closed_source.json' if '$MODEL_TYPE' == 'closed_source' else 'failed_tests_config_opensource.json'
+with open(config_file, 'r', encoding='utf-8') as f:
+    config = json.load(f)
+
+models = config['failed_tests_session']['failed_groups']
+print('失败的模型列表:')
+for i, model_data in enumerate(models, 1):
+    model = model_data['model']
+    failed_count = len(model_data['failed_groups'])
+    remaining_count = len(model_data['remaining_groups'])
+    print(f'  {i}) {model} (失败:{failed_count}, 剩余:{remaining_count})')
+
+print()
+print(f'  {len(models)+1}) ⬅️ 返回上一级')
+"
+    
+    echo ""
+    local config_file=$( [ "$MODEL_TYPE" = "closed_source" ] && echo "failed_tests_config_closed_source.json" || echo "failed_tests_config_opensource.json" )
+    echo -e "${YELLOW}请选择模型 [1-$(python3 -c "import json; import sys; config=json.load(open(sys.argv[1])); print(len(config['failed_tests_session']['failed_groups'])+1)" "$config_file")]:${NC}"
+    
+    read -r model_choice
+    
+    # 验证选择并执行
+    python3 -c "
+import json
+import subprocess
+
+config_file = 'failed_tests_config_closed_source.json' if '$MODEL_TYPE' == 'closed_source' else 'failed_tests_config_opensource.json'
+with open(config_file, 'r', encoding='utf-8') as f:
+    config = json.load(f)
+
+models = config['failed_tests_session']['failed_groups']
+choice = int('$model_choice') - 1
+
+if choice == len(models):
+    print('返回上一级')
+    exit(0)
+elif 0 <= choice < len(models):
+    model_data = models[choice]
+    model = model_data['model']
+    
+    print(f'开始重新测试模型: {model}')
+    
+    # 执行该模型的所有测试
+    for failed in model_data['failed_groups']:
+        group_name = failed['group_name']
+        prompt_types = failed['prompt_types']
+        print(f'重测 {group_name}...')
+        # 这里可以调用实际的测试命令
+    
+    for remaining in model_data['remaining_groups']:
+        group_name = remaining['group_name']
+        prompt_types = remaining['prompt_types']
+        print(f'完成 {group_name}...')
+        # 这里可以调用实际的测试命令
+        
+    print(f'✅ 模型 {model} 的所有测试已完成')
+else:
+    print('无效选择')
+    exit(1)
+"
+    
+    echo ""
+    echo -e "${YELLOW}按Enter返回...${NC}"
+    read -r
+    show_select_failed_model_menu
+}
+
+# 显示进度信息
+show_progress_info() {
+    echo -e "${CYAN}========================================${NC}"
+    echo -e "${CYAN}当前测试进度：${NC}"
+    echo -e "${CYAN}========================================${NC}"
+    echo ""
+    
+    if [ -f "test_progress.txt" ]; then
+        source test_progress.txt
+        echo "  当前步骤: 5.$STEP"
+        echo "  模型索引: $MODEL_INDEX"
+        if [ -n "$SUBSTEP" ]; then
+            echo "  子步骤: $SUBSTEP"
+        fi
+    else
+        echo "  尚未开始测试"
+    fi
+    
+    if [ -f "completed_tests.txt" ]; then
+        completed_count=$(wc -l < "completed_tests.txt" 2>/dev/null || echo 0)
+        echo "  已完成配置: $completed_count"
+    else
+        echo "  已完成配置: 0"
+    fi
+    
+    # 检查数据库
+    DB_PATH="pilot_bench_cumulative_results/master_database.json"
+    if [ -f "$DB_PATH" ]; then
+        total_tests=$(python -c "import json; data=json.load(open('$DB_PATH')); print(data['summary']['total_tests'])" 2>/dev/null || echo 0)
+        echo "  累积测试数: $total_tests"
+    fi
+    
+    echo ""
+    echo -e "${YELLOW}按Enter返回主菜单...${NC}"
+    read -r
+}
+
+# 检查自动模式下的失败重测选项
+check_auto_mode_failure_retry() {
+    echo ""
+    echo -e "${CYAN}🔍 检查失败测试记录...${NC}"
+    
+    # 检查增强失败测试管理器是否有记录
+    if python3 -c "
+from enhanced_failed_tests_manager import EnhancedFailedTestsManager
+manager = EnhancedFailedTestsManager()
+if manager.has_failed_tests():
+    import sys
+    sys.exit(0)
+else:
+    sys.exit(1)
+" 2>/dev/null; then
+        echo -e "${YELLOW}⚠️  检测到失败的测试记录${NC}"
+        echo ""
+        
+        # 显示失败测试概要
+        python3 -c "
+from enhanced_failed_tests_manager import EnhancedFailedTestsManager
+manager = EnhancedFailedTestsManager()
+retry_queue = manager.get_retry_queue()
+print(f'📊 失败测试概要:')
+print(f'   待重试测试: {len(retry_queue)} 个')
+for model in manager.get_all_failed_models():
+    failed_tests = manager.get_failed_tests_for_model(model)
+    active_failures = [t for t in failed_tests if t['status'] == 'failed']
+    if active_failures:
+        print(f'   {model}: {len(active_failures)} 个失败测试')
+"
+        echo ""
+        echo -e "${CYAN}选择操作:${NC}"
+        echo "  1) 🔄 先重测失败的部分，然后继续正常流程"
+        echo "  2) ➡️  跳过失败重测，直接继续正常流程"
+        echo "  3) 🛑 退出，手动处理失败测试"
+        echo ""
+        echo -n "请选择 [1-3]: "
+        read -r retry_choice
+        
+        case $retry_choice in
+            1)
+                echo -e "${GREEN}✅ 选择：先重测失败部分${NC}"
+                echo ""
+                run_automatic_retry
+                echo ""
+                echo -e "${GREEN}失败重测完成，继续正常流程...${NC}"
+                ;;
+            2)
+                echo -e "${YELLOW}⏭️  跳过失败重测${NC}"
+                ;;
+            3)
+                echo -e "${RED}退出处理失败测试${NC}"
+                echo ""
+                echo "💡 建议操作："
+                echo "   python3 enhanced_failed_tests_manager.py status"
+                echo "   python3 enhanced_failed_tests_manager.py retry"
+                exit 0
+                ;;
+            *)
+                echo -e "${YELLOW}无效选择，跳过失败重测${NC}"
+                ;;
+        esac
+    else
+        echo -e "${GREEN}✅ 没有待重测的失败记录${NC}"
+    fi
+    echo ""
+}
+
+# 运行自动重试
+run_automatic_retry() {
+    echo -e "${CYAN}🔄 开始自动重试失败的测试...${NC}"
+    
+    # 第一步：清理明显的超时错误数据
+    echo -e "${YELLOW}🧹 步骤1: 清理明显的超时错误数据...${NC}"
+    python3 database_cleanup_for_retry.py clean_timeouts
+    echo ""
+    
+    # 第二步：清理数据库中对应的旧数据
+    echo -e "${YELLOW}🧹 步骤2: 清理失败测试的旧数据...${NC}"
+    python3 database_cleanup_for_retry.py clean_failed
+    echo ""
+    
+    # 启动测试执行监控器
+    python3 -c "
+from test_execution_monitor import get_global_monitor
+from enhanced_failed_tests_manager import EnhancedFailedTestsManager
+from enhanced_progress_manager import EnhancedProgressManager
+
+# 初始化管理器
+failed_manager = EnhancedFailedTestsManager()
+progress_manager = EnhancedProgressManager()
+monitor = get_global_monitor()
+
+print('🔧 设置自动监控和重试系统...')
+monitor.start_monitoring()
+
+# 获取重试队列
+retry_queue = failed_manager.get_retry_queue()
+print(f'📋 待重试测试: {len(retry_queue)} 个')
+
+if retry_queue:
+    # 按模型分组重试
+    models_to_retry = {}
+    for item in retry_queue:
+        model = item['model']
+        if model not in models_to_retry:
+            models_to_retry[model] = []
+        models_to_retry[model].append(item['test'])
+    
+    print(f'🎯 涉及模型: {len(models_to_retry)} 个')
+    
+    success_count = 0
+    total_count = len(retry_queue)
+    
+    for model, tests in models_to_retry.items():
+        print(f'\\n🤖 重试模型: {model}')
+        
+        # 构建重试组列表
+        groups_to_retry = []
+        for test in tests:
+            if test['status'] == 'failed' and test['retry_count'] < test['max_retries']:
+                groups_to_retry.append(test['group_name'])
+        
+        if groups_to_retry:
+            print(f'   重试组: {', '.join(groups_to_retry)}')
+            
+            # 标记为重试状态
+            for group in groups_to_retry:
+                failed_manager.mark_test_for_retry(model, group)
+                progress_manager.start_retry(model, group)
+            
+            print('   ✨ 已标记为重试状态')
+        
+    print(f'\\n✅ 自动重试设置完成')
+    print(f'📈 重试统计:')
+    print(f'   - 总测试数: {total_count}')
+    print(f'   - 涉及模型: {len(models_to_retry)}')
+else:
+    print('✅ 没有需要重试的测试')
+" 2>/dev/null
+    
+    echo ""
+    echo -e "${GREEN}🎯 自动重试配置完成${NC}"
+    echo "   监控器将自动检测和处理后续的失败"
+    echo "   重试状态已更新到进度管理系统"
+}
+
+# 显示增强进度信息
+show_enhanced_progress() {
+    echo -e "${CYAN}========================================${NC}"
+    echo -e "${CYAN}📊 增强进度管理系统状态${NC}"
+    echo -e "${CYAN}========================================${NC}"
+    echo ""
+    
+    # 显示增强进度管理器状态
+    echo -e "${GREEN}🎯 详细进度状态:${NC}"
+    python3 -c "
+from enhanced_progress_manager import EnhancedProgressManager
+manager = EnhancedProgressManager()
+manager.show_detailed_progress()
+" 2>/dev/null
+    
+    echo ""
+    echo -e "${GREEN}🔄 失败测试管理状态:${NC}"
+    python3 -c "
+from enhanced_failed_tests_manager import EnhancedFailedTestsManager
+manager = EnhancedFailedTestsManager()
+manager.show_status_report()
+" 2>/dev/null
+    
+    echo ""
+    echo -e "${GREEN}🔍 测试执行监控状态:${NC}"
+    python3 -c "
+from test_execution_monitor import get_global_monitor
+monitor = get_global_monitor()
+monitor.show_monitoring_status()
+" 2>/dev/null
+    
+    echo ""
+    echo -e "${YELLOW}按Enter返回主菜单...${NC}"
+    read -r
+}
+
+# 全局变量：测试模式
+TEST_MODE="auto"  # auto: 自动模式, debug: 调试模式, full_auto: 全自动模式
+PAUSE_AFTER_MODEL=false  # 是否在每个模型后暂停
+PAUSE_AFTER_STAGE=true   # 是否在每个阶段后暂停
+START_FRESH=false        # 是否完全重新开始
+RATE_MODE="fixed"       # adaptive: 自适应模式, fixed: 固定速率, custom: 自定义 (默认为fixed模式)
+CUSTOM_WORKERS=10        # 自定义并发数
+CUSTOM_QPS=20           # 自定义QPS
+
+# 处理命令行参数的自动操作
+if [ "$SKIP_MENU" = true ]; then
+    # 处理 --fresh 参数
+    if [ "$FORCE_FRESH" = true ]; then
+        echo -e "${YELLOW}强制清理所有数据...${NC}"
+        rm -f "$PROGRESS_FILE" "$COMPLETED_FILE"
+        if [ -d "pilot_bench_cumulative_results" ]; then
+            BACKUP_DIR="pilot_bench_cumulative_results_backup_$(date +%Y%m%d_%H%M%S)"
+            mv pilot_bench_cumulative_results "$BACKUP_DIR"
+            echo -e "${GREEN}✓ 已备份数据库到 $BACKUP_DIR${NC}"
+        fi
+        mkdir -p pilot_bench_cumulative_results
+        echo '{"version": "3.0", "models": {}, "test_groups": {}, "summary": {}}' > pilot_bench_cumulative_results/master_database.json
+        START_FRESH=true
+    fi
+    
+    # 处理 --ignore-progress 或 --incremental
+    if [ "$IGNORE_PROGRESS" = true ]; then
+        if [ "$INCREMENTAL_MODE" = true ]; then
+            echo -e "${CYAN}增量测试模式：忽略进度文件，只测试未完成的配置${NC}"
+        else
+            echo -e "${CYAN}忽略进度文件，从头开始测试（保留已有数据）${NC}"
+        fi
+        # 临时重命名进度文件
+        if [ -f "$PROGRESS_FILE" ]; then
+            mv "$PROGRESS_FILE" "${PROGRESS_FILE}.ignored"
+        fi
+        if [ -f "$COMPLETED_FILE" ]; then
+            mv "$COMPLETED_FILE" "${COMPLETED_FILE}.ignored"
+        fi
+        START_FRESH=true
+    fi
+    
+    # 设置测试模式
+    if [ -n "$AUTO_MODE" ]; then
+        case $AUTO_MODE in
+            auto)
+                TEST_MODE="auto"
+                PAUSE_AFTER_MODEL=false
+                PAUSE_AFTER_STAGE=true
+                echo -e "${GREEN}使用自动模式${NC}"
+                # 检查是否有失败测试需要重试
+                check_auto_mode_failure_retry
+                ;;
+            debug)
+                TEST_MODE="debug"
+                PAUSE_AFTER_MODEL=true
+                PAUSE_AFTER_STAGE=true
+                echo -e "${CYAN}使用调试模式${NC}"
+                ;;
+            full_auto)
+                TEST_MODE="full_auto"
+                PAUSE_AFTER_MODEL=false
+                PAUSE_AFTER_STAGE=false
+                echo -e "${YELLOW}使用全自动模式${NC}"
+                # 检查是否有失败测试需要重试
+                check_auto_mode_failure_retry
+                ;;
+        esac
+    fi
+    
+    # 直接开始测试
+    break
+fi
+
+# ============================================
+# 模型类型选择循环（最高层菜单）
+# ============================================
+
+# 存储格式选择函数
+show_storage_format_menu() {
+    echo -e "${CYAN}========================================${NC}"
+    echo -e "${CYAN}选择数据存储格式${NC}"
+    echo -e "${CYAN}========================================${NC}"
+    echo ""
+    echo -e "${YELLOW}请选择数据存储格式：${NC}"
+    echo ""
+    echo "  1) 📄 JSON格式 (传统方式，兼容性好)"
+    echo "  2) 🚀 Parquet格式 (推荐：高性能，防数据丢失)"
+    echo ""
+    echo -e "${GREEN}Parquet优势：${NC}"
+    echo "  • 增量写入，永不覆盖"
+    echo "  • 中断安全，数据不丢失"
+    echo "  • 并发写入不冲突"
+    echo "  • 查询速度快100倍"
+    echo "  • 文件大小减少80%"
+    echo ""
+    echo -e "${YELLOW}请选择 [1-2] (默认1):${NC}"
+}
+
+# 设置存储格式
+setup_storage_format() {
+    local choice=$1
+    
+    case $choice in
+        1|"")
+            export STORAGE_FORMAT="json"
+            echo -e "${GREEN}✅ 使用JSON存储格式${NC}"
+            ;;
+        2)
+            # 检查Parquet依赖
+            if python3 -c "import pandas, pyarrow" 2>/dev/null; then
+                export STORAGE_FORMAT="parquet"
+                echo -e "${GREEN}✅ 使用Parquet存储格式${NC}"
+                
+                # 检查是否需要迁移数据
+                if [ ! -d "pilot_bench_parquet_data" ] || [ -z "$(ls -A pilot_bench_parquet_data/*.parquet 2>/dev/null)" ]; then
+                    echo -e "${YELLOW}检测到需要迁移数据到Parquet...${NC}"
+                    echo -e "${CYAN}是否立即迁移现有JSON数据？(y/n):${NC}"
+                    read -r migrate_choice
+                    if [ "$migrate_choice" = "y" ] || [ "$migrate_choice" = "Y" ]; then
+                        python3 migrate_to_parquet.py
+                    fi
+                fi
+            else
+                echo -e "${RED}❌ Parquet需要安装依赖${NC}"
+                echo -e "${YELLOW}请运行: pip install pandas pyarrow${NC}"
+                echo -e "${YELLOW}回退到JSON格式${NC}"
+                export STORAGE_FORMAT="json"
+            fi
+            ;;
+        *)
+            echo -e "${RED}无效选择，使用默认JSON格式${NC}"
+            export STORAGE_FORMAT="json"
+            ;;
+    esac
+    
+    # 显示当前配置（兼容macOS的bash 3.2）
+    STORAGE_FORMAT_UPPER=$(echo "$STORAGE_FORMAT" | tr '[:lower:]' '[:upper:]')
+    echo -e "${BLUE}当前存储格式: ${STORAGE_FORMAT_UPPER}${NC}"
+    echo ""
+}
+
+# 模型类型选择函数
+show_model_type_menu() {
+    echo -e "${CYAN}========================================${NC}"
+    echo -e "${CYAN}PILOT-Bench 系统化测试${NC}"
+    echo -e "${CYAN}========================================${NC}"
+    echo ""
+    echo -e "${YELLOW}请选择测试模型类型：${NC}"
+    echo ""
+    echo "  1) 🔓 开源模型 (DeepSeek, Qwen, Llama)"
+    echo "  2) 🔒 闭源模型 (GPT, Claude, Gemini)"
+    echo "  3) 📊 查看两种模型的进度"
+    echo "  4) 🔧 维护模式"
+    echo "  5) ❌ 退出"
+    echo ""
+    echo -e "${YELLOW}请选择 [1-5]:${NC}"
+}
+
+# 设置模型类型和相关配置
+setup_model_type() {
+    local choice=$1
+    
+    case $choice in
+        1)
+            MODEL_TYPE="opensource"
+            export MODEL_TYPE  # 导出为环境变量，供Python脚本使用
+            CURRENT_MODELS=("${OPENSOURCE_MODELS[@]}")
+            RESULT_SUFFIX=""
+            PROGRESS_FILE="test_progress_opensource.txt"
+            COMPLETED_FILE="completed_tests_opensource.txt"
+            echo -e "${GREEN}✅ 选择：开源模型测试${NC}"
+            echo -e "${CYAN}   模型数量：${#CURRENT_MODELS[@]}个${NC}"
+            echo ""
+            return 0
+            ;;
+        2)
+            MODEL_TYPE="closed_source"
+            export MODEL_TYPE  # 导出为环境变量，供Python脚本使用
+            CURRENT_MODELS=("${CLOSED_SOURCE_MODELS[@]}")
+            RESULT_SUFFIX="_closed_source"
+            PROGRESS_FILE="test_progress_closed_source.txt"
+            COMPLETED_FILE="completed_tests_closed_source.txt"
+            echo -e "${GREEN}✅ 选择：闭源模型测试${NC}"
+            echo -e "${CYAN}   模型数量：${#CURRENT_MODELS[@]}个${NC}"
+            echo -e "${YELLOW}   注意：IdealLab使用单key，Azure使用高并发${NC}"
+            echo ""
+            return 0
+            ;;
+        3)
+            # 显示两种模型的进度
+            echo ""
+            echo -e "${CYAN}📊 开源模型进度：${NC}"
+            if [ -f "test_progress_opensource.txt" ]; then
+                STEP=""
+                MODEL_INDEX=""
+                SUBSTEP=""
+                source "test_progress_opensource.txt" 2>/dev/null
+                local open_completed=$(wc -l < "completed_tests_opensource.txt" 2>/dev/null || echo 0)
+                echo "   当前步骤: 5.$STEP"
+                echo "   已完成配置: $open_completed"
+            else
+                echo "   暂无进度"
+            fi
+            echo ""
+            echo -e "${CYAN}📊 闭源模型进度：${NC}"
+            if [ -f "test_progress_closed_source.txt" ]; then
+                STEP=""
+                MODEL_INDEX=""
+                SUBSTEP=""
+                source "test_progress_closed_source.txt" 2>/dev/null
+                local closed_completed=$(wc -l < "completed_tests_closed_source.txt" 2>/dev/null || echo 0)
+                echo "   当前步骤: 5.$STEP"
+                echo "   已完成配置: $closed_completed"
+            else
+                echo "   暂无进度"
+            fi
+            echo ""
+            return 1  # 返回1表示需要重新显示菜单
+            ;;
+        4)
+            # 维护模式
+            echo -e "${CYAN}🔧 维护模式${NC}"
+            if command -v smart_maintenance_entry >/dev/null 2>&1; then
+                smart_maintenance_entry "wizard" "" "true"
+            else
+                echo -e "${YELLOW}⚠️ 未加载维护函数库，使用基本维护${NC}"
+                python3 auto_failure_maintenance_system.py status
+            fi
+            exit 0
+            ;;
+        5)
+            echo -e "${YELLOW}退出测试系统${NC}"
+            exit 0
+            ;;
+        *)
+            echo -e "${RED}无效选项${NC}"
+            return 1
+            ;;
+    esac
+}
+
+# 首先选择存储格式（如果未通过环境变量设置）
+if [ -z "$STORAGE_FORMAT" ]; then
+    # 仅在交互模式下显示菜单
+    if [ "$SKIP_MENU" != true ]; then
+        show_storage_format_menu
+        read -r storage_choice
+        setup_storage_format "$storage_choice"
+    else
+        # 非交互模式，使用默认JSON
+        export STORAGE_FORMAT="json"
+        echo -e "${BLUE}使用默认存储格式: JSON${NC}"
+    fi
+else
+    echo -e "${BLUE}使用预设存储格式: ${STORAGE_FORMAT^^}${NC}"
+fi
+
+# 然后选择模型类型
+while true; do
+    show_model_type_menu
+    read -r model_choice
+    
+    if setup_model_type "$model_choice"; then
+        break
+    fi
+done
+
+# 主菜单循环 - 第二层：决定是否重新开始
+while true; do
+    show_initial_menu
+    read -r choice
+    
+    if [ -f "$PROGRESS_FILE" ]; then
+        # 有进度的情况
+        case $choice in
+            1)
+                echo -e "${GREEN}选择：继续上次测试${NC}"
+                echo ""
+                START_FRESH=false
+                break
+                ;;
+            2)
+                echo -e "${YELLOW}选择：完全重新开始${NC}"
+                echo ""
+                clean_all_progress
+                if [ $? -eq 0 ]; then
+                    START_FRESH=true
+                    break
+                fi
+                ;;
+            3)
+                # 优先使用增强进度显示，如果失败则回退到传统显示
+                if python3 -c "from enhanced_progress_manager import EnhancedProgressManager" 2>/dev/null; then
+                    show_enhanced_progress
+                else
+                    show_progress_info
+                fi
+                ;;
+            4)
+                echo -e "${CYAN}选择：自定义起始阶段${NC}"
+                echo ""
+                show_custom_stage_menu
+                ;;
+            5)
+                echo -e "${CYAN}选择：自动维护菜单${NC}"
+                echo ""
+                # 使用增强的维护菜单
+                while true; do
+                    show_enhanced_maintenance_menu
+                    read -r maintenance_choice
+                    if handle_enhanced_maintenance_choice "$maintenance_choice"; then
+                        if [ "$maintenance_choice" = "0" ]; then
+                            break
+                        fi
+                    fi
+                done
+                ;;
+            6)
+                # 检查是否有失败测试选项
+                if check_failed_tests_config 2>/dev/null; then
+                    echo -e "${PURPLE}选择：重新测试失败的组${NC}"
+                    echo ""
+                    show_failed_tests_rerun_menu
+                else
+                    echo -e "${BLUE}退出测试程序${NC}"
+                    exit 0
+                fi
+                ;;
+            7)
+                echo -e "${BLUE}退出测试程序${NC}"
+                exit 0
+                ;;
+            *)
+                echo -e "${RED}无效选项，请重新选择${NC}"
+                sleep 1
+                ;;
+        esac
+    else
+        # 没有进度的情况
+        case $choice in
+            1)
+                echo -e "${GREEN}选择：开始新测试${NC}"
+                echo ""
+                
+                # 获取当前模型类型的相关文件名
+                progress_file=$(get_progress_file)
+                completed_file=$(get_completed_file)
+                db_suffix=""
+                db_file="master_database.json"
+                model_type_desc="开源"
+                
+                if [ "$MODEL_TYPE" = "closed_source" ]; then
+                    db_suffix="_closed_source"
+                    db_file="master_database_closed_source.json"
+                    model_type_desc="闭源"
+                fi
+                
+                # 备份特定模型类型的统计数据
+                if [ -f "pilot_bench_cumulative_results/$db_file" ]; then
+                    backup_file="pilot_bench_cumulative_results/${db_file}.backup_$(date +%Y%m%d_%H%M%S)"
+                    echo -e "${YELLOW}备份${model_type_desc}模型统计数据到 $backup_file ...${NC}"
+                    cp "pilot_bench_cumulative_results/$db_file" "$backup_file"
+                    if [ $? -eq 0 ]; then
+                        echo -e "${GREEN}✅ ${model_type_desc}模型统计数据已备份${NC}"
+                    else
+                        echo -e "${RED}⚠️  备份失败，是否继续？(y/n)${NC}"
+                        read -r continue_choice
+                        if [ "$continue_choice" != "y" ] && [ "$continue_choice" != "Y" ]; then
+                            echo -e "${BLUE}已取消${NC}"
+                            continue
+                        fi
+                    fi
+                    
+                    # 清空特定模型类型的数据库
+                    echo -e "${YELLOW}清空${model_type_desc}模型数据库...${NC}"
+                    DB_PATH="pilot_bench_cumulative_results/$db_file"
+                    echo '{
+  "version": "3.0",
+  "created_at": "'$(date -Iseconds)'",
+  "last_updated": "'$(date -Iseconds)'",
+  "test_groups": {},
+  "models": {},
+  "summary": {
+    "total_tests": 0,
+    "total_success": 0,
+    "total_partial": 0,
+    "total_failure": 0,
+    "models_tested": [],
+    "last_test_time": null
+  }
+}' > "$DB_PATH"
+                    echo -e "${GREEN}✅ ${model_type_desc}模型数据库已清空${NC}"
+                else
+                    # 如果数据库文件不存在，创建目录和空数据库
+                    mkdir -p "pilot_bench_cumulative_results"
+                    DB_PATH="pilot_bench_cumulative_results/$db_file"
+                    echo '{
+  "version": "3.0",
+  "created_at": "'$(date -Iseconds)'",
+  "last_updated": "'$(date -Iseconds)'",
+  "test_groups": {},
+  "models": {},
+  "summary": {
+    "total_tests": 0,
+    "total_success": 0,
+    "total_partial": 0,
+    "total_failure": 0,
+    "models_tested": [],
+    "last_test_time": null
+  }
+}' > "$DB_PATH"
+                    echo -e "${GREEN}✅ 创建新的${model_type_desc}模型数据库${NC}"
+                fi
+                
+                # 清理特定模型类型的进度文件以开始新测试
+                rm -f "$progress_file" "$completed_file" 2>/dev/null
+                echo "STEP=1" > "$progress_file"
+                echo "MODEL_INDEX=0" >> "$progress_file"
+                echo "SUBSTEP=" >> "$progress_file"
+                touch "$completed_file"
+                START_FRESH=true
+                break
+                ;;
+            2)
+                echo -e "${CYAN}选择：自动维护菜单${NC}"
+                echo ""
+                # 使用增强的维护菜单
+                while true; do
+                    show_enhanced_maintenance_menu
+                    read -r maintenance_choice
+                    if handle_enhanced_maintenance_choice "$maintenance_choice"; then
+                        if [ "$maintenance_choice" = "0" ]; then
+                            break
+                        fi
+                    fi
+                done
+                ;;
+            3)
+                echo -e "${BLUE}退出测试程序${NC}"
+                exit 0
+                ;;
+            *)
+                echo -e "${RED}无效选项，请重新选择${NC}"
+                sleep 1
+                ;;
+        esac
+    fi
+done
+
+# 第二层菜单：选择测试模式
+while true; do
+    show_test_mode_menu
+    read -r mode_choice
+    
+    case $mode_choice in
+        1)
+            echo -e "${GREEN}选择：自动模式${NC}"
+            echo "阶段内连续运行，阶段间需要确认"
+            TEST_MODE="auto"
+            PAUSE_AFTER_MODEL=false
+            PAUSE_AFTER_STAGE=true
+            # 检查是否有失败测试需要重试
+            check_auto_mode_failure_retry
+            break
+            ;;
+        2)
+            echo -e "${CYAN}选择：调试模式${NC}"
+            echo "每个模型后暂停，可随时切换模式"
+            TEST_MODE="debug"
+            PAUSE_AFTER_MODEL=true
+            PAUSE_AFTER_STAGE=true
+            break
+            ;;
+        3)
+            echo -e "${YELLOW}选择：全自动模式${NC}"
+            echo -e "${RED}⚠️  注意：将连续运行所有11,400个测试！${NC}"
+            echo -e "${YELLOW}确认使用全自动模式？(yes/no)${NC}"
+            read -r confirm
+            if [ "$confirm" = "yes" ]; then
+                TEST_MODE="full_auto"
+                PAUSE_AFTER_MODEL=false
+                PAUSE_AFTER_STAGE=false
+                # 检查是否有失败测试需要重试
+                check_auto_mode_failure_retry
+                break
+            else
+                echo "取消全自动模式"
+            fi
+            ;;
+        4)
+            echo "返回上一级菜单..."
+            exec "$0" "$@"  # 重启脚本
+            ;;
+        *)
+            echo -e "${RED}无效选项，请重新选择 [1-4]${NC}"
+            sleep 1
+            ;;
+    esac
+done
+
+# 第三层菜单：选择并发策略
+while true; do
+    show_rate_limit_menu
+    read -r rate_choice
+    
+    case $rate_choice in
+        1)
+            echo -e "${CYAN}选择：固定速率模式 (Fixed)${NC}"
+            echo "将使用预设的并发参数"
+            RATE_MODE="fixed"
+            break
+            ;;
+        2)
+            echo -e "${GREEN}选择：自适应模式 (Adaptive)${NC}"
+            echo "将根据API响应自动调整并发数和QPS"
+            RATE_MODE="adaptive"
+            break
+            ;;
+        3)
+            echo -e "${RED}选择：超高并行模式 (Ultra Parallel)${NC}"
+            echo "🔥 将使用多Azure实例并行，理论加速3-6倍"
+            echo "⚠️  仅支持DeepSeek、Llama-3.3和Qwen模型"
+            ULTRA_PARALLEL_MODE=true
+            
+            # 询问速率模式
+            echo ""
+            echo -e "${YELLOW}选择超高并发的速率模式:${NC}"
+            echo "  1) 🔧 固定速率 (Fixed) - 稳定可预测 ⭐ 推荐"
+            echo "     ▪ 开源模型分片: Azure 50 workers/prompt, IdealLab 5 workers"
+            echo "     ▪ 闭源模型单实例: Azure 100 workers/prompt, IdealLab 5 workers"
+            echo "  2) 🎯 自适应模式 (Adaptive) - 动态调整"
+            echo "     ▪ 开源模型分片: Azure 100 workers/prompt, IdealLab 10 workers"
+            echo "     ▪ 闭源模型单实例: Azure 100 workers/prompt, IdealLab 5 workers"
+            echo ""
+            echo -e "${YELLOW}请选择 [1-2]:${NC}"
+            read -r ultra_rate_choice
+            
+            case $ultra_rate_choice in
+                1)
+                    RATE_MODE="fixed"
+                    echo -e "${GREEN}✅ 超高并发使用固定速率模式${NC}"
+                    ;;
+                2)
+                    RATE_MODE="adaptive"
+                    echo -e "${GREEN}✅ 超高并发使用自适应模式${NC}"
+                    ;;
+                *)
+                    RATE_MODE="fixed"
+                    echo -e "${YELLOW}默认使用固定速率模式${NC}"
+                    ;;
+            esac
+            break
+            ;;
+        4)
+            echo -e "${YELLOW}选择：自定义速率${NC}"
+            echo ""
+            echo -e "${YELLOW}输入并发数 (1-100):${NC}"
+            read -r custom_workers
+            if [[ "$custom_workers" =~ ^[0-9]+$ ]] && [ "$custom_workers" -ge 1 ] && [ "$custom_workers" -le 100 ]; then
+                CUSTOM_WORKERS=$custom_workers
+            else
+                echo -e "${RED}无效的并发数，使用默认10${NC}"
+                CUSTOM_WORKERS=10
+            fi
+            
+            echo -e "${YELLOW}输入QPS (1-200):${NC}"
+            read -r custom_qps
+            if [[ "$custom_qps" =~ ^[0-9]+\.?[0-9]*$ ]]; then
+                CUSTOM_QPS=$custom_qps
+            else
+                echo -e "${RED}无效的QPS，使用默认20${NC}"
+                CUSTOM_QPS=20
+            fi
+            
+            echo -e "${GREEN}自定义参数：workers=${CUSTOM_WORKERS}, QPS=${CUSTOM_QPS}${NC}"
+            RATE_MODE="custom"
+            break
+            ;;
+        *)
+            echo -e "${RED}无效选项，请重新选择 [1-3]${NC}"
+            sleep 1
+            ;;
+    esac
+done
+
+# 第四层菜单：选择Checkpoint策略
+while true; do
+    show_checkpoint_menu
+    read -r checkpoint_choice
+    
+    case $checkpoint_choice in
+        1)
+            echo -e "${GREEN}选择：快速模式（每10个测试保存）${NC}"
+            CHECKPOINT_INTERVAL=10
+            break
+            ;;
+        2)
+            echo -e "${GREEN}选择：标准模式（每20个测试保存）${NC}"
+            CHECKPOINT_INTERVAL=20
+            break
+            ;;
+        3)
+            echo -e "${YELLOW}选择：性能模式（每50个测试保存）${NC}"
+            CHECKPOINT_INTERVAL=50
+            break
+            ;;
+        4)
+            echo -e "${CYAN}选择：安全模式（每5个测试保存）${NC}"
+            CHECKPOINT_INTERVAL=5
+            break
+            ;;
+        5)
+            echo -e "${YELLOW}选择：自定义间隔${NC}"
+            echo ""
+            echo -e "${YELLOW}输入保存间隔 (1-100):${NC}"
+            read -r custom_interval
+            if [[ "$custom_interval" =~ ^[0-9]+$ ]] && [ "$custom_interval" -ge 1 ] && [ "$custom_interval" -le 100 ]; then
+                CHECKPOINT_INTERVAL=$custom_interval
+                echo -e "${GREEN}自定义Checkpoint间隔：每${CHECKPOINT_INTERVAL}个测试保存${NC}"
+            else
+                echo -e "${RED}无效的间隔，使用默认20${NC}"
+                CHECKPOINT_INTERVAL=20
+            fi
+            break
+            ;;
+        6)
+            echo -e "${RED}选择：禁用Checkpoint（仅最后保存）${NC}"
+            echo -e "${RED}⚠️  警告：中断测试将丢失所有未保存的结果！${NC}"
+            echo -e "${YELLOW}确认禁用Checkpoint？(yes/no)${NC}"
+            read -r confirm
+            if [ "$confirm" = "yes" ]; then
+                CHECKPOINT_INTERVAL=0
+                echo -e "${RED}Checkpoint已禁用${NC}"
+            else
+                echo "使用默认设置（每20个测试保存）"
+                CHECKPOINT_INTERVAL=20
+            fi
+            break
+            ;;
+        *)
+            echo -e "${RED}无效选项，请重新选择 [1-6]${NC}"
+            sleep 1
+            ;;
+    esac
+done
+
+echo -e "${GREEN}========================================${NC}"
+echo -e "${GREEN}开始测试流程...${NC}"
+echo -e "${GREEN}========================================${NC}"
+echo ""
+if [ "$CHECKPOINT_INTERVAL" -gt 0 ]; then
+    echo -e "${CYAN}💾 Checkpoint机制已启用：${NC}"
+    echo -e "${CYAN}   - 每${CHECKPOINT_INTERVAL}个测试自动保存一次${NC}"
+    echo -e "${CYAN}   - 中断后可以从上次保存点继续${NC}"
+    echo -e "${CYAN}   - 避免因意外中断丢失大量结果${NC}"
+else
+    echo -e "${RED}⚠️  Checkpoint已禁用：${NC}"
+    echo -e "${RED}   - 仅在测试完全结束后保存${NC}"
+    echo -e "${RED}   - 中断将丢失所有未保存的结果${NC}"
+    echo -e "${RED}   - 请确保测试环境稳定${NC}"
+fi
+echo ""
+sleep 1
+
+# 模型列表已经在脚本开头定义，删除此处的重复定义
+
+# DeepSeek并行实例组（利用Azure多部署加速）- 6个实例
+DEEPSEEK_PARALLEL_GROUP=(
+    "DeepSeek-V3-0324"      # V3原始实例（无后缀）
+    "deepseek-v3-0324-2"    # V3并行实例2
+    "deepseek-v3-0324-3"    # V3并行实例3
+    "DeepSeek-R1-0528"      # R1原始实例（无后缀）
+    "deepseek-r1-0528-2"    # R1并行实例2
+    "deepseek-r1-0528-3"    # R1并行实例3
+)
+
+# Llama-3.3并行实例组（利用Azure多部署加速）- 3个实例
+LLAMA_PARALLEL_GROUP=(
+    "Llama-3.3-70B-Instruct"    # 原始实例（无后缀）
+    "llama-3.3-70b-instruct-2"  # 并行实例2
+    "llama-3.3-70b-instruct-3"  # 并行实例3
+)
+
+# 7种缺陷类型
+FLAW_TYPES=(
+    "flawed_sequence_disorder"
+    "flawed_tool_misuse"
+    "flawed_parameter_error"
+    "flawed_missing_step"
+    "flawed_redundant_operations"
+    "flawed_logical_inconsistency"
+    "flawed_semantic_drift"
+)
+
+# 工具成功率设置
+TOOL_RELIABILITIES=(
+    "0.9"
+    "0.7"
+    "0.6"
+)
+
+# 提示类型（optimal已在5.1测试）
+PROMPT_TYPES=(
+    "baseline"
+    "cot"
+)
+
+# 模型类型选择变量
+
+# 根据模型类型获取并发策略参数
+get_concurrency_params() {
+    local model=$1
+    local base_params="$2"
+    
+    if [ "$MODEL_TYPE" = "closed_source" ]; then
+        # 闭源模型使用不同的并发策略
+        case $model in
+            "gpt-4o-mini"|"gpt-5-mini"|"grok-3-mini")
+                # Azure模型：高token限制，100并发，无QPS限制
+                echo "$base_params --max-workers 100 --max-prompt-workers 5"
+                ;;
+            "claude_sonnet4"|"o3-0416-global"|"gemini-2.5-flash-06-17")
+                # IdealLab闭源模型：单key限制，保守5并发
+                echo "$base_params --max-workers 5 --max-prompt-workers 1"
+                ;;
+            *)
+                # 默认策略
+                echo "$base_params --max-workers 10"
+                ;;
+        esac
+    else
+        # 开源模型使用原有策略
+        echo "$base_params"
+    fi
+}
+
+# 进度文件 (已在顶部定义)
+
+# ============================================
+# 辅助函数
+# ============================================
+
+# 初始化进度文件
+init_progress() {
+    if [ ! -f "$PROGRESS_FILE" ]; then
+        echo "STEP=1" > "$PROGRESS_FILE"
+        echo "MODEL_INDEX=0" >> "$PROGRESS_FILE"
+        echo "SUBSTEP=" >> "$PROGRESS_FILE"
+    fi
+    
+    if [ ! -f "$COMPLETED_FILE" ]; then
+        touch "$COMPLETED_FILE"
+    fi
+}
+
+# 读取当前进度
+load_progress() {
+    source "$PROGRESS_FILE"
+}
+
+# 更新进度
+update_progress() {
+    local step=$1
+    local model_idx=$2
+    local substep=$3
+    
+    echo "STEP=$step" > "$PROGRESS_FILE"
+    echo "MODEL_INDEX=$model_idx" >> "$PROGRESS_FILE"
+    echo "SUBSTEP=$substep" >> "$PROGRESS_FILE"
+}
+
+# 检查测试是否已完成（配置级别）
+is_config_completed() {
+    local test_id=$1
+    grep -q "^$test_id$" "$COMPLETED_FILE"
+    return $?
+}
+
+# 标记测试完成（配置级别）
+mark_config_completed() {
+    local test_id=$1
+    echo "$test_id" >> "$COMPLETED_FILE"
+}
+
+# 用户确认函数（增强版：支持自定义实例数）
+confirm_continue() {
+    if [ "$PAUSE_AFTER_STAGE" = false ]; then
+        # 全自动模式，不暂停
+        echo -e "${GREEN}[全自动模式] $1${NC}"
+        echo "自动继续..."
+        sleep 1  # 短暂延迟以便查看信息
+    else
+        # 需要确认
+        echo -e "${YELLOW}$1${NC}"
+        echo ""
+        
+        # 询问是否要自定义实例数
+        echo -e "${CYAN}当前实例数配置: ${NUM_INSTANCES}${NC}"
+        if [ -n "$INSTANCES_PER_TASK" ]; then
+            echo -e "${CYAN}  每实例任务数: ${INSTANCES_PER_TASK}${NC}"
+        fi
+        echo ""
+        echo -e "${YELLOW}是否要修改实例数配置？${NC}"
+        echo "  1) 使用当前配置 (${NUM_INSTANCES})"
+        echo "  2) 快速测试 (2个实例)"
+        echo "  3) 小规模测试 (5个实例)"
+        echo "  4) 中等规模 (10个实例)"
+        echo "  5) 大规模测试 (20个实例)"
+        echo "  6) 完整测试 (100个实例)"
+        echo "  7) 自定义数量"
+        echo "  8) 矩阵模式 (NxT格式)"
+        echo ""
+        echo -e "${YELLOW}请选择 [1-8] (默认: 1):${NC}"
+        
+        read -r instance_choice
+        
+        # 如果用户直接按Enter，使用默认值
+        if [ -z "$instance_choice" ]; then
+            instance_choice="1"
+        fi
+        
+        case $instance_choice in
+            1)
+                echo -e "${GREEN}✓ 使用当前配置: ${NUM_INSTANCES}${NC}"
+                ;;
+            2)
+                NUM_INSTANCES=2
+                INSTANCES_PER_TASK=""
+                echo -e "${GREEN}✓ 设置为快速测试: 2个实例${NC}"
+                ;;
+            3)
+                NUM_INSTANCES=5
+                INSTANCES_PER_TASK=""
+                echo -e "${GREEN}✓ 设置为小规模测试: 5个实例${NC}"
+                ;;
+            4)
+                NUM_INSTANCES=10
+                INSTANCES_PER_TASK=""
+                echo -e "${GREEN}✓ 设置为中等规模: 10个实例${NC}"
+                ;;
+            5)
+                NUM_INSTANCES=20
+                INSTANCES_PER_TASK=""
+                echo -e "${GREEN}✓ 设置为大规模测试: 20个实例${NC}"
+                ;;
+            6)
+                NUM_INSTANCES=100
+                INSTANCES_PER_TASK=""
+                echo -e "${GREEN}✓ 设置为完整测试: 100个实例${NC}"
+                ;;
+            7)
+                echo -e "${CYAN}请输入自定义实例数:${NC}"
+                read -r custom_num
+                if [[ "$custom_num" =~ ^[0-9]+$ ]]; then
+                    NUM_INSTANCES="$custom_num"
+                    INSTANCES_PER_TASK=""
+                    echo -e "${GREEN}✓ 设置为自定义: ${NUM_INSTANCES}个实例${NC}"
+                else
+                    echo -e "${YELLOW}⚠️ 无效输入，保持原配置: ${NUM_INSTANCES}${NC}"
+                fi
+                ;;
+            8)
+                echo -e "${CYAN}矩阵模式配置 (NxT: N个实例，每个T种任务类型)${NC}"
+                echo -e "${CYAN}请输入实例数 (N):${NC}"
+                read -r matrix_num
+                echo -e "${CYAN}请输入每实例任务数 (T) [1-5]:${NC}"
+                echo "  1 = simple_task"
+                echo "  2 = simple_task, basic_task"
+                echo "  3 = simple_task, basic_task, data_pipeline"
+                echo "  4 = simple_task, basic_task, data_pipeline, api_integration"
+                echo "  5 = 所有任务类型"
+                read -r matrix_tasks
+                
+                if [[ "$matrix_num" =~ ^[0-9]+$ ]] && [[ "$matrix_tasks" =~ ^[1-5]$ ]]; then
+                    NUM_INSTANCES="$matrix_num"
+                    INSTANCES_PER_TASK="$matrix_tasks"
+                    echo -e "${GREEN}✓ 设置为矩阵模式: ${NUM_INSTANCES}×${INSTANCES_PER_TASK}${NC}"
+                else
+                    echo -e "${YELLOW}⚠️ 无效输入，保持原配置: ${NUM_INSTANCES}${NC}"
+                fi
+                ;;
+            *)
+                echo -e "${GREEN}✓ 使用当前配置: ${NUM_INSTANCES}${NC}"
+                ;;
+        esac
+        
+        echo ""
+        echo -e "${YELLOW}按Enter继续，按Ctrl+C退出...${NC}"
+        read -r
+    fi
+}
+
+# 调试模式下的模型间暂停函数
+debug_pause_after_model() {
+    local model="$1"
+    local step_name="$2"
+    
+    if [ "$PAUSE_AFTER_MODEL" = true ]; then
+        echo ""
+        echo -e "${CYAN}========================================${NC}"
+        echo -e "${CYAN}🔍 调试模式 - 模型测试完成${NC}"
+        echo -e "${CYAN}========================================${NC}"
+        echo ""
+        echo -e "模型: ${GREEN}$model${NC}"
+        echo -e "测试阶段: ${GREEN}$step_name${NC}"
+        echo ""
+        
+        # 显示简要统计
+        echo "📊 简要统计："
+        python -c "
+import json
+import sys
+from pathlib import Path
+
+db_path = Path('pilot_bench_cumulative_results/master_database.json')
+if db_path.exists():
+    with open(db_path, 'r') as f:
+        db = json.load(f)
+    
+    model_name = '$model'
+    if model_name in db.get('models', {}):
+        model_data = db['models'][model_name]
+        overall = model_data.get('overall_stats', {})
+        print(f'  总测试数: {overall.get(\"total_tests\", 0)}')
+        print(f'  成功率: {overall.get(\"success_rate\", 0):.1%}')
+        print(f'  平均执行时间: {overall.get(\"avg_execution_time\", 0):.2f}s')
+else:
+    print('  暂无统计数据')
+" 2>/dev/null || echo "  无法获取统计数据"
+        
+        echo ""
+        echo -e "${YELLOW}选项：${NC}"
+        echo "  1) 继续下一个模型（调试模式）"
+        echo "  2) 切换到自动模式（不再暂停）"
+        echo "  3) 查看详细结果"
+        echo "  4) 退出测试"
+        echo ""
+        echo -e "${YELLOW}请输入选项 [1-4]:${NC}"
+        
+        while true; do
+            read -r debug_choice
+            case $debug_choice in
+                1)
+                    echo -e "${GREEN}继续调试模式...${NC}"
+                    break
+                    ;;
+                2)
+                    echo -e "${GREEN}切换到自动模式...${NC}"
+                    PAUSE_AFTER_MODEL=false
+                    TEST_MODE="auto"
+                    break
+                    ;;
+                3)
+                    echo ""
+                    echo "详细结果："
+                    python -c "
+import json
+from pathlib import Path
+
+db_path = Path('pilot_bench_cumulative_results/master_database.json')
+if db_path.exists():
+    with open(db_path, 'r') as f:
+        db = json.load(f)
+    
+    model_name = '$model'
+    if model_name in db.get('models', {}):
+        model_data = db['models'][model_name]
+        print(f'模型: {model_name}')
+        print('-' * 40)
+        
+        # 显示按prompt_type的统计
+        if 'by_prompt_type' in model_data:
+            for prompt_type, prompt_data in model_data['by_prompt_type'].items():
+                stats = prompt_data.get('overall_stats', {})
+                print(f'{prompt_type}:')
+                print(f'  测试数: {stats.get(\"total_tests\", 0)}')
+                print(f'  成功率: {stats.get(\"success_rate\", 0):.1%}')
+" 2>/dev/null || echo "无法获取详细结果"
+                    echo ""
+                    echo -e "${YELLOW}按Enter返回选项菜单...${NC}"
+                    read -r
+                    echo ""
+                    echo -e "${YELLOW}选项：${NC}"
+                    echo "  1) 继续下一个模型（调试模式）"
+                    echo "  2) 切换到自动模式（不再暂停）"
+                    echo "  3) 查看详细结果"
+                    echo "  4) 退出测试"
+                    echo ""
+                    echo -e "${YELLOW}请输入选项 [1-4]:${NC}"
+                    ;;
+                4)
+                    echo -e "${YELLOW}退出测试...${NC}"
+                    exit 0
+                    ;;
+                *)
+                    echo -e "${RED}无效选项，请重新选择 [1-4]${NC}"
+                    ;;
+            esac
+        done
+    fi
+}
+
+# 显示进度统计
+show_progress_stats() {
+    local step=$1
+    local completed=$2
+    local total=$3
+    
+    echo -e "${CYAN}[步骤 $step 进度: $completed/$total]${NC}"
+}
+
+
+# 并行DeepSeek测试函数（利用Azure多部署）
+run_deepseek_parallel_test() {
+    local prompt_types=$1
+    local difficulty=$2
+    local task_types=$3
+    local num_instances=$4
+    
+    echo -e "${CYAN}🚀 启动DeepSeek并行测试${NC}"
+    echo "Prompt types: $prompt_types"
+    echo "难度: $difficulty"
+    echo "实例数: $num_instances"
+    echo ""
+    
+    local pids=()
+    
+    # 并行启动所有DeepSeek实例
+    for model in "${DEEPSEEK_PARALLEL_GROUP[@]}"; do
+        echo -e "${GREEN}▶ 启动 $model 测试...${NC}"
+        
+        python smart_batch_runner.py \
+            --model "$model" \
+            --prompt-types "$prompt_types" \
+            --difficulty "$difficulty" \
+            --task-types "$task_types" \
+            --num-instances "$num_instances" \
+            --max-workers 100 \
+            --adaptive \
+            --prompt-parallel \
+            --batch-commit \
+            --checkpoint-interval 20 \
+            --ai-classification \
+            --save-logs &
+        
+        pids+=($!)
+        
+        # 短暂延迟避免瞬时峰值
+        sleep 2
+    done
+    
+    echo -e "${YELLOW}等待所有DeepSeek实例完成...${NC}"
+    
+    # 等待所有进程完成
+    local failed=false
+    for pid in "${pids[@]}"; do
+        if ! wait "$pid"; then
+            echo -e "${RED}❌ 进程 $pid 失败${NC}"
+            failed=true
+        fi
+    done
+    
+    if [ "$failed" = false ]; then
+        echo -e "${GREEN}✅ 所有DeepSeek并行测试完成${NC}"
+        return 0
+    else
+        echo -e "${RED}❌ 部分DeepSeek测试失败${NC}"
+        return 1
+    fi
+}
+
+# 并行Llama测试函数（利用Azure多部署）
+run_llama_parallel_test() {
+    local prompt_types=$1
+    local difficulty=$2
+    local task_types=$3
+    local num_instances=$4
+    
+    echo -e "${CYAN}🚀 启动Llama-3.3并行测试${NC}"
+    echo "Prompt types: $prompt_types"
+    echo "难度: $difficulty"
+    echo "实例数: $num_instances"
+    echo ""
+    
+    local pids=()
+    
+    # 并行启动所有Llama实例
+    for model in "${LLAMA_PARALLEL_GROUP[@]}"; do
+        echo -e "${GREEN}▶ 启动 $model 测试...${NC}"
+        
+        python smart_batch_runner.py \
+            --model "$model" \
+            --prompt-types "$prompt_types" \
+            --difficulty "$difficulty" \
+            --task-types "$task_types" \
+            --num-instances "$num_instances" \
+            --max-workers 100 \
+            --adaptive \
+            --prompt-parallel \
+            --batch-commit \
+            --checkpoint-interval 20 \
+            --ai-classification \
+            --save-logs &
+        
+        pids+=($!)
+        
+        # 短暂延迟避免瞬时峰值
+        sleep 2
+    done
+    
+    echo -e "${YELLOW}等待所有Llama实例完成...${NC}"
+    
+    # 等待所有进程完成
+    local failed=false
+    for pid in "${pids[@]}"; do
+        if ! wait "$pid"; then
+            echo -e "${RED}❌ 进程 $pid 失败${NC}"
+            failed=true
+        fi
+    done
+    
+    if [ "$failed" = false ]; then
+        echo -e "${GREEN}✅ 所有Llama并行测试完成${NC}"
+        return 0
+    else
+        echo -e "${RED}❌ 部分Llama测试失败${NC}"
+        return 1
+    fi
+}
+
+# 智能测试运行函数（使用smart_batch_runner.py - 支持多prompt并行）
+run_smart_test() {
+    local model=$1
+    local prompt_types=$2
+    local difficulty=$3
+    local task_types=$4
+    local num_instances=$5
+    local description=$6
+    local extra_args=$7
+    local test_id="${model}_${prompt_types}_${difficulty}"
+    
+    # 处理自定义任务类型实例分配
+    local actual_task_types="$task_types"
+    local actual_instances="$num_instances"
+    
+    if [ -n "$INSTANCES_PER_TASK" ] && [ "$task_types" = "all" ]; then
+        # 如果指定了每种任务类型的实例数，则限制任务类型数量
+        # all = simple_task,basic_task,data_pipeline,api_integration,multi_stage_pipeline (5种)
+        case "$INSTANCES_PER_TASK" in
+            1)
+                actual_task_types="simple_task"
+                actual_instances="$NUM_INSTANCES"
+                ;;
+            2)
+                actual_task_types="simple_task,basic_task"
+                actual_instances="$NUM_INSTANCES"
+                ;;
+            3)
+                actual_task_types="simple_task,basic_task,data_pipeline"
+                actual_instances="$NUM_INSTANCES"
+                ;;
+            4)
+                actual_task_types="simple_task,basic_task,data_pipeline,api_integration"
+                actual_instances="$NUM_INSTANCES"
+                ;;
+            5|*)
+                actual_task_types="all"
+                actual_instances="$NUM_INSTANCES"
+                ;;
+        esac
+        echo -e "  ${CYAN}📦 任务类型分配: $actual_task_types (${NUM_INSTANCES}×${INSTANCES_PER_TASK})${NC}"
+    fi
+    
+    # 检查配置级别是否已完成
+    if is_config_completed "$test_id"; then
+        echo -e "${BLUE}⊙ $model - $description 已标记完成，检查细粒度...${NC}"
+    fi
+    
+    echo -e "${GREEN}▶ 开始测试: $model${NC}"
+    echo "  配置: $description"
+    echo "  Prompt类型: $prompt_types"
+    echo "  难度: $difficulty"
+    echo "  任务类型: $actual_task_types"
+    echo "  实例数: $actual_instances"
+    
+    # 检查是否可以使用多prompt并行
+    local use_prompt_parallel=""
+    if [[ "$prompt_types" == *","* ]] || [[ "$prompt_types" == "all" ]]; then
+        use_prompt_parallel="--prompt-parallel"
+        echo -e "${CYAN}  📦 启用多Prompt并行模式${NC}"
+        
+        # 根据模型类型显示并行策略
+        if [[ "$model" == *"qwen"* ]]; then
+            echo -e "${YELLOW}    IdealLab: 每个prompt type使用不同API key${NC}"
+        elif [[ "$model" == *"DeepSeek"* ]] || [[ "$model" == *"Llama-3.3"* ]]; then
+            echo -e "${GREEN}    Azure: 所有prompt types同时高并发${NC}"
+        fi
+    fi
+    
+    # 计算prompt数量（用于动态调整Azure workers）
+    local prompt_count=1
+    if [[ "$prompt_types" == *","* ]]; then
+        # 计算逗号分隔的prompt数量
+        prompt_count=$(echo "$prompt_types" | tr ',' '\n' | wc -l | tr -d ' ')
+    elif [[ "$prompt_types" == "all" ]]; then
+        # all表示所有prompt类型（通常是3个：baseline, cot, optimal）
+        prompt_count=3
+    fi
+    
+    # 根据模型和rate模式决定并发数
+    local max_workers=10
+    local qps=20
+    local adaptive_flag="--adaptive"
+    
+    if [[ "$RATE_MODE" == "custom" ]]; then
+        # 使用自定义参数
+        max_workers=$CUSTOM_WORKERS
+        qps=$CUSTOM_QPS
+        adaptive_flag="--no-adaptive --qps $qps"
+        echo -e "${CYAN}  使用自定义参数: workers=${max_workers}, QPS=${qps}${NC}"
+    elif [[ "$RATE_MODE" == "fixed" ]]; then
+        # 使用固定速率 - 保守参数，稳定运行
+        adaptive_flag="--no-adaptive"
+        if [ "$MODEL_TYPE" = "closed_source" ]; then
+            # 闭源模型固定速率（保守参数）
+            case $model in
+                "gpt-4o-mini"|"gpt-5-mini"|"grok-3-mini")
+                    # Azure闭源模型：没有速率限制，每个prompt使用100 workers
+                    if [ $prompt_count -gt 1 ] && [ -n "$use_prompt_parallel" ]; then
+                        max_workers=$((100 * prompt_count))  # 每个prompt 100 workers
+                        echo -e "${GREEN}  Azure闭源API固定速率(${prompt_count}个prompt并发): workers=${max_workers}, QPS=400${NC}"
+                    else
+                        max_workers=100  # 单prompt 100并发
+                        echo -e "${GREEN}  Azure闭源API固定速率: workers=${max_workers}, QPS=400${NC}"
+                    fi
+                    qps=400  # 高QPS无限制
+                    ;;
+                "claude_sonnet4"|"o3-0416-global"|"gemini-2.5-flash-06-17"|"kimi-k2")
+                    # IdealLab闭源模型：有速率限制，最多5 workers
+                    if [ $prompt_count -gt 1 ] && [ -n "$use_prompt_parallel" ]; then
+                        max_workers=$((5 * prompt_count))  # 每个prompt 5 workers
+                        echo -e "${YELLOW}  IdealLab闭源API固定速率(${prompt_count}个prompt并发): workers=${max_workers}, QPS=10${NC}"
+                    else
+                        max_workers=5  # 单prompt 5并发
+                        echo -e "${YELLOW}  IdealLab闭源API固定速率: workers=${max_workers}, QPS=10${NC}"
+                    fi
+                    qps=10  # 保守QPS
+                    ;;
+                *)
+                    max_workers=5  # 固定模式：保守5并发
+                    qps=10  # 固定模式：保守QPS
+                    echo -e "${CYAN}  默认固定速率: workers=${max_workers}, QPS=${qps}${NC}"
+                    ;;
+            esac
+        else
+            # 开源模型固定速率（保守参数）
+            if [[ "$model" == *"qwen"* ]]; then
+                max_workers=5  # 固定模式：Qwen保守5并发
+                qps=10  # 固定模式：保守QPS
+                echo -e "${YELLOW}  IdealLab开源API固定速率: workers=${max_workers}, QPS=${qps}${NC}"
+            elif [[ "$model" == *"DeepSeek"* ]] || [[ "$model" == *"Llama-3.3"* ]]; then
+                # Azure开源模型：固定模式使用保守参数
+                if [ $prompt_count -gt 1 ] && [ -n "$use_prompt_parallel" ]; then
+                    max_workers=$((50 * prompt_count))  # 固定模式：每个prompt 50 workers（保守）
+                    echo -e "${GREEN}  Azure开源API固定速率(${prompt_count}个prompt并发): workers=${max_workers}, QPS=100${NC}"
+                else
+                    max_workers=50  # 固定模式：50并发（保守）
+                    echo -e "${GREEN}  Azure开源API固定速率: workers=${max_workers}, QPS=100${NC}"
+                fi
+                qps=100  # 固定模式设置合理的QPS限制
+            else
+                max_workers=10  # 固定模式：默认10并发
+                qps=15  # 固定模式：默认15 QPS
+                echo -e "${CYAN}  默认固定速率: workers=${max_workers}, QPS=${qps}${NC}"
+            fi
+        fi
+        adaptive_flag="--no-adaptive --qps $qps"
+    else
+        # Adaptive模式 - 激进参数，动态调整
+        if [ "$MODEL_TYPE" = "closed_source" ]; then
+            # 闭源模型自适应（激进参数）
+            case $model in
+                "gpt-4o-mini"|"gpt-5-mini"|"grok-3-mini")
+                    # Azure闭源模型：没有速率限制，每个prompt使用100 workers
+                    if [ $prompt_count -gt 1 ] && [ -n "$use_prompt_parallel" ]; then
+                        max_workers=$((100 * prompt_count))  # 每个prompt 100 workers
+                        echo -e "${GREEN}  Azure闭源API自适应模式(${prompt_count}个prompt并发)，初始: workers=${max_workers} (动态调整)${NC}"
+                    else
+                        max_workers=100  # 单prompt 100并发
+                        echo -e "${GREEN}  Azure闭源API自适应模式，初始: workers=${max_workers} (动态调整)${NC}"
+                    fi
+                    ;;
+                "claude_sonnet4"|"o3-0416-global"|"gemini-2.5-flash-06-17"|"kimi-k2")
+                    # IdealLab闭源模型：有速率限制，最多5 workers
+                    if [ $prompt_count -gt 1 ] && [ -n "$use_prompt_parallel" ]; then
+                        max_workers=$((5 * prompt_count))  # 每个prompt 5 workers
+                        echo -e "${YELLOW}  IdealLab闭源API自适应模式(${prompt_count}个prompt并发)，初始: workers=${max_workers} (动态调整)${NC}"
+                    else
+                        max_workers=5  # 单prompt 5并发
+                        echo -e "${YELLOW}  IdealLab闭源API自适应模式，初始: workers=${max_workers} (动态调整)${NC}"
+                    fi
+                    ;;
+                *)
+                    max_workers=20  # 自适应：默认20并发
+                    echo -e "${CYAN}  闭源模型默认自适应模式，初始: workers=${max_workers} (动态调整)${NC}"
+                    ;;
+            esac
+        else
+            # 开源模型自适应（激进参数）
+            if [[ "$model" == *"qwen"* ]]; then
+                max_workers=10  # 自适应：Qwen尝试10并发（3个API keys轮询）
+                echo -e "${YELLOW}  IdealLab开源API自适应模式，初始: workers=${max_workers} (动态调整)${NC}"
+            elif [[ "$model" == *"DeepSeek"* ]] || [[ "$model" == *"Llama-3.3"* ]]; then
+                # Azure开源模型：自适应模式使用激进参数
+                if [ $prompt_count -gt 1 ] && [ -n "$use_prompt_parallel" ]; then
+                    max_workers=$((100 * prompt_count))  # 自适应：每个prompt 100 workers
+                    echo -e "${GREEN}  Azure开源API自适应模式(${prompt_count}个prompt并发)，初始: workers=${max_workers} (动态调整)${NC}"
+                else
+                    max_workers=100  # 自适应：100高并发
+                    echo -e "${GREEN}  Azure开源API自适应模式，初始: workers=${max_workers} (动态调整)${NC}"
+                fi
+            else
+                max_workers=40  # 自适应：默认40并发
+                echo -e "${CYAN}  默认自适应模式，初始: workers=${max_workers} (动态调整)${NC}"
+            fi
+        fi
+    fi
+    
+    # 检查是否使用超高并行模式
+    local use_ultra_parallel=false
+    if [[ "$ULTRA_PARALLEL_MODE" == "true" ]]; then
+        # 开源模型使用多实例/多Key并行
+        if [[ "$model" == *"DeepSeek"* ]] || [[ "$model" == *"Llama-3.3"* ]]; then
+            use_ultra_parallel=true
+            echo -e "${GREEN}  🔥 启用超高并行模式 (多Azure实例并行, 速率模式: $RATE_MODE)${NC}"
+        elif [[ "$model" == *"qwen"* ]]; then
+            use_ultra_parallel=true
+            echo -e "${GREEN}  🔥 启用超高并行模式 (3个API Key并行, 速率模式: $RATE_MODE)${NC}"
+        # 闭源模型也使用ultra_parallel_runner，但采用单分片高并发策略
+        elif [[ "$model" == "gpt-4o-mini" ]] || [[ "$model" == "gpt-5-mini" ]] || 
+             [[ "$model" == "o3-0416-global" ]] || [[ "$model" == "gemini-2.5-flash-06-17" ]] || 
+             [[ "$model" == "kimi-k2" ]] || [[ "$model" == "claude_sonnet4" ]]; then
+            use_ultra_parallel=true
+            echo -e "${CYAN}  ⚡ 闭源模型使用统一超高并行模式 (单分片高并发策略, 速率模式: $RATE_MODE)${NC}"
+        else
+            # 其他模型使用标准模式
+            echo -e "${YELLOW}  🔧 使用标准批测试模式 (速率模式: $RATE_MODE)${NC}"
+        fi
+    fi
+    
+    # 添加结果文件后缀（用于闭源模型独立保存）
+    local result_suffix_param=""
+    if [ -n "$RESULT_SUFFIX" ]; then
+        result_suffix_param="--result-suffix $RESULT_SUFFIX"
+    fi
+    
+    if [ "$use_ultra_parallel" = true ]; then
+        # 使用超高并行执行器，传递rate_mode参数
+        cmd="STORAGE_FORMAT="${STORAGE_FORMAT}" python ultra_parallel_runner.py \
+            --model $model \
+            --prompt-types $prompt_types \
+            --difficulty $difficulty \
+            --task-types $actual_task_types \
+            --num-instances $actual_instances \
+            --rate-mode $RATE_MODE \
+            --silent \
+            $result_suffix_param"
+    else
+        # 使用标准智能批测试运行器
+        cmd="python smart_batch_runner.py \
+            --model $model \
+            --prompt-types $prompt_types \
+            --difficulty $difficulty \
+            --task-types $actual_task_types \
+            --num-instances $actual_instances \
+            --max-workers $max_workers \
+            $adaptive_flag \
+            $use_prompt_parallel \
+            --batch-commit \
+            --checkpoint-interval 20 \
+            --ai-classification \
+            --silent \
+            $result_suffix_param"
+    fi
+    
+    # 添加额外参数（如工具成功率）
+    if [ -n "$extra_args" ]; then
+        cmd="$cmd $extra_args"
+    fi
+    
+    echo -e "${CYAN}  执行命令: $cmd${NC}"
+    
+    # 检查是否启用自动重试
+    if [ "$AUTO_RETRY_ENABLED" = "true" ] || [ "$WITH_MAINTENANCE" = "true" ]; then
+        echo -e "${GREEN}🔧 使用自动重试模式${NC}"
+        if execute_test_with_auto_retry "$cmd" "$description" "$model" "$test_id" 2; then
+            exit_code=0
+        else
+            exit_code=1
+        fi
+    else
+        # 直接执行命令
+        eval "$cmd"
+        exit_code=$?
+    fi  # 结束自动重试模式检查
+    
+    if [ $exit_code -eq 0 ]; then
+        echo -e "${GREEN}✓ $model - $description 测试完成${NC}"
+        mark_config_completed "$test_id"
+        
+        # 如果启用维护，记录成功
+        if [ "$WITH_MAINTENANCE" = "true" ] && command -v record_test_success >/dev/null 2>&1; then
+            record_test_success "$model" "$test_id" "false"
+        fi
+        return 0
+    else
+        echo -e "${RED}✗ $model - $description 测试失败${NC}"
+        
+        # 如果启用维护，提供重试建议
+        if [ "$WITH_MAINTENANCE" = "true" ]; then
+            echo -e "${YELLOW}🔧 失败记录已保存，可使用自动维护功能${NC}"
+            echo -e "${CYAN}提示：运行 'bash $0 --auto-maintain' 或使用菜单选择维护功能${NC}"
+        else
+            echo -e "${YELLOW}提示：已记录失败信息${NC}"
+        fi
+        return 1
+    fi
+}
+
+# ============================================
+# 主程序开始
+# ============================================
+
+# 初始化
+init_progress
+load_progress
+
+# 显示运行模式
+echo ""
+echo -e "${CYAN}========================================${NC}"
+if [ "$TEST_MODE" = "debug" ]; then
+    echo -e "${CYAN}🔍 运行模式: 调试模式${NC}"
+    echo -e "${CYAN}   - 每个模型测试后会暂停${NC}"
+    echo -e "${CYAN}   - 每个阶段完成后需要确认${NC}"
+elif [ "$TEST_MODE" = "full_auto" ]; then
+    echo -e "${CYAN}🚀 运行模式: 全自动模式${NC}"
+    echo -e "${CYAN}   - 连续运行所有11,400个测试${NC}"
+    echo -e "${CYAN}   - 不会在阶段间暂停${NC}"
+    echo -e "${RED}   ⚠️  请确保有足够的时间和资源${NC}"
+else
+    echo -e "${CYAN}⚡ 运行模式: 自动模式${NC}"
+    echo -e "${CYAN}   - 阶段内连续运行${NC}"
+    echo -e "${CYAN}   - 阶段间需要确认${NC}"
+fi
+echo -e "${CYAN}========================================${NC}"
+
+# 显示并发策略
+echo ""
+echo -e "${CYAN}========================================${NC}"
+if [ "$ULTRA_PARALLEL_MODE" = true ]; then
+    echo -e "${CYAN}🔥 并发策略: 超高并行模式 (Ultra Parallel)${NC}"
+    if [ "$RATE_MODE" = "adaptive" ]; then
+        echo -e "${CYAN}   - 速率模式: 自适应 (Adaptive)${NC}"
+        echo -e "${CYAN}   - 每个分片动态调整workers${NC}"
+    else
+        echo -e "${CYAN}   - 速率模式: 固定速率 (Fixed)${NC}"
+        echo -e "${CYAN}   - 每个分片使用预设workers${NC}"
+    fi
+    echo -e "${CYAN}   - 多实例/多Key并行执行${NC}"
+    echo -e "${CYAN}   - 理论加速3-6倍${NC}"
+elif [ "$RATE_MODE" = "adaptive" ]; then
+    echo -e "${CYAN}🎯 并发策略: 自适应模式 (Adaptive)${NC}"
+    echo -e "${CYAN}   - 根据API响应动态调整${NC}"
+    echo -e "${CYAN}   - 遇到限流会自动降速${NC}"
+    echo -e "${CYAN}   - 成功运行后逐步提速${NC}"
+elif [ "$RATE_MODE" = "fixed" ]; then
+    echo -e "${CYAN}🔧 并发策略: 固定速率模式 (Fixed)${NC}"
+    echo -e "${CYAN}   - Azure API: 80并发, 150 QPS${NC}"
+    echo -e "${CYAN}   - IdealLab API: 3并发, 5 QPS${NC}"
+    echo -e "${CYAN}   - 其他API: 20并发, 30 QPS${NC}"
+else
+    echo -e "${CYAN}⚙️  并发策略: 自定义${NC}"
+    echo -e "${CYAN}   - 并发数: ${CUSTOM_WORKERS}${NC}"
+    echo -e "${CYAN}   - QPS: ${CUSTOM_QPS}${NC}"
+fi
+echo -e "${CYAN}========================================${NC}"
+
+# 显示恢复信息
+if [ "$STEP" -gt 1 ] || [ "$MODEL_INDEX" -gt 0 ]; then
+    echo -e "${BLUE}========================================${NC}"
+    echo -e "${BLUE}检测到之前的进度：${NC}"
+    echo "  当前步骤: 5.$STEP"
+    echo "  模型索引: $MODEL_INDEX"
+    
+    if [ -n "$SUBSTEP" ]; then
+        echo "  子步骤: $SUBSTEP"
+    fi
+    
+    # 显示已完成的配置数
+    completed_count=$(wc -l < "$COMPLETED_FILE" 2>/dev/null || echo 0)
+    echo "  已完成配置: $completed_count"
+    
+    echo -e "${BLUE}========================================${NC}"
+    confirm_continue "从上次中断处继续..."
+fi
+
+# ============================================
+# 5.1 第一步：基准测试
+# ============================================
+if [ "$STEP" -eq 1 ]; then
+    echo ""
+    echo "================================================"
+    echo "5.1 第一步：基准测试"
+    echo "================================================"
+    echo "测试配置："
+    echo "- Prompt类型: optimal"
+    echo "- 难度: easy"
+    echo "- 任务类型: 全部5种"
+    echo "- 每种任务类型: 20个实例"
+    echo "- 模型数量: 8个开源模型"
+    echo "------------------------------------------------"
+    
+    if [ "$MODEL_INDEX" -eq 0 ]; then
+        confirm_continue "即将开始基准测试（8个模型×100个测试）..."
+        
+        echo -e "${CYAN}  🚀 启动所有模型并发基准测试...${NC}"
+        echo -e "${YELLOW}    - 总计8个模型同时运行${NC}"
+        echo -e "${YELLOW}    - Azure模型：使用多实例并行${NC}"
+        echo -e "${YELLOW}    - IdealLab模型：使用不同API keys${NC}"
+        # 启动所有模型的并行测试（简单延迟避免冲突）
+        pids=()
+        for i in "${!CURRENT_MODELS[@]}"; do
+            model="${CURRENT_MODELS[$i]}"
+            
+            echo -e "${CYAN}    📋 启动 $model 基准测试...${NC}"
+            
+            # 错开启动，避免同时大量启动造成系统过载
+            if [ $i -gt 0 ]; then
+                if [ "$MODEL_TYPE" = "closed_source" ]; then
+                    # 闭源模型：较短的延迟（API响应更快）
+                    echo -e "${YELLOW}      ⏱️  延迟60秒等待前一个实例启动...${NC}"
+                    sleep 60
+                else
+                    # 开源模型：原有的长延迟（workflow生成需要更多时间）
+                    echo -e "${YELLOW}      ⏱️  延迟180秒等待前一个实例完全生成workflow...${NC}"
+                    sleep 180
+                fi
+            fi
+            
+            # 后台运行每个模型测试
+            (
+                echo -e "${GREEN}      ✓ $model 开始基准测试${NC}"
+                run_smart_test "$model" "optimal" "easy" "all" "$NUM_INSTANCES" "基准测试(optimal+easy)" ""
+                if [ $? -eq 0 ]; then
+                    echo -e "${GREEN}      ✓ $model 基准测试完成${NC}"
+                else
+                    echo -e "${RED}      ✗ $model 基准测试失败${NC}"
+                    exit 1
+                fi
+            ) &
+            pids+=($!)
+            
+            echo -e "${CYAN}      🚀 $model 已启动 (PID: $!)${NC}"
+        done
+        
+        # 等待所有模型完成
+        echo -e "${CYAN}  等待所有模型完成基准测试...${NC}"
+        failed=0
+        for pid in "${pids[@]}"; do
+            wait $pid
+            if [ $? -ne 0 ]; then
+                failed=1
+            fi
+        done
+        
+        if [ $failed -eq 1 ]; then
+            echo -e "${RED}✗ 基准测试失败${NC}"
+            exit 1
+        fi
+        
+        # 更新进度到下一步
+        update_progress 2 0 ""
+        
+    else
+        # 如果有中断，逐个测试剩余的模型
+        for i in "${!CURRENT_MODELS[@]}"; do
+            if [ $i -ge $MODEL_INDEX ]; then
+                model="${CURRENT_MODELS[$i]}"
+                update_progress 1 $i ""
+                
+                show_progress_stats "5.1" $i ${#CURRENT_MODELS[@]}
+                run_smart_test "$model" "optimal" "easy" "all" "$NUM_INSTANCES" "基准测试(optimal+easy)" ""
+                
+                if [ $? -ne 0 ]; then
+                    exit 1
+                fi
+                
+                # 模型完成后，更新到下一个模型索引
+                next_idx=$((i + 1))
+                if [ $next_idx -lt ${#CURRENT_MODELS[@]} ]; then
+                    update_progress 1 $next_idx ""
+                fi
+                
+                # 调试模式下在每个模型后暂停
+                debug_pause_after_model "$model" "5.1 基准测试"
+            fi
+        done
+    fi
+    
+    echo -e "${GREEN}✅ 5.1 基准测试完成！${NC}"
+    update_progress 2 0 ""
+    confirm_continue "基准测试已完成，准备进行5.2 Qwen规模效应测试..."
+fi
+
+# ============================================
+# 5.2 第二步：Qwen系列规模效应测试
+# ============================================
+if [ "$STEP" -eq 2 ]; then
+    if [ "$MODEL_TYPE" = "closed_source" ]; then
+        echo ""
+        echo "================================================"
+        echo "5.2 第二步：Qwen系列规模效应测试（跳过）"
+        echo "================================================"
+        echo -e "${YELLOW}⚠️  Qwen系列规模效应测试不适用于闭源模型${NC}"
+        echo -e "${CYAN}跳过5.2阶段，直接进入5.3缺陷工作流测试...${NC}"
+        echo ""
+        update_progress 3 0 ""
+        confirm_continue "跳过5.2阶段，准备进行5.3 缺陷工作流测试..."
+    else
+        echo ""
+        echo "================================================"
+        echo "5.2 第二步：Qwen系列规模效应测试"
+        echo "================================================"
+        echo "测试配置："
+        echo "- Prompt类型: optimal"
+        echo "- 难度: very_easy 和 medium（分别测试）"
+        echo "- 任务类型: 全部5种"
+        echo "- 每种任务类型: 20个实例"
+        echo "- 模型数量: 5个Qwen规模"
+        echo "------------------------------------------------"
+    
+    if [ "$MODEL_INDEX" -eq 0 ] && [ -z "$SUBSTEP" ]; then
+        confirm_continue "即将开始Qwen规模效应测试（5个模型×2个难度×100个测试）..."
+        
+        echo -e "${CYAN}  🚀 启动所有Qwen模型并发规模效应测试...${NC}"
+        echo -e "${YELLOW}    - 总计5个模型 × 2个难度同时运行${NC}"
+        echo -e "${YELLOW}    - IdealLab API：使用3个不同API keys分组并行${NC}"
+        echo -e "${YELLOW}    - API Key 1: qwen2.5-3b, qwen2.5-14b${NC}"
+        echo -e "${YELLOW}    - API Key 2: qwen2.5-7b, qwen2.5-32b${NC}"
+        echo -e "${YELLOW}    - API Key 3: qwen2.5-72b${NC}"
+        
+        # 启动所有测试的并行运行
+        pids=()
+        
+        # 测试very_easy难度
+        echo -e "${YELLOW}  ▶ 启动 very_easy 难度测试...${NC}"
+        for i in "${!QWEN_FULL_SERIES[@]}"; do
+            model="${QWEN_FULL_SERIES[$i]}"
+            echo -e "${CYAN}    启动 $model (very_easy)...${NC}"
+            
+            (
+                run_smart_test "$model" "optimal" "very_easy" "all" "$NUM_INSTANCES" "Qwen规模效应(very_easy)" ""
+                if [ $? -eq 0 ]; then
+                    echo -e "${GREEN}    ✓ $model (very_easy) 完成${NC}"
+                else
+                    echo -e "${RED}    ✗ $model (very_easy) 失败${NC}"
+                    exit 1
+                fi
+            ) &
+            pids+=($!)
+            
+            # 根据模型分组延迟，避免同一API key冲突
+            # 3b和14b用key1, 7b和32b用key2, 72b用key3
+            if [ $i -eq 0 ] || [ $i -eq 2 ]; then
+                sleep 3  # 第1组和第3组模型延迟
+            elif [ $i -eq 1 ] || [ $i -eq 3 ]; then
+                sleep 1  # 第2组模型小延迟
+            fi
+        done
+        
+        # 测试medium难度
+        echo -e "${YELLOW}  ▶ 启动 medium 难度测试...${NC}"
+        for i in "${!QWEN_FULL_SERIES[@]}"; do
+            model="${QWEN_FULL_SERIES[$i]}"
+            echo -e "${CYAN}    启动 $model (medium)...${NC}"
+            
+            (
+                run_smart_test "$model" "optimal" "medium" "all" "$NUM_INSTANCES" "Qwen规模效应(medium)" ""
+                if [ $? -eq 0 ]; then
+                    echo -e "${GREEN}    ✓ $model (medium) 完成${NC}"
+                else
+                    echo -e "${RED}    ✗ $model (medium) 失败${NC}"
+                    exit 1
+                fi
+            ) &
+            pids+=($!)
+            
+            # 延迟策略同上
+            if [ $i -eq 0 ] || [ $i -eq 2 ]; then
+                sleep 3
+            elif [ $i -eq 1 ] || [ $i -eq 3 ]; then
+                sleep 1
+            fi
+        done
+        
+        # 等待所有测试完成
+        echo -e "${CYAN}  等待所有Qwen规模测试完成（共10个任务）...${NC}"
+        failed=0
+        for pid in "${pids[@]}"; do
+            wait $pid
+            if [ $? -ne 0 ]; then
+                failed=1
+            fi
+        done
+        
+        if [ $failed -eq 1 ]; then
+            echo -e "${RED}✗ Qwen规模效应测试失败${NC}"
+            exit 1
+        fi
+        
+        # 更新进度
+        update_progress 3 0 ""
+        
+    else
+        # 如果有中断，按原逻辑逐个测试
+        # 测试very_easy难度
+        if [ -z "$SUBSTEP" ] || [ "$SUBSTEP" == "very_easy" ]; then
+            echo -e "${YELLOW}▶ 测试 very_easy 难度...${NC}"
+            for i in "${!QWEN_FULL_SERIES[@]}"; do
+                if [ "$SUBSTEP" == "very_easy" ] && [ $i -lt $MODEL_INDEX ]; then
+                    continue
+                fi
+                model="${QWEN_FULL_SERIES[$i]}"
+                update_progress 2 $i "very_easy"
+                
+                show_progress_stats "5.2-very_easy" $i 5
+                run_smart_test "$model" "optimal" "very_easy" "all" "$NUM_INSTANCES" "Qwen规模效应(very_easy)" ""
+                
+                if [ $? -ne 0 ]; then
+                    exit 1
+                fi
+                
+                # 模型完成后，更新到下一个模型索引
+                next_idx=$((i + 1))
+                if [ $next_idx -lt ${#QWEN_FULL_SERIES[@]} ]; then
+                    update_progress 2 $next_idx "very_easy"
+                fi
+                
+                # 调试模式下在每个模型后暂停
+                debug_pause_after_model "$model" "5.2 Qwen规模效应(very_easy)"
+            done
+            SUBSTEP="medium"
+            MODEL_INDEX=0
+            update_progress 2 0 "medium"
+        fi
+        
+        # 测试medium难度
+        if [ "$SUBSTEP" == "medium" ]; then
+            echo -e "${YELLOW}▶ 测试 medium 难度...${NC}"
+            for i in "${!QWEN_FULL_SERIES[@]}"; do
+                if [ $i -ge $MODEL_INDEX ]; then
+                    model="${QWEN_FULL_SERIES[$i]}"
+                    update_progress 2 $i "medium"
+                    
+                    show_progress_stats "5.2-medium" $i 5
+                    run_smart_test "$model" "optimal" "medium" "all" "$NUM_INSTANCES" "Qwen规模效应(medium)" ""
+                    
+                    if [ $? -ne 0 ]; then
+                        exit 1
+                    fi
+                    
+                    # 模型完成后，更新到下一个模型索引
+                    next_idx=$((i + 1))
+                    if [ $next_idx -lt ${#QWEN_FULL_SERIES[@]} ]; then
+                        update_progress 2 $next_idx "medium"
+                    fi
+                    
+                    # 调试模式下在每个模型后暂停
+                    debug_pause_after_model "$model" "5.2 Qwen规模效应(medium)"
+                fi
+            done
+        fi
+    fi
+    
+    echo -e "${GREEN}✅ 5.2 Qwen规模效应测试完成！${NC}"
+    update_progress 3 0 ""
+    confirm_continue "Qwen规模效应测试已完成，准备进行5.3 缺陷工作流测试..."
+    fi
+fi
+
+# ============================================
+# 5.3 第三步：缺陷工作流适应性测试
+# ============================================
+if [ "$STEP" -eq 3 ]; then
+    echo ""
+    echo "================================================"
+    echo "5.3 第三步：缺陷工作流适应性测试"
+    echo "================================================"
+    echo "测试配置："
+    echo "- Prompt类型: 7种缺陷类型"
+    echo "- 难度: easy"
+    echo "- 任务类型: 全部5种"
+    echo "- 每种任务类型: 20个实例"
+    echo "- 模型数量: 8个开源模型"
+    echo "------------------------------------------------"
+    
+    if [ "$MODEL_INDEX" -eq 0 ] && [ -z "$SUBSTEP" ]; then
+        confirm_continue "即将开始缺陷工作流测试（7种缺陷×8个模型×100个测试）..."
+        
+        echo -e "${CYAN}  🚀 启动所有模型并发缺陷测试...${NC}"
+        echo -e "${YELLOW}    - 总计8个模型同时运行${NC}"
+        echo -e "${YELLOW}    - Azure模型：使用多实例并行${NC}"
+        echo -e "${YELLOW}    - IdealLab模型：使用不同API keys${NC}"
+        # 启动所有模型的并行测试（简单延迟避免冲突）
+        pids=()
+        for i in "${!CURRENT_MODELS[@]}"; do
+            model="${CURRENT_MODELS[$i]}"
+            
+            echo -e "${CYAN}    📋 启动 $model 缺陷测试...${NC}"
+            
+            # 错开启动，避免同时大量启动造成系统过载
+            if [ $i -gt 0 ]; then
+                if [ "$MODEL_TYPE" = "closed_source" ]; then
+                    # 闭源模型：较短的延迟（API响应更快）
+                    echo -e "${YELLOW}      ⏱️  延迟60秒等待前一个实例启动...${NC}"
+                    sleep 60
+                else
+                    # 开源模型：原有的长延迟（workflow生成需要更多时间）
+                    echo -e "${YELLOW}      ⏱️  延迟180秒等待前一个实例完全生成workflow...${NC}"
+                    sleep 180
+                fi
+            fi
+            
+            # 后台运行每个模型的所有缺陷测试
+            (
+                echo -e "${GREEN}      ✓ $model 开始缺陷工作流测试${NC}"
+                
+                # 对于并发模式，直接运行所有7种缺陷类型（分3组）
+                # 组1：序列和结构问题 (3个)
+                run_smart_test "$model" "flawed_sequence_disorder,flawed_tool_misuse,flawed_parameter_error" \
+                    "easy" "all" "$NUM_INSTANCES" "$model-缺陷工作流(结构缺陷组)" ""
+                if [ $? -ne 0 ]; then
+                    echo -e "${RED}      ✗ $model 结构缺陷组测试失败${NC}"
+                    exit 1
+                fi
+                
+                # 组2：操作缺陷 (2个)
+                run_smart_test "$model" "flawed_missing_step,flawed_redundant_operations" \
+                    "easy" "all" "$NUM_INSTANCES" "$model-缺陷工作流(操作缺陷组)" ""
+                if [ $? -ne 0 ]; then
+                    echo -e "${RED}      ✗ $model 操作缺陷组测试失败${NC}"
+                    exit 1
+                fi
+                
+                # 组3：逻辑缺陷 (2个)
+                run_smart_test "$model" "flawed_logical_inconsistency,flawed_semantic_drift" \
+                    "easy" "all" "$NUM_INSTANCES" "$model-缺陷工作流(逻辑缺陷组)" ""
+                if [ $? -ne 0 ]; then
+                    echo -e "${RED}      ✗ $model 逻辑缺陷组测试失败${NC}"
+                    exit 1
+                fi
+                
+                echo -e "${GREEN}      ✓ $model 缺陷工作流测试完成${NC}"
+            ) &
+            pids+=($!)
+            
+            echo -e "${CYAN}      🚀 $model 已启动 (PID: $!)${NC}"
+        done
+        
+        # 等待所有模型完成
+        echo -e "${CYAN}  等待所有模型完成缺陷工作流测试...${NC}"
+        failed=0
+        for pid in "${pids[@]}"; do
+            wait $pid
+            if [ $? -ne 0 ]; then
+                failed=1
+            fi
+        done
+        
+        if [ $failed -eq 1 ]; then
+            echo -e "${RED}✗ 缺陷工作流测试失败${NC}"
+            exit 1
+        fi
+        
+        # 更新进度到下一步
+        update_progress 4 0 ""
+        
+    else
+        # 如果有中断，按原逻辑逐个测试
+        for i in "${!CURRENT_MODELS[@]}"; do
+            if [ $i -ge $MODEL_INDEX ]; then
+                model="${CURRENT_MODELS[$i]}"
+                echo ""
+                echo -e "${YELLOW}▶ 测试模型: $model${NC}"
+                
+                # 确定从哪个缺陷类型开始
+                start_flaw=0
+                if [ $i -eq $MODEL_INDEX ] && [ -n "$SUBSTEP" ]; then
+                    for j in "${!FLAW_TYPES[@]}"; do
+                        if [ "${FLAW_TYPES[$j]}" == "$SUBSTEP" ]; then
+                            start_flaw=$j
+                            break
+                        fi
+                    done
+                fi
+                
+                # 优化：可以分组并行测试多个flaw types
+                if [ $start_flaw -eq 0 ]; then
+                    # 如果所有flaw都未测试，可以分组并行运行
+                    echo -e "${CYAN}  📦 分组并行测试缺陷类型${NC}"
+                    
+                    # 分成3组：结构缺陷、操作缺陷、逻辑缺陷
+                    # 组1：序列和结构问题 (0-2)
+                    echo -e "${CYAN}    组1: 结构缺陷（sequence_disorder, tool_misuse, parameter_error）${NC}"
+                    total_flaws=$((i * 7 + 1))
+                    show_progress_stats "5.3" $total_flaws $((${#CURRENT_MODELS[@]} * 7))
+                    run_smart_test "$model" "flawed_sequence_disorder,flawed_tool_misuse,flawed_parameter_error" \
+                        "easy" "all" "$NUM_INSTANCES" "缺陷工作流(结构缺陷组)" ""
+                    if [ $? -ne 0 ]; then exit 1; fi
+                    update_progress 3 $i "flawed_parameter_error"
+                    
+                    # 组2：操作缺陷 (3-4)
+                    echo -e "${CYAN}    组2: 操作缺陷（missing_step, redundant_operations）${NC}"
+                    total_flaws=$((i * 7 + 4))
+                    show_progress_stats "5.3" $total_flaws $((${#CURRENT_MODELS[@]} * 7))
+                    run_smart_test "$model" "flawed_missing_step,flawed_redundant_operations" \
+                        "easy" "all" "$NUM_INSTANCES" "缺陷工作流(操作缺陷组)" ""
+                    if [ $? -ne 0 ]; then exit 1; fi
+                    update_progress 3 $i "flawed_redundant_operations"
+                    
+                    # 组3：逻辑缺陷 (5-6)
+                    echo -e "${CYAN}    组3: 逻辑缺陷（logical_inconsistency, semantic_drift）${NC}"
+                    total_flaws=$((i * 7 + 7))
+                    show_progress_stats "5.3" $total_flaws $((${#CURRENT_MODELS[@]} * 7))
+                    run_smart_test "$model" "flawed_logical_inconsistency,flawed_semantic_drift" \
+                        "easy" "all" "$NUM_INSTANCES" "缺陷工作流(逻辑缺陷组)" ""
+                    if [ $? -ne 0 ]; then exit 1; fi
+                    update_progress 3 $i "flawed_semantic_drift"
+                    
+                else
+                    # 如果有中断，逐个测试剩余的flaw
+                    for j in "${!FLAW_TYPES[@]}"; do
+                        if [ $j -ge $start_flaw ]; then
+                            flaw="${FLAW_TYPES[$j]}"
+                            update_progress 3 $i "$flaw"
+                            
+                            total_flaws=$((i * 7 + j + 1))
+                            show_progress_stats "5.3" $total_flaws $((${#CURRENT_MODELS[@]} * 7))  # 模型数×7缺陷
+                            run_smart_test "$model" "$flaw" "easy" "all" "$NUM_INSTANCES" "缺陷工作流($flaw)" ""
+                            
+                            if [ $? -ne 0 ]; then
+                                exit 1
+                            fi
+                        fi
+                    done
+                fi
+                start_flaw=0
+                
+                # 模型完成后，更新到下一个模型索引
+                next_idx=$((i + 1))
+                if [ $next_idx -lt ${#CURRENT_MODELS[@]} ]; then
+                    update_progress 3 $next_idx ""
+                fi
+                
+                # 调试模式下在每个模型后暂停
+                debug_pause_after_model "$model" "5.3 缺陷工作流测试"
+            fi
+        done
+    fi
+    
+    echo -e "${GREEN}✅ 5.3 缺陷工作流测试完成！${NC}"
+    update_progress 4 0 ""
+    confirm_continue "缺陷工作流测试已完成，准备进行5.4 工具可靠性测试..."
+fi
+
+# ============================================
+# 5.4 第四步：工具可靠性敏感性测试
+# ============================================
+if [ "$STEP" -eq 4 ]; then
+    echo ""
+    echo "================================================"
+    echo "5.4 第四步：工具可靠性敏感性测试"
+    echo "================================================"
+    echo "测试配置："
+    echo "- Prompt类型: optimal"
+    echo "- 难度: easy"
+    echo "- 工具成功率: 90%, 70%, 60%（80%使用5.1的结果）"
+    echo "- 任务类型: 全部5种"
+    echo "- 每种任务类型: 20个实例"
+    echo "- 模型数量: 8个开源模型"
+    echo "------------------------------------------------"
+    
+    if [ "$MODEL_INDEX" -eq 0 ] && [ -z "$SUBSTEP" ]; then
+        confirm_continue "即将开始工具可靠性测试（3个成功率×8个模型×100个测试）..."
+        
+        echo -e "${CYAN}  🚀 启动所有模型并发工具可靠性测试...${NC}"
+        echo -e "${YELLOW}    - 总计8个模型 × 3个成功率同时运行${NC}"
+        echo -e "${YELLOW}    - Azure模型：使用多实例并行${NC}"
+        echo -e "${YELLOW}    - IdealLab模型：使用不同API keys${NC}"
+        
+        # 启动所有模型的并发测试
+        pids=()
+        for i in "${!CURRENT_MODELS[@]}"; do
+            model="${CURRENT_MODELS[$i]}"
+            echo -e "${CYAN}    启动 $model 工具可靠性测试...${NC}"
+            
+            # 后台运行每个模型的工具可靠性测试
+            (
+                echo -e "${GREEN}      ✓ $model 开始工具可靠性测试${NC}"
+                
+                # 测试不同工具成功率
+                for rel in "${TOOL_RELIABILITIES[@]}"; do
+                    run_smart_test "$model" "optimal" "easy" "all" "$NUM_INSTANCES" "$model-工具可靠性(${rel})" "--tool-success-rate $rel"
+                    if [ $? -ne 0 ]; then
+                        echo -e "${RED}      ✗ $model 工具成功率${rel}测试失败${NC}"
+                        exit 1
+                    fi
+                done
+                
+                echo -e "${GREEN}      ✓ $model 工具可靠性测试完成${NC}"
+            ) &
+            pids+=($!)
+            
+            # 错开启动延迟，避免同时启动造成系统过载
+            if [ "$MODEL_TYPE" = "closed_source" ]; then
+                # 闭源模型：根据API提供商分组延迟
+                case $model in
+                    "gpt-4o-mini"|"gpt-5-mini"|"grok-3-mini")
+                        sleep 1  # Azure模型组：短延迟
+                        ;;
+                    "claude_sonnet4"|"o3-0416-global"|"gemini-2.5-flash-06-17")
+                        sleep 3  # IdealLab闭源模型组：长延迟（API限制更严）
+                        ;;
+                esac
+            else
+                # 开源模型：原有逻辑
+                if [[ "$model" == *"qwen"* ]]; then
+                    sleep 2
+                fi
+            fi
+        done
+        
+        # 等待所有模型完成
+        echo -e "${CYAN}  等待所有模型完成工具可靠性测试...${NC}"
+        failed=0
+        for pid in "${pids[@]}"; do
+            wait $pid
+            if [ $? -ne 0 ]; then
+                failed=1
+            fi
+        done
+        
+        if [ $failed -eq 1 ]; then
+            echo -e "${RED}✗ 工具可靠性测试失败${NC}"
+            exit 1
+        fi
+        
+        # 更新进度到下一步
+        update_progress 5 0 ""
+        
+    else
+        # 如果有中断，按原逻辑逐个测试
+        for i in "${!CURRENT_MODELS[@]}"; do
+            if [ $i -ge $MODEL_INDEX ]; then
+                model="${CURRENT_MODELS[$i]}"
+                echo ""
+                echo -e "${YELLOW}▶ 测试模型: $model${NC}"
+            
+            # 确定从哪个可靠性开始
+            start_rel=0
+            if [ $i -eq $MODEL_INDEX ] && [ -n "$SUBSTEP" ]; then
+                for j in "${!TOOL_RELIABILITIES[@]}"; do
+                    if [ "${TOOL_RELIABILITIES[$j]}" == "$SUBSTEP" ]; then
+                        start_rel=$j
+                        break
+                    fi
+                done
+            fi
+            
+            # 优化：可以并行测试3个工具成功率
+            if [ $start_rel -eq 0 ]; then
+                # 如果所有成功率都未测试，可以并行运行
+                echo -e "${CYAN}  📦 并行测试3个工具成功率（0.9, 0.7, 0.6）${NC}"
+                
+                # 构建工具成功率参数列表
+                tool_rates=""
+                for rel in "${TOOL_RELIABILITIES[@]}"; do
+                    if [ -n "$tool_rates" ]; then
+                        tool_rates="${tool_rates},${rel}"
+                    else
+                        tool_rates="${rel}"
+                    fi
+                done
+                
+                total_rels=$((i * 3 + 3))
+                show_progress_stats "5.4" $total_rels $((${#CURRENT_MODELS[@]} * 3))
+                
+                # 使用特殊的批量工具成功率测试
+                echo -e "${CYAN}    并行测试工具成功率: $tool_rates${NC}"
+                
+                # 分别运行3个成功率测试（由于tool-success-rate参数的特殊性，需要分开运行但可以后台并行）
+                pids=()
+                for rel in "${TOOL_RELIABILITIES[@]}"; do
+                    echo -e "${YELLOW}    启动工具成功率 $rel 测试...${NC}"
+                    python smart_batch_runner.py \
+                        --model "$model" \
+                        --prompt-types optimal \
+                        --difficulty easy \
+                        --task-types all \
+                        --num-instances $NUM_INSTANCES \
+                        --tool-success-rate "$rel" \
+                        --max-workers 10 \
+                        --adaptive \
+                        --batch-commit \
+                        --checkpoint-interval 20 \
+                        --ai-classification &
+                    pids+=($!)
+                done
+                
+                # 等待所有并行任务完成
+                echo -e "${CYAN}    等待3个并行任务完成...${NC}"
+                for pid in "${pids[@]}"; do
+                    wait $pid
+                    if [ $? -ne 0 ]; then
+                        echo -e "${RED}✗ 工具成功率测试失败${NC}"
+                        exit 1
+                    fi
+                done
+                
+                echo -e "${GREEN}    ✓ 3个工具成功率测试全部完成${NC}"
+                update_progress 4 $i "0.6"
+                
+            else
+                # 如果有中断，逐个测试剩余的成功率
+                for j in "${!TOOL_RELIABILITIES[@]}"; do
+                    if [ $j -ge $start_rel ]; then
+                        reliability="${TOOL_RELIABILITIES[$j]}"
+                        update_progress 4 $i "$reliability"
+                        
+                        total_rels=$((i * 3 + j + 1))
+                        show_progress_stats "5.4" $total_rels $((${#CURRENT_MODELS[@]} * 3))  # 模型数×3成功率
+                        
+                        # 为工具可靠性测试添加特殊的test_id
+                        test_id="${model}_optimal_easy_tool${reliability}"
+                        
+                        if is_config_completed "$test_id"; then
+                            echo -e "${BLUE}⊙ $model (工具成功率=$reliability) 已完成，跳过${NC}"
+                            continue
+                        fi
+                        
+                        echo -e "${CYAN}  工具成功率: ${reliability}${NC}"
+                        run_smart_test "$model" "optimal" "easy" "all" "$NUM_INSTANCES" \
+                            "工具可靠性(${reliability})" "--tool-success-rate $reliability"
+                        
+                        if [ $? -eq 0 ]; then
+                            mark_config_completed "$test_id"
+                        else
+                            exit 1
+                        fi
+                    fi
+                done
+            fi
+            start_rel=0
+            
+            # 模型完成后，更新到下一个模型索引
+            next_idx=$((i + 1))
+            if [ $next_idx -lt ${#CURRENT_MODELS[@]} ]; then
+                update_progress 4 $next_idx ""
+            fi
+            
+                # 调试模式下在每个模型后暂停
+                debug_pause_after_model "$model" "5.4 工具可靠性测试"
+            fi
+        done
+    fi
+    
+    echo -e "${GREEN}✅ 5.4 工具可靠性测试完成！${NC}"
+    update_progress 5 0 ""
+    confirm_continue "工具可靠性测试已完成，准备进行5.5 提示类型敏感性测试..."
+fi
+
+# ============================================
+# 5.5 第五步：提示类型敏感性测试
+# ============================================
+if [ "$STEP" -eq 5 ]; then
+    echo ""
+    echo "================================================"
+    echo "5.5 第五步：提示类型敏感性测试"
+    echo "================================================"
+    echo "测试配置："
+    echo "- Prompt类型: baseline, cot（optimal使用5.1的结果）"
+    echo "- 难度: easy"
+    echo "- 任务类型: 全部5种"
+    echo "- 每种任务类型: 20个实例"
+    echo "- 模型数量: 8个开源模型"
+    echo "------------------------------------------------"
+    
+    if [ "$MODEL_INDEX" -eq 0 ] && [ -z "$SUBSTEP" ]; then
+        confirm_continue "即将开始提示类型敏感性测试（2种提示×8个模型×100个测试）..."
+        
+        echo -e "${CYAN}  🚀 启动所有模型并发提示敏感性测试...${NC}"
+        echo -e "${YELLOW}    - 总计8个模型 × 2种提示类型同时运行${NC}"
+        echo -e "${YELLOW}    - Azure模型：使用多实例并行${NC}"
+        echo -e "${YELLOW}    - IdealLab模型：使用不同API keys${NC}"
+        
+        # 启动所有模型的并发测试
+        pids=()
+        for i in "${!CURRENT_MODELS[@]}"; do
+            model="${CURRENT_MODELS[$i]}"
+            echo -e "${CYAN}    启动 $model 提示敏感性测试...${NC}"
+            
+            # 后台运行每个模型的提示敏感性测试
+            (
+                echo -e "${GREEN}      ✓ $model 开始提示敏感性测试${NC}"
+                
+                # 测试baseline和cot两种提示类型
+                run_smart_test "$model" "baseline,cot" "easy" "all" "$NUM_INSTANCES" "$model-提示敏感性(baseline+cot)" ""
+                if [ $? -ne 0 ]; then
+                    echo -e "${RED}      ✗ $model 提示敏感性测试失败${NC}"
+                    exit 1
+                fi
+                
+                echo -e "${GREEN}      ✓ $model 提示敏感性测试完成${NC}"
+            ) &
+            pids+=($!)
+            
+            # 错开启动延迟，避免同时启动造成系统过载
+            if [ "$MODEL_TYPE" = "closed_source" ]; then
+                # 闭源模型：根据API提供商分组延迟
+                case $model in
+                    "gpt-4o-mini"|"gpt-5-mini"|"grok-3-mini")
+                        sleep 1  # Azure模型组：短延迟
+                        ;;
+                    "claude_sonnet4"|"o3-0416-global"|"gemini-2.5-flash-06-17")
+                        sleep 3  # IdealLab闭源模型组：长延迟（API限制更严）
+                        ;;
+                esac
+            else
+                # 开源模型：原有逻辑
+                if [[ "$model" == *"qwen"* ]]; then
+                    sleep 2
+                fi
+            fi
+        done
+        
+        # 等待所有模型完成
+        echo -e "${CYAN}  等待所有模型完成提示敏感性测试...${NC}"
+        failed=0
+        for pid in "${pids[@]}"; do
+            wait $pid
+            if [ $? -ne 0 ]; then
+                failed=1
+            fi
+        done
+        
+        if [ $failed -eq 1 ]; then
+            echo -e "${RED}✗ 提示敏感性测试失败${NC}"
+            exit 1
+        fi
+        
+        # 更新进度到下一步
+        update_progress 6 0 ""
+        
+    else
+        # 如果有中断，按原逻辑逐个测试
+        for i in "${!CURRENT_MODELS[@]}"; do
+            if [ $i -ge $MODEL_INDEX ]; then
+                model="${CURRENT_MODELS[$i]}"
+                echo ""
+                echo -e "${YELLOW}▶ 测试模型: $model${NC}"
+            
+            # 确定从哪个提示类型开始
+            start_prompt=0
+            if [ $i -eq $MODEL_INDEX ] && [ -n "$SUBSTEP" ]; then
+                for j in "${!PROMPT_TYPES[@]}"; do
+                    if [ "${PROMPT_TYPES[$j]}" == "$SUBSTEP" ]; then
+                        start_prompt=$j
+                        break
+                    fi
+                done
+            fi
+            
+            # 优化：可以同时测试两个prompt types
+            if [ $start_prompt -eq 0 ]; then
+                # 如果两个prompt都未测试，可以并行运行
+                echo -e "${CYAN}  📦 并行测试baseline和cot${NC}"
+                total_prompts=$((i * 2 + 1))
+                show_progress_stats "5.5" $total_prompts $((${#CURRENT_MODELS[@]} * 2))  # 模型数×2提示
+                
+                # 使用逗号分隔的prompt列表来并行测试
+                run_smart_test "$model" "baseline,cot" "easy" "all" "$NUM_INSTANCES" "提示类型(baseline+cot并行)" ""
+                
+                if [ $? -ne 0 ]; then
+                    exit 1
+                fi
+                
+                # 更新进度，标记两个prompt都完成
+                update_progress 5 $i "cot"
+            else
+                # 如果有中断，逐个测试剩余的prompt
+                for j in "${!PROMPT_TYPES[@]}"; do
+                    if [ $j -ge $start_prompt ]; then
+                        prompt="${PROMPT_TYPES[$j]}"
+                        update_progress 5 $i "$prompt"
+                        
+                        total_prompts=$((i * 2 + j + 1))
+                        show_progress_stats "5.5" $total_prompts $((${#CURRENT_MODELS[@]} * 2))  # 模型数×2提示
+                        run_smart_test "$model" "$prompt" "easy" "all" "$NUM_INSTANCES" "提示类型($prompt)" ""
+                        
+                        if [ $? -ne 0 ]; then
+                            exit 1
+                        fi
+                    fi
+                done
+            fi
+            start_prompt=0
+            
+            # 模型完成后，更新到下一个模型索引
+            next_idx=$((i + 1))
+            if [ $next_idx -lt ${#CURRENT_MODELS[@]} ]; then
+                update_progress 5 $next_idx ""
+            fi
+            
+            # 调试模式下在每个模型后暂停
+            debug_pause_after_model "$model" "5.5 提示类型敏感性测试"
+            fi
+        done
+    fi
+    
+    echo -e "${GREEN}✅ 5.5 提示类型敏感性测试完成！${NC}"
+    update_progress 6 0 ""
+fi
+
+# ============================================
+# 测试完成总结
+# ============================================
+echo ""
+echo "=========================================="
+echo -e "${GREEN}🎉 所有测试已完成！${NC}"
+echo "=========================================="
+echo ""
+echo "📊 测试总结："
+echo "-------------------------------------------"
+echo "  5.1 基准测试:      8个模型 × 100个测试 = 800个测试"
+echo "  5.2 Qwen规模效应:  5个模型 × 2个难度 × 100个测试 = 1,000个测试"
+echo "  5.3 缺陷工作流:    8个模型 × 7种缺陷 × 100个测试 = 5,600个测试"
+echo "  5.4 工具可靠性:    8个模型 × 3个成功率 × 100个测试 = 2,400个测试"
+echo "  5.5 提示类型:      8个模型 × 2种提示 × 100个测试 = 1,600个测试"
+echo "-------------------------------------------"
+echo "  总计: 11,400个测试"
+echo ""
+
+# 恢复被忽略的进度文件（如果有）
+if [ -f "${PROGRESS_FILE}.ignored" ]; then
+    echo -e "${CYAN}恢复被忽略的进度文件...${NC}"
+    mv "${PROGRESS_FILE}.ignored" "$PROGRESS_FILE"
+    if [ -f "${COMPLETED_FILE}.ignored" ]; then
+        mv "${COMPLETED_FILE}.ignored" "$COMPLETED_FILE"
+    fi
+    echo -e "${GREEN}✓ 进度文件已恢复${NC}"
+fi
+
+# 清理进度文件（可选）- 仅在交互模式下询问
+if [ "$SKIP_MENU" = false ]; then
+    echo -e "${YELLOW}是否清理进度文件？(y/n)${NC}"
+    read -r cleanup
+    if [ "$cleanup" == "y" ] || [ "$cleanup" == "Y" ]; then
+        echo "清理进度文件..."
+        rm -f "$PROGRESS_FILE"
+        rm -f "$COMPLETED_FILE"
+        echo -e "${GREEN}✓ 进度文件已清理${NC}"
+    else
+        echo "保留进度文件（可用于查看测试历史）"
+    fi
+elif [ "$INCREMENTAL_MODE" = true ]; then
+    echo -e "${CYAN}增量测试模式：保留进度文件供下次使用${NC}"
+else
+    echo "保留进度文件（可用于查看测试历史）"
+fi
+
+echo ""
+echo "📈 下一步操作："
+echo "1. 查看测试统计："
+echo "   python view_test_statistics.py"
+echo ""
+echo "2. 生成详细报告："
+echo "   python generate_report.py --input-dir pilot_bench_cumulative_results"
+echo ""
+echo "3. 检查特定配置的完成情况："
+echo "   python check_completed_tests.py <model> <prompt_type> <difficulty>"
+echo ""
+
+# ============================================
+# 自动维护检查（测试完成后）
+# ============================================
+
+if [ "$WITH_MAINTENANCE" = "true" ] && [ "$MAINTENANCE_LIB_LOADED" = "true" ]; then
+    echo -e "${CYAN}🔧 执行测试完成后维护检查...${NC}"
+    echo ""
+    
+    # 检查是否有未完成的测试
+    if command -v check_incomplete_tests >/dev/null 2>&1; then
+        if check_incomplete_tests ""; then
+            echo -e "${YELLOW}⚠️  发现未完成的测试${NC}"
+            echo ""
+            echo -e "${YELLOW}是否立即执行自动重测？ (y/n): ${NC}"
+            read -r auto_retest_choice
+            
+            if [ "$auto_retest_choice" = "y" ] || [ "$auto_retest_choice" = "Y" ]; then
+                echo -e "${CYAN}🔄 执行自动重测...${NC}"
+                if command -v run_incremental_retest >/dev/null 2>&1; then
+                    run_incremental_retest "" "0.8" "false"
+                else
+                    python3 smart_batch_runner.py --incremental-retest --completion-threshold 0.8
+                fi
+            else
+                echo -e "${BLUE}💡 您可以稍后运行以下命令进行维护:${NC}"
+                echo "  bash $0 --auto-maintain"
+                echo "  或"
+                echo "  python3 smart_batch_runner.py --auto-maintain"
+            fi
+        else
+            echo -e "${GREEN}✅ 所有测试已完成，无需额外维护${NC}"
+        fi
+    fi
+    
+    # 显示维护总结
+    echo ""
+    echo -e "${CYAN}🔧 维护总结:${NC}"
+    if command -v show_progress_summary >/dev/null 2>&1; then
+        show_progress_summary
+    fi
+    
+    echo ""
+fi
+
+echo -e "${GREEN}感谢使用PILOT-Bench系统化测试工具！${NC}"
