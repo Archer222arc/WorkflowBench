@@ -232,10 +232,13 @@ class InteractiveExecutor:
             required_execution_order = []
             
             for exec_result in state.execution_history:
-                if exec_result.success and exec_result.tool_name in state.required_tools:
-                    successful_required.append(exec_result.tool_name)
-                    if exec_result.tool_name not in required_execution_order:
-                        required_execution_order.append(exec_result.tool_name)
+                # 处理dict或对象
+                success = exec_result.get('success', False) if isinstance(exec_result, dict) else exec_result.success
+                tool_name = exec_result.get('tool', exec_result.get('tool_name', '')) if isinstance(exec_result, dict) else exec_result.tool_name
+                if success and tool_name in state.required_tools:
+                    successful_required.append(tool_name)
+                    if tool_name not in required_execution_order:
+                        required_execution_order.append(tool_name)
             
             # 计算覆盖率
             coverage = len(set(successful_required)) / len(state.required_tools)
@@ -266,8 +269,11 @@ class InteractiveExecutor:
         ]
         
         for exec_result in state.execution_history:
-            if exec_result.success:
-                tool_lower = exec_result.tool_name.lower()
+            # 处理dict或对象
+            success = exec_result.get('success', False) if isinstance(exec_result, dict) else exec_result.success
+            tool_name = exec_result.get('tool', exec_result.get('tool_name', '')) if isinstance(exec_result, dict) else exec_result.tool_name
+            if success:
+                tool_lower = tool_name.lower()
                 if any(keyword in tool_lower for keyword in output_keywords):
                     evaluation_details['has_output'] = True
                     break
@@ -415,7 +421,9 @@ class InteractiveExecutor:
                 
                 # 检查state中是否有超时标记
                 if hasattr(state, 'timeout_occurred') and state.timeout_occurred:
-                    issue_type = 'API timeout after 120 seconds'
+                    # 所有模型统一的超时时间
+                    timeout_seconds = 150
+                    issue_type = f'API timeout after {timeout_seconds} seconds'
                     state.error_type = 'timeout'  # 设置错误类型为timeout
                 else:
                     issue_type = 'API failed after max retries'
@@ -484,6 +492,47 @@ class InteractiveExecutor:
             
             # 4. 解析工具调用和智能格式检查
             tool_calls = self._parse_tool_calls(response)
+            
+            # 4a. 快速检测：如果没有任何可识别的action，立即反馈
+            tool_searches = self._extract_tool_searches(response)
+            tool_infos = self._extract_tool_info_requests(response)
+            
+            # 如果响应超过一定长度但没有检测到任何action格式
+            if (len(response) > 50 and 
+                not tool_calls and 
+                not tool_searches and 
+                not tool_infos and
+                not self._check_completion_signal(response)):
+                
+                # 立即提供简单直接的反馈
+                quick_help = self._generate_no_action_feedback(response, state)
+                conversation.append({"role": "assistant", "content": response})
+                conversation.append({"role": "user", "content": quick_help})
+                
+                state.conversation_history.append({
+                    "role": "assistant",
+                    "content": response,
+                    "turn": turn + 1,
+                    "no_action": True
+                })
+                state.conversation_history.append({
+                    "role": "user",
+                    "content": quick_help,
+                    "turn": turn + 1,
+                    "type": "no_action_help"
+                })
+                
+                # 记录格式错误统计
+                if not hasattr(state, 'format_error_count'):
+                    state.format_error_count = 0
+                state.format_error_count += 1
+                
+                if not self.silent:
+                    print(f"  [NO_ACTION] Quick feedback provided - no valid action format detected")
+                
+                continue
+            
+            # 4b. 更详细的格式问题检测（原有逻辑）
             format_issue_detected = self._detect_tool_call_format_issues(response, tool_calls, turn, state)
             
             # 如果检测到格式问题，提供帮助并继续对话
@@ -636,8 +685,8 @@ class InteractiveExecutor:
         if parsed_tools:
             return False
         
-        # 跳过前3轮，给模型一些学习时间
-        if turn < 3:
+        # 所有模型统一从第1轮开始检测，快速提供反馈
+        if turn < 1:
             return False
         
         # 检测常见的错误格式模式
@@ -665,7 +714,14 @@ class InteractiveExecutor:
                     potential_tools.append(tool_name)
                     format_issues.append(f"Detected potential tool '{tool_name}' in incorrect format")
         
-        # 2. 检测是否在描述工具使用但没有实际调用
+        # 2. 特殊检测：如果用了tool_search但没有tool_call
+        has_tool_search = '<tool_search>' in response
+        has_tool_call = '<tool_call>' in response
+        
+        if has_tool_search and not has_tool_call:
+            format_issues.append("Used <tool_search> but no <tool_call> found - need to EXECUTE tools after searching")
+        
+        # 3. 检测是否在描述工具使用但没有实际调用
         action_keywords = ['need to', 'will use', 'should use', 'let me', 'i will', 'going to']
         tool_keywords = list(self.tool_registry.keys())[:20]  # 取前20个常用工具名
         
@@ -676,7 +732,7 @@ class InteractiveExecutor:
                     potential_tools.append(tool)
                     break
         
-        # 3. 如果执行历史为空且轮数较多，可能是格式问题
+        # 4. 如果执行历史为空且轮数较多，可能是格式问题
         if len(state.execution_history) == 0 and turn >= 5:
             format_issues.append("No tools executed after multiple turns")
         
@@ -724,10 +780,42 @@ class InteractiveExecutor:
         """生成格式帮助消息"""
         required_tools = state.required_tools if state.required_tools else []
         
+        # 分析上一条响应，提供更精确的反馈
+        last_response = state.conversation_history[-1]['content'] if state.conversation_history else ""
+        
+        # 检查是否使用了tool_search
+        used_tool_search = '<tool_search>' in last_response
+        used_tool_call = '<tool_call>' in last_response
+        
         help_msg = "\n=== TOOL CALL FORMAT HELP ===\n"
-        help_msg += "I noticed you might be trying to use tools, but the format isn't correct.\n\n"
-        help_msg += "CORRECT FORMAT for tool calls:\n"
-        help_msg += "<tool_call>tool_name</tool_call>\n\n"
+        
+        if used_tool_search and not used_tool_call:
+            # 最常见的情况：搜索了但没有执行
+            help_msg += "🚫 ACTION NOT FOUND: No tool execution detected in your response.\n\n"
+            help_msg += "You successfully searched for tools using <tool_search>, but you didn't execute any.\n"
+            help_msg += "After finding tools, you MUST execute them using:\n"
+            help_msg += "<tool_call>tool_name</tool_call>\n\n"
+            help_msg += "Please execute the first tool NOW. For example:\n"
+            if required_tools:
+                help_msg += f"<tool_call>{required_tools[0]}</tool_call>\n"
+            else:
+                help_msg += "<tool_call>network_fetcher</tool_call>\n"
+        elif not used_tool_search and not used_tool_call:
+            # 既没有搜索也没有执行
+            help_msg += "🚫 NO ACTION DETECTED: Your response contains no valid tool operations.\n\n"
+            help_msg += "You need to either:\n"
+            help_msg += "1. Search for tools: <tool_search>your query</tool_search>\n"
+            help_msg += "2. Execute a tool: <tool_call>tool_name</tool_call>\n\n"
+            help_msg += "Please take an action NOW.\n"
+        else:
+            # 通用格式错误
+            help_msg += "⚠️ FORMAT ERROR: Tool call not detected.\n\n"
+            help_msg += "You used <tool_search> correctly, but to EXECUTE tools you must use:\n"
+            help_msg += "<tool_call>tool_name</tool_call>\n\n"
+            help_msg += "IMPORTANT: After searching for tools, you need to EXECUTE them.\n"
+            help_msg += "Example workflow:\n"
+            help_msg += "1. <tool_search>query</tool_search> - Find tools (you did this ✓)\n"
+            help_msg += "2. <tool_call>tool_name</tool_call> - Execute tool (you need to do this)\n\n"
         
         if required_tools:
             help_msg += f"For this task, you need to use these tools: {', '.join(required_tools)}\n\n"
@@ -745,6 +833,60 @@ class InteractiveExecutor:
         help_msg += "=============================\n"
         
         return help_msg
+    
+    def _generate_no_action_feedback(self, response: str, state) -> str:
+        """生成无action检测时的快速反馈"""
+        # 分析响应内容，猜测可能的意图
+        response_lower = response.lower()
+        
+        # 检查是否在描述意图但没有执行
+        intent_keywords = [
+            'will', 'need to', 'should', 'let me', 'going to',
+            'next', 'now', 'first', 'then', 'start'
+        ]
+        
+        has_intent = any(keyword in response_lower for keyword in intent_keywords)
+        
+        # 检查是否提到了工具相关词汇
+        tool_related = any(word in response_lower for word in [
+            'tool', 'execute', 'call', 'use', 'fetch', 'validate', 'post',
+            'network', 'data', 'api', 'process'
+        ])
+        
+        # 生成针对性的反馈
+        if has_intent and tool_related:
+            # 看起来想执行操作但格式错误
+            feedback = "❌ NO ACTION DETECTED - Format may be incorrect.\n\n"
+            feedback += "I see you're trying to use tools, but I cannot detect any valid action format.\n"
+            feedback += "Please use ONE of these formats:\n\n"
+            feedback += "To search for tools:\n"
+            feedback += "<tool_search>your search query</tool_search>\n\n"
+            feedback += "To execute a tool:\n"
+            feedback += "<tool_call>tool_name</tool_call>\n\n"
+            feedback += "Example: <tool_call>network_fetcher</tool_call>\n"
+            feedback += "\nIMPORTANT: Use the EXACT format with angle brackets."
+        elif len(response) > 200:
+            # 长响应但没有action，可能在解释而非执行
+            feedback = "❌ NO ACTION FOUND - Please take an action.\n\n"
+            feedback += "Your response contains explanations but no actual tool operations.\n"
+            feedback += "Stop explaining and START DOING. Use:\n"
+            feedback += "<tool_call>tool_name</tool_call> to execute a tool\n\n"
+            if state.required_tools:
+                feedback += f"Execute the first required tool NOW:\n"
+                feedback += f"<tool_call>{state.required_tools[0]}</tool_call>"
+        else:
+            # 通用反馈
+            feedback = "❌ NO VALID ACTION FORMAT DETECTED\n\n"
+            feedback += "Your response must include one of these action formats:\n"
+            feedback += "• <tool_search>query</tool_search> - to search for tools\n"
+            feedback += "• <tool_call>tool_name</tool_call> - to execute a tool\n"
+            feedback += "• <tool_info>tool_name</tool_info> - to get tool details\n\n"
+            feedback += "Please try again with the correct format."
+        
+        # 通用提示，适用于所有模型
+        feedback += "\n\n[IMPORTANT: You must use the EXACT XML-style format shown above with angle brackets]"
+        
+        return feedback
     
     def _generate_intelligent_error_message(self, state, success_level: str, total_turns: int) -> Optional[str]:
         """生成智能的错误消息"""
@@ -1190,6 +1332,15 @@ class InteractiveExecutor:
         response = None
         for attempt in range(max_retries):
             try:
+                # QPS控制 - 在每次实际API调用前
+                from qps_limiter import get_qps_limiter
+                qps_limiter = get_qps_limiter(
+                    self.model,
+                    None,  # 使用默认QPS设置
+                    self.idealab_key_index if hasattr(self, 'idealab_key_index') else None
+                )
+                qps_limiter.acquire()  # 等待直到允许发送下一个请求
+                
                 # 只传递必要参数，不设置max_tokens和temperature
                 create_params = {
                     "model": api_model_name,
@@ -1197,7 +1348,10 @@ class InteractiveExecutor:
                 }
                 
                 # 设置API调用超时时间为120秒
-                response = self.llm_client.chat.completions.create(**create_params, timeout=120)
+                # 所有模型统一使用150秒超时，给予充足的响应时间
+                timeout_seconds = 150
+                
+                response = self.llm_client.chat.completions.create(**create_params, timeout=timeout_seconds)
                 break  # 成功则跳出循环
             except Exception as e:
                 error_msg = str(e)
@@ -1206,7 +1360,7 @@ class InteractiveExecutor:
                 # 检查是否是超时错误（超时不重试，直接失败）
                 is_timeout = "timeout" in error_msg.lower() or "timed out" in error_msg.lower()
                 if is_timeout:
-                    print(f"[TIMEOUT] API call timed out after 120 seconds, not retrying")
+                    print(f"[TIMEOUT] API call timed out after 150 seconds, not retrying")
                     state.timeout_occurred = True  # 标记超时发生
                     return None  # 直接返回失败，不重试
                 
@@ -1299,11 +1453,12 @@ class InteractiveExecutor:
             state.current_step += 1
             
             # 只有成功的工具才记录到 executed_tools
-            if result.success:
+            success = result.get('success', False) if isinstance(result, dict) else result.success
+            if success:
                 state.executed_tools.append(tool_name)
             
             # 生成反馈
-            if result.success:
+            if success:
                 feedback = f"✅ {tool_name} executed successfully.\nOutput: {json.dumps(result.output, indent=2)}"
                 print(f"    Result: SUCCESS")
             else:
@@ -1801,8 +1956,12 @@ class InteractiveExecutor:
         
         # 收集所有成功工具的输出
         for result in state.execution_history:
-            if result.success and result.output:
-                outputs[result.tool_name] = result.output
+            # 处理dict或对象
+            success = result.get('success', False) if isinstance(result, dict) else result.success
+            output = result.get('output') if isinstance(result, dict) else result.output
+            tool_name = result.get('tool', result.get('tool_name', '')) if isinstance(result, dict) else result.tool_name
+            if success and output:
+                outputs[tool_name] = output
         
         # 特别标记输出类工具的结果
         final_outputs = {}

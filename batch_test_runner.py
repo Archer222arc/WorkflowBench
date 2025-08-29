@@ -45,6 +45,7 @@ else:
     print(f"[INFO] 使用JSON存储格式")
 from workflow_quality_test_flawed import WorkflowQualityTester
 from adaptive_rate_limiter import AdaptiveRateLimiter
+from storage_adapter import create_storage_adapter
 
 # 设置默认日志配置
 logging.basicConfig(
@@ -91,6 +92,9 @@ class BatchTestRunner:
         self.checkpoint_interval = checkpoint_interval  # 中间保存间隔（每N个测试保存一次）
         self.pending_results = []  # 待保存的结果缓存
         self.idealab_key_index = idealab_key_index  # IdealLab API key索引
+        
+        # 初始化存储适配器（稍后创建，需要manager）
+        self.storage_adapter = None
         
         # 创建logs目录 (必须先初始化日志系统)
         log_dir = Path("logs")
@@ -220,9 +224,9 @@ class BatchTestRunner:
         txt_lines.append(f"Test Log: {test_id}")
         txt_lines.append("=" * 80 + "\n")
         
-        txt_lines.append(f"Task Type: {log_data['task_type']}")
-        txt_lines.append(f"Prompt Type: {log_data['prompt_type']}")
-        txt_lines.append(f"Timestamp: {log_data['timestamp']}\n")
+        txt_lines.append(f"Task Type: {log_data.get('task_type', 'unknown')}")
+        txt_lines.append(f"Prompt Type: {log_data.get('prompt_type', 'unknown')}")
+        txt_lines.append(f"Timestamp: {log_data.get('timestamp', datetime.now().isoformat())}\n")
         
         txt_lines.append("Task Instance:")
         txt_lines.append("-" * 40)
@@ -484,6 +488,9 @@ class BatchTestRunner:
             # 初始化增强版累积测试管理器（实时错误分类）
             self.manager = EnhancedCumulativeManager(use_ai_classification=self.use_ai_classification)
             
+            # 创建存储适配器
+            self.storage_adapter = create_storage_adapter(self.manager)
+            
             # 初始化 WorkflowQualityTester（用于继承prompt创建方法和评分）
             # 注意：传递generator作为第一个参数
             self.quality_tester = WorkflowQualityTester(
@@ -500,6 +507,90 @@ class BatchTestRunner:
             self._initialized = True
             self.logger.info("Initialization complete")
     
+    def _smart_checkpoint_save(self, results, task_model=None, force=False):
+        """智能checkpoint保存 - 支持多重触发条件"""
+        if not self.checkpoint_interval or self.enable_database_updates:
+            return
+        
+        # 将结果添加到pending缓存
+        if results:
+            if isinstance(results, list):
+                self.pending_results.extend(results)
+            else:
+                self.pending_results.append(results)
+        
+        # 多重触发条件检查
+        current_time = time.time()
+        time_since_last_save = current_time - getattr(self, '_last_checkpoint_time', current_time)
+        result_count = len(self.pending_results)
+        
+        # 自适应阈值
+        effective_threshold = self.checkpoint_interval
+        if hasattr(self, '_adaptive_checkpoint') and self._adaptive_checkpoint:
+            if result_count > 0 and time_since_last_save > 300:  # 5分钟强制保存
+                effective_threshold = 1
+            elif time_since_last_save > 180:  # 3分钟降低阈值
+                effective_threshold = max(1, self.checkpoint_interval // 2)
+        
+        # 触发条件
+        should_save = (force or 
+                      result_count >= effective_threshold or
+                      (result_count > 0 and time_since_last_save > 600) or  # 10分钟强制保存
+                      (result_count >= 3 and time_since_last_save > 120))   # 2分钟部分保存
+        
+        if should_save and self.pending_results:
+            print(f"💾 智能Checkpoint: 保存{len(self.pending_results)}个结果...")
+            print(f"   触发原因: 数量={result_count}, 时间={time_since_last_save:.1f}s, 强制={force}")
+            
+            # 确保已初始化manager
+            self._lazy_init()
+            
+            # 保存逻辑（保持原有逻辑）
+            try:
+                from cumulative_test_manager import TestRecord
+                saved_count = 0
+                
+                for result in self.pending_results:
+                    if result and not result.get('_saved', False):
+                        record = TestRecord(
+                            model=result.get('model', task_model or 'unknown'),
+                            task_type=result.get('task_type', 'unknown'),
+                            prompt_type=result.get('prompt_type', 'baseline'),
+                            difficulty=result.get('difficulty', 'easy')
+                        )
+                        
+                        # 设置其他字段（保持原有逻辑）
+                        for field in ['timestamp', 'success', 'success_level', 'execution_time', 'turns',
+                                    'tool_calls', 'workflow_score', 'phase2_score', 'quality_score',
+                                    'final_score', 'error_type', 'tool_success_rate', 'is_flawed',
+                                    'flaw_type', 'format_error_count', 'api_issues', 'executed_tools',
+                                    'required_tools', 'tool_coverage_rate', 'task_instance', 'execution_history',
+                                    'ai_error_category', '_ai_error_category']:
+                            if field in result:
+                                if field == '_ai_error_category':
+                                    setattr(record, 'ai_error_category', result[field])
+                                else:
+                                    setattr(record, field, result[field])
+                        
+                        # 保存记录（使用统一的存储适配器）
+                        try:
+                            if self.storage_adapter and self.storage_adapter.write_result(record):
+                                result['_saved'] = True
+                                saved_count += 1
+                        except Exception as e:
+                            print(f"保存记录失败: {e}")
+                
+                print(f"✅ Checkpoint完成: 成功保存 {saved_count}/{len(self.pending_results)} 个结果")
+                
+                # 清空已保存的结果
+                self.pending_results = [r for r in self.pending_results if not r.get('_saved', False)]
+                self._last_checkpoint_time = current_time
+                
+            except Exception as e:
+                print(f"❌ Checkpoint失败: {e}")
+                import traceback
+                traceback.print_exc()
+
     def _load_task_library(self, difficulty="easy", num_instances=20):
         """加载任务库
         
@@ -812,7 +903,7 @@ class BatchTestRunner:
             # 使用deployment进行API调用，如果没有指定则使用model
             # 特殊处理qwen-key虚拟实例
             if deployment and deployment.startswith("qwen-key"):
-                # qwen-key0/1/2 是虚拟实例，需要使用实际的模型名
+                # qwen-key0/1 是虚拟实例，需要使用实际的模型名
                 # 同时提取key索引用于API key选择
                 api_model = model  # 使用实际的模型名
                 # key索引已经通过self.idealab_key_index传递
@@ -897,6 +988,9 @@ class BatchTestRunner:
                 'flaw_type': flaw_type
             }
             
+            # QPS控制已经移到interactive_executor._get_llm_response中
+            # 在每次实际API调用前进行限流，而不是在任务开始时
+            
             result = executor.execute_interactive(
                 initial_prompt=initial_prompt,
                 task_instance=task_instance,
@@ -909,11 +1003,11 @@ class BatchTestRunner:
             log_data['conversation_history'] = result.get('conversation_history', [])
             log_data['execution_history'] = [
                 {
-                    'tool': h.tool_name if hasattr(h, 'tool_name') else h.get('tool', ''),
-                    'success': h.success if hasattr(h, 'success') else h.get('success', False),
-                    'output': str(h.output) if hasattr(h, 'output') else h.get('output'),
-                    'error': h.error if hasattr(h, 'error') else h.get('error'),
-                    'execution_time': h.execution_time if hasattr(h, 'execution_time') else h.get('execution_time', 0)
+                    'tool': getattr(h, 'tool_name', None) if hasattr(h, 'tool_name') else h.get('tool', ''),
+                    'success': getattr(h, 'success', False) if hasattr(h, 'success') else h.get('success', False),
+                    'output': str(getattr(h, 'output', '')) if hasattr(h, 'output') else h.get('output'),
+                    'error': getattr(h, 'error', None) if hasattr(h, 'error') else h.get('error'),
+                    'execution_time': getattr(h, 'execution_time', 0) if hasattr(h, 'execution_time') else h.get('execution_time', 0)
                 }
                 for h in result.get('execution_history', [])
             ]
@@ -932,7 +1026,8 @@ class BatchTestRunner:
             # 添加required_tools和交互历史到结果中
             result['required_tools'] = task.get('required_tools', [])
             result['conversation_history'] = result.get('conversation_history', [])
-            result['execution_history'] = result.get('execution_history', [])
+            # 使用清理过的execution_history，确保可序列化
+            result['execution_history'] = log_data['execution_history']
             self.logger.debug(f"Execution completed in {execution_time:.2f}s")
             
             # 计算workflow adherence（继承workflow_quality_test_flawed的逻辑）
@@ -981,32 +1076,44 @@ class BatchTestRunner:
             final_score = 0.0
             
             # 使用已计算的adherence_scores
-            workflow_score = adherence_scores.get('overall_adherence', 0.0)
+            workflow_score = adherence_scores.get('overall_adherence', 0.0) if adherence_scores else 0.0
             
             # 使用stable_scorer计算phase2和quality分数
             if hasattr(self.quality_tester, 'stable_scorer') and self.quality_tester.stable_scorer:
-                # 准备评分所需的数据
-                execution_data = {
-                    'tool_calls': result.get('tool_calls', []),
-                    'execution_time': result.get('execution_time', 0.0),
-                    'success_level': execution_status,
-                    'output_generated': len(result.get('tool_calls', [])) > 0,
-                    'turns': result.get('turns', 0)
-                }
-                
-                evaluation_context = {
-                    'task': task,
-                    'workflow': workflow,
-                    'required_tools': workflow.get('required_tools', []),
-                    'expected_time': 10.0,
-                    'adherence_scores': adherence_scores
-                }
-                
-                # 调用calculate_stable_score方法
-                phase2_score, score_breakdown = self.quality_tester.stable_scorer.calculate_stable_score(
-                    execution_data, evaluation_context
-                )
-                quality_score = score_breakdown.get('execution_quality', 0.0)
+                try:
+                    # 准备评分所需的数据
+                    execution_data = {
+                        'tool_calls': result.get('tool_calls', []),
+                        'execution_time': result.get('execution_time', 0.0),
+                        'success_level': execution_status,
+                        'output_generated': len(result.get('tool_calls', [])) > 0,
+                        'turns': result.get('turns', 0)
+                    }
+                    
+                    evaluation_context = {
+                        'task': task,
+                        'workflow': workflow,
+                        'required_tools': workflow.get('required_tools', []),
+                        'expected_time': 10.0,
+                        'adherence_scores': adherence_scores
+                    }
+                    
+                    # 调用calculate_stable_score方法
+                    phase2_score, score_breakdown = self.quality_tester.stable_scorer.calculate_stable_score(
+                        execution_data, evaluation_context
+                    )
+                    quality_score = score_breakdown.get('execution_quality', 0.0)
+                    
+                    # 确保返回的score不是None
+                    phase2_score = phase2_score if phase2_score is not None else 0.0
+                    quality_score = quality_score if quality_score is not None else 0.0
+                    
+                except Exception as e:
+                    self.logger.warning(f"Error in calculate_stable_score: {e}")
+                    phase2_score = 0.0
+                    quality_score = 0.0
+                    # 确保workflow_score也不为None
+                    workflow_score = workflow_score if workflow_score is not None else 0.0
             else:
                 # stable_scorer不可用，直接报错
                 raise RuntimeError(
@@ -1028,7 +1135,9 @@ class BatchTestRunner:
                 covered_tools = required_set.intersection(executed_set)
                 tool_coverage_rate = len(covered_tools) / len(required_tools)
             
-            # 正确判定success_level基于分数
+            # 正确判定success_level基于分数（处理None值）
+            workflow_score = workflow_score or 0.0
+            phase2_score = phase2_score or 0.0
             if workflow_score >= 0.8 and phase2_score >= 0.8:
                 success_level = 'full_success'
                 success = True
@@ -1116,19 +1225,69 @@ class BatchTestRunner:
             self.logger.error(f"Test failed with exception: {str(e)}")
             if self.debug:
                 self.logger.error(traceback.format_exc())
-            return {
+            
+            # 创建错误结果
+            error_result = {
                 'success': False,
                 'error': str(e),
                 'execution_time': 0,
                 'format_error_count': 0,
                 'format_issues': [],
-                'api_issues': []
+                'api_issues': [],
+                'execution_history': [],
+                'conversation_history': []
             }
+            
+            # 即使出现异常也保存日志文件，便于调试
+            if self.save_logs:
+                try:
+                    # 创建包含错误信息的log_data
+                    error_log_data = {
+                        'test_id': f"{model}_{task_type}_{prompt_type}_error_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                        'task_type': task_type,
+                        'prompt_type': prompt_type,
+                        'model': model,
+                        'error': str(e),
+                        'error_type': 'exception',
+                        'test_metadata': {
+                            'model': model,
+                            'task_type': task_type,
+                            'prompt_type': prompt_type,
+                            'timestamp': datetime.now().isoformat(),
+                            'success': False,
+                            'failure_reason': f"Exception: {str(e)}"
+                        },
+                        'conversation_history': [],
+                        'test_result': error_result
+                    }
+                    
+                    # 创建TestTask对象用于保存日志
+                    task_obj = TestTask(
+                        model=model,
+                        task_type=task_type,
+                        prompt_type=prompt_type,
+                        difficulty=difficulty,
+                        tool_success_rate=tool_success_rate,
+                        is_flawed=is_flawed,
+                        flaw_type=flaw_type
+                    )
+                    
+                    # 保存错误日志
+                    txt_file_path = self._save_interaction_log(task_obj, error_result, error_log_data)
+                    if self.debug and txt_file_path:
+                        self.logger.debug(f"Saved exception log to {txt_file_path.name}")
+                except Exception as log_error:
+                    self.logger.error(f"Failed to save exception log: {log_error}")
+            
+            return error_result
     
     def run_concurrent_batch(self, tasks: List[TestTask], workers: int = 20, 
                            qps: float = 20.0) -> List[Dict]:
         """并发运行批量测试"""
         self.logger.info(f"Running {len(tasks)} tests with {workers} workers, QPS limit: {qps}")
+        
+        # 保存QPS值供后续使用
+        self.qps = qps
         
         # 预初始化（在主线程中完成初始化）
         self._lazy_init()
@@ -1147,6 +1306,8 @@ class BatchTestRunner:
         local_records = []
         
         # QPS控制（Azure API不需要严格限制）
+        # 确保qps不为None
+        qps = qps if qps is not None else 0
         min_interval = 0 if api_provider == 'azure' else (1.0 / qps if qps > 0 else 0)
         
         with ThreadPoolExecutor(max_workers=workers) as executor:
@@ -1172,8 +1333,10 @@ class BatchTestRunner:
             
             # 收集结果
             try:
-                # 动态计算超时时间：每个任务30秒，但至少30分钟，最多2小时
-                total_timeout = max(1800, min(7200, len(tasks) * 30))  # 至少30分钟，最多2小时
+                # 合理的超时策略：每个任务60秒，但至少1小时，最多4小时
+                total_timeout = max(3600, min(14400, len(tasks) * 60))  # 至少1小时，最多4小时
+                self.logger.info(f"Batch timeout set to {total_timeout}s ({total_timeout/60:.1f} minutes) for {len(tasks)} tasks")
+                
                 for future in as_completed(future_to_task, timeout=total_timeout):
                     task = future_to_task[future]
                     try:
@@ -1205,6 +1368,9 @@ class BatchTestRunner:
                                     # 通过分数判断：workflow_score < 1.0 或 phase2_score < 1.0
                                     workflow_score = result.get('workflow_score', 1.0)
                                     phase2_score = result.get('phase2_score', 1.0)
+                                    # 确保不是None值再进行比较
+                                    workflow_score = workflow_score if workflow_score is not None else 1.0
+                                    phase2_score = phase2_score if phase2_score is not None else 1.0
                                     if workflow_score < 0.8 or phase2_score < 0.8:
                                         success_level = 'partial_success'
                                         print(f"[AI_DEBUG] 检测到partial_success (workflow={workflow_score:.2f}, phase2={phase2_score:.2f})")
@@ -1298,7 +1464,7 @@ class BatchTestRunner:
                                 # 添加到结果中以便checkpoint
                                 result['model'] = task.model
                                 result['difficulty'] = task.difficulty
-                                self._checkpoint_save([result], task.model)
+                                self._smart_checkpoint_save([result], task.model)
                         
                         # 更新进度
                         if not self.silent:
@@ -1345,12 +1511,19 @@ class BatchTestRunner:
                 for future in future_to_task:
                     if not future.done():
                         future.cancel()
-                # 强制关闭executor
-                executor.shutdown(wait=False, cancel_futures=True)
+                # 等待正在执行的任务完成后关闭executor
+                # 注意：这里应该等待，否则可能丢失最后的任务结果
+                executor.shutdown(wait=True, cancel_futures=True)
         
         # 如果使用checkpoint，最后保存剩余的
         if not self.enable_database_updates and self.checkpoint_interval > 0:
-            self._checkpoint_save([], force=True)
+            self._smart_checkpoint_save([], force=True)
+            
+        # 确保所有待保存的数据都已写入
+        # 这很重要，特别是对于最后一批不足checkpoint_interval的数据
+        if self.pending_results:
+            self.logger.info(f"Final flush: Saving remaining {len(self.pending_results)} results")
+            self._smart_checkpoint_save([], force=True)
         
         # 批量写入所有记录到数据库
         # 统计模型分布
@@ -1364,23 +1537,12 @@ class BatchTestRunner:
         print(f"\n[INFO] {write_start_msg}")
         self.logger.info(write_start_msg)
         
+        # 使用存储适配器批量写入
         successful_writes = 0
-        if self.enable_database_updates:
-            for record in local_records:
-                try:
-                    self.manager.add_test_result_with_classification(record)
-                    successful_writes += 1
-                except Exception as e:
-                    self.logger.error(f"Failed to write record to database: {e}")
+        if self.storage_adapter:
+            successful_writes = self.storage_adapter.write_batch(local_records)
         else:
-            # ❌ 修复：即使disable_database_updates，也要保存数据！
-            print(f"[WARN] 数据库实时更新已禁用，但仍需保存{len(local_records)}条记录")
-            for record in local_records:
-                try:
-                    self.manager.add_test_result_with_classification(record)
-                    successful_writes += 1
-                except Exception as e:
-                    self.logger.error(f"Failed to write record to database: {e}")
+            self.logger.error("No storage adapter available for writing records")
         
         write_complete_msg = f"Successfully wrote {successful_writes}/{len(local_records)} records ({model_distribution})"
         print(f"[INFO] {write_complete_msg}")
@@ -1473,10 +1635,10 @@ class BatchTestRunner:
                                 else:
                                     setattr(record, field, result[field])
                         
-                        # 使用现有的manager实例
-                        self.manager.add_test_result_with_classification(record)
-                        result['_saved'] = True
-                        saved_count += 1
+                        # 使用存储适配器保存
+                        if self.storage_adapter and self.storage_adapter.write_result(record):
+                            result['_saved'] = True
+                            saved_count += 1
                 
                 # 刷新缓冲区（特别重要对于Parquet格式）
                 if hasattr(self.manager, '_flush_buffer'):
@@ -1576,6 +1738,8 @@ class BatchTestRunner:
             )
             
             # QPS控制
+            # 确保qps不为None
+            qps = qps if qps is not None else 0
             min_interval = 1.0 / qps if qps > 0 else 0
             
             with ThreadPoolExecutor(max_workers=workers) as executor:
@@ -1630,7 +1794,7 @@ class BatchTestRunner:
                             if result:
                                 result['model'] = task.model
                                 result['difficulty'] = task.difficulty
-                            self._checkpoint_save([result], task.model)
+                            self._smart_checkpoint_save([result], task.model)
                         
                         # 保存到数据库（修复：run_adaptive_concurrent_batch缺少的数据保存）
                         if result:
@@ -1670,15 +1834,12 @@ class BatchTestRunner:
                             record.tool_success_rate = task.tool_success_rate
                             record.task_instance = task.task_instance if hasattr(task, 'task_instance') else {}
                             
-                            # 使用增强管理器的分类方法
-                            if self.enable_database_updates:
+                            # 使用存储适配器保存
+                            if self.storage_adapter:
                                 try:
-                                    if isinstance(self.manager, EnhancedCumulativeManager):
-                                        self.manager.add_test_result_with_classification(record)
-                                    else:
-                                        self.manager.add_test_result(record)
+                                    self.storage_adapter.write_result(record)
                                 except Exception as e:
-                                    self.logger.error(f"Failed to save record to database: {e}")
+                                    self.logger.error(f"Failed to save record: {e}")
                         
                         # 获取或创建log_data用于AI分类
                         log_data = None
@@ -1780,12 +1941,9 @@ class BatchTestRunner:
                                 if self.debug:
                                     print(f"[DEBUG] Added AI classification to record: {record.ai_error_category}")
                             
-                            # 使用增强管理器的分类方法
-                            if self.enable_database_updates:
-                                if isinstance(self.manager, EnhancedCumulativeManager):
-                                    self.manager.add_test_result_with_classification(record)
-                                else:
-                                    self.manager.add_test_result(record)
+                            # 使用存储适配器保存
+                            if self.storage_adapter:
+                                self.storage_adapter.write_result(record)
                         
                         # 更新计数器
                         with self._lock:
@@ -1814,12 +1972,12 @@ class BatchTestRunner:
         
         # 最后一次checkpoint保存（强制）
         if not self.enable_database_updates and self.checkpoint_interval > 0:
-            self._checkpoint_save([], force=True)
+            self._smart_checkpoint_save([], force=True)
         
         # 确保所有pending_results都被保存（即使不满checkpoint_interval）
         if self.pending_results and not self.enable_database_updates:
             print(f"\n💾 Final save: 保存剩余的{len(self.pending_results)}个结果...")
-            self._checkpoint_save([], force=True)
+            self._smart_checkpoint_save([], force=True)
         
         # 最终统计
         self.logger.info("="*60)
@@ -1851,6 +2009,10 @@ class BatchTestRunner:
         import threading
         from datetime import datetime
         from concurrent.futures import ThreadPoolExecutor, TimeoutError
+        import signal
+        
+        # 记录开始时间
+        start_time = time.time()
         
         # 无论是否在主线程，都使用ThreadPoolExecutor实现超时
         # 这样可以确保在worker线程中也能正确超时
@@ -1858,7 +2020,7 @@ class BatchTestRunner:
             future = executor.submit(
                 self.run_single_test,
                 model=task.model,
-                deployment=task.deployment,  # 传递部署实例名
+                deployment=getattr(task, 'deployment', None),  # 传递部署实例名（如果存在）
                 task_type=task.task_type,
                 prompt_type=task.prompt_type,
                 is_flawed=task.is_flawed,
@@ -1868,14 +2030,26 @@ class BatchTestRunner:
                 difficulty=task.difficulty
             )
             
+            # 使用合理的超时策略
+            timeout_seconds = 900  # 15分钟超时（平衡稳定性和效率）
+            
             try:
-                # 强制10分钟超时
-                result = future.result(timeout=600)  # 10分钟硬限制
+                # 等待结果，但使用更短的超时
+                result = future.result(timeout=timeout_seconds)
                 return result
             except TimeoutError:
-                # 超时后立即取消任务
-                future.cancel()
-                self.logger.error(f"Test timeout after 600 seconds (10 minutes)")
+                # 记录实际运行时间
+                actual_runtime = time.time() - start_time
+                self.logger.error(f"Test timeout after {actual_runtime:.1f} seconds (limit: {timeout_seconds}s)")
+                
+                # 尝试取消（虽然可能无效）
+                cancelled = future.cancel()
+                if not cancelled:
+                    self.logger.warning("Failed to cancel the running task (already executing)")
+                    # 强制关闭executor，不等待任务完成
+                    executor.shutdown(wait=False, cancel_futures=True)
+                
+                self.logger.error(f"Test forcibly terminated after {timeout_seconds} seconds")
                 # 为超时创建基本的log_data，用于AI分类
                 timeout_log_data = {
                     'test_id': f"{task.task_type}_timeout_{datetime.now().strftime('%Y%m%d_%H%M%S')}",

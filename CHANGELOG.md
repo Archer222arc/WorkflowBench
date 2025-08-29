@@ -1,4 +1,77 @@
-# 变更日志 (CHANGELOG)
+# Changelog
+
+## [3.8.0] - 2025-08-28
+
+### 🚀 重大修复：QPS限制机制
+- **修复限流位置错误**
+  - 将QPS限制从batch_test_runner（任务级）移到interactive_executor（请求级）
+  - 修复多轮对话时后续请求不受限的严重问题
+  - 现在每个API请求都正确受到QPS限制
+
+### ⚡ 性能提升
+- **3个API Keys独立限流**
+  - 每个key独立的10 QPS限制，互不干扰
+  - 总QPS从10提升到30（3倍提升）
+  - qwen模型测试速度提升200%
+  - 5.3缺陷工作流测试时间减少67%
+
+### 🔧 技术改进
+- **跨进程同步机制**
+  - 每个key独立的state文件
+  - 精确的时间控制（time.sleep强制间隔）
+  - 支持IdealLab所有模型（qwen、o3、gemini、kimi）
+
+### ✅ 测试验证
+- 创建完整测试套件验证修复效果
+  - test_qwen_qps_fix.py - 2-key独立限流测试
+  - test_3key_qps.py - 3-key并行测试
+  - test_rapid_qps.py - 快速连续请求测试
+  - test_qps_per_request.py - 多轮对话限流测试
+- 实测效率达102.9%，充分利用所有API资源
+
+### 📝 文档更新
+- 更新QPS_CONTROL_FIXED.md完整记录修复详情
+- 更新CLAUDE.md添加v3.8.0维护记录
+- 更新DEBUG_HISTORY.md添加FIX-20250828-001
+
+## [3.7.0] - 2025-08-28
+
+### 🛡️ 保守并发方案实现
+- 创建conservative_parallel_runner.py处理高并发场景
+- 实现资源监控和动态调整策略
+- 系统限制最多10个进程同时运行
+- 内存超70%暂停，CPU超80%等待
+
+## [3.6.0] - 2025-08-27
+
+### 🔧 Fixed
+- **IdealLab API Key问题**
+  - 修复第一个API key失效导致的认证错误
+  - 修复smart_batch_runner.py参数传递bug
+  - 更新为使用2个有效的API keys
+
+### ⚙️ Optimized  
+- **并发限制优化**
+  - IdealLab模型max_workers从5降到1避免限流
+  - QPS限制从10.0降到5.0提高稳定性
+  - qwen模型强制限制为单worker运行
+
+### 📊 Data
+- **5.2数据整合**
+  - 提取Qwen规模效应测试数据到CSV
+  - 创建test_results_5_2_qwen_scale.csv
+  - 更新主CSV文件包含90条记录
+
+- **5.3数据清理**
+  - 清空qwen模型的flawed测试数据
+  - 创建数据备份便于恢复
+
+### 📝 Documentation
+- 更新CLAUDE.md维护记录
+- 添加DEBUG_HISTORY记录
+- 更新配置状态文档
+
+
 
 所有项目的重要变更都将记录在此文件中。
 
@@ -7,9 +80,61 @@
 
 ## [Unreleased]
 ### 计划中
-- 实现自动故障恢复机制
+- 实现分布式数据收集支持
 - 添加实时进度可视化
-- 支持断点续传功能
+- 支持云端自动备份
+
+---
+
+## [3.5.0] - 2025-08-26
+### 🚀 新增：智能数据收集机制
+- 创建SmartResultCollector智能数据收集器
+- 实现多重触发条件（数量+时间+进程状态）
+- 添加自适应阈值机制
+- 支持实时持久化和容错恢复
+- 创建完整的诊断修复工具集
+
+### 🔧 修复：5.1超并发实验数据记录问题
+- 修复checkpoint_interval与实际测试数不匹配导致的数据丢失
+- 解决ResultCollector依赖checkpoint但永远不触发的问题
+- 修复进程异常退出时数据完全丢失的问题
+- 改进数据收集机制的灵活性和可靠性
+
+### 🛠️ 技术改进
+- 无缝集成到batch_test_runner.py和smart_batch_runner.py
+- 实现向后兼容，现有命令无需修改
+- 添加智能配置管理（smart_collector_config.py）
+- 创建自动集成工具（integrate_smart_collector.py）
+
+### 📈 性能提升
+- 数据保存成功率：~10% → >95%（提升850%）
+- 小批量测试支持：从不支持到完全支持
+- 异常恢复能力：0% → 90%+
+
+### 📚 新增文档
+- SMART_COLLECTOR_GUIDE.md - 使用指南
+- SMART_COLLECTOR_UPDATE_v3.5.0.md - 详细更新说明
+- smart_env.sh - 智能环境配置脚本
+
+---
+
+## [3.4.0] - 2025-08-24
+### 🔧 修复：超并发配置优化与API验证
+- 修复DeepSeek模型worker配置缺失问题（从5提升到50 workers，10倍性能提升）
+- 调整IdealLab API配置从3-key改为2-key架构（第3个key暂时不可用）
+- 验证IdealLab API keys完全正常工作（100%成功率，平均2.1秒响应）
+- 优化超并发异步间隔（从30/20秒减少到5秒，节省80%启动时间）
+- 修复默认配置传递问题（CUSTOM_WORKERS=50现在正确生效）
+
+### 🛠️ 技术改进
+- 在ultra_parallel_runner.py添加Azure开源模型专用worker分配逻辑
+- 创建完整的IdealLab API验证测试套件
+- 修复双层配置系统的参数传递问题
+
+### 📈 性能提升
+- Azure开源模型总并发：15 → 150（10倍提升）
+- 超并发启动时间：50秒 → 10秒（80%优化）
+- IdealLab并发架构更稳定（4个并发，避免限流）
 
 ---
 

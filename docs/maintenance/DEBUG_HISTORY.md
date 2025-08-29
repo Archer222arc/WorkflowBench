@@ -6,6 +6,8 @@
 
 | 日期 | 修改ID | 简述 | 详细文档 |
 |------|--------|------|----------|
+| 2025-08-28 | FIX-20250828-001 | QPS限制机制重大修复 | 修复限流位置错误、实现3-key独立限流、性能提升3倍 |
+| 2025-08-24 | FIX-20250824-001 | 超并发配置优化与API验证 | DeepSeek worker配置修复、IdealLab 2-key架构、异步间隔优化 |
 | 2025-08-19 | FIX-20250819-003 | qwen并发优化终极简化 | 统一所有场景使用均匀分配策略 |
 | 2025-08-19 | FIX-20250819-002 | 修复关键BUG合集 | qwen映射错误、任务类型混淆、日志覆盖等12个问题 |
 | 2025-08-19 | FIX-20250819-001 | 5.3测试内存优化完整解决方案 | [查看详情](./debug_logs/2025-08-19-memory-optimization/FIX-20250819-001-memory-optimization.md) |
@@ -26,6 +28,15 @@
 | 2025-08-15 | FIX-20250815-001 | API超时问题修复 | [查看详情](./debug_logs/2025-08-15_api_timeout_fixes.md) |
 
 ## 版本记录摘要
+
+### v3.8.0 (2025-08-28) - QPS限制机制重大修复
+- **关键改进**: 将QPS限制从任务级改为请求级，修复多轮对话限流失效问题
+- **性能提升**: qwen模型总QPS从10提升到30（3倍），测试速度提升200%
+- **技术细节**: 
+  - 修复位置：从batch_test_runner移到interactive_executor._get_llm_response
+  - 3个API keys独立限流，每个10 QPS
+  - 跨进程同步机制正常工作
+- **影响范围**: 所有IdealLab模型受益，防止429错误，5.3测试时间减少67%
 
 ### v2.2.0 (2025-08-16) - 存储系统升级
 - **关键改进**: 实现Parquet增量存储，解决并发数据覆盖问题
@@ -209,3 +220,57 @@ find . -name "*.lock" -ls
 ---
 最后更新: 2025-08-18 18:35:00
 维护者: Claude Assistant
+## FIX-20250827-001: IdealLab API Key失效问题修复
+
+**时间**: 2025-08-27 21:00-22:00
+**版本**: v3.6.0
+**严重程度**: 🔴 高 - 阻塞所有qwen模型测试
+
+### 问题描述
+- **症状**: 所有qwen模型测试报错"无效的api key"（CE-003错误）
+- **影响**: 5.3缺陷工作流测试无法进行
+- **错误日志**: `[分片qwen2.5-32b-instruct_easy_key0] [LLM_ERROR] Error code: 400 - {'success': False, 'message': '无效的api key'}`
+
+### 根本原因
+1. **第一个API key失效**: 956c41bd...f4bb已不可用
+2. **参数传递bug**: smart_batch_runner.py中`--idealab-key-index`参数映射错误
+3. **错误的假设**: 误以为是key1和key2不可用，实际是key0失效
+
+### 诊断过程
+```python
+# 使用测试脚本验证API keys
+python scripts/test/test_apikey_validity.py
+
+# 结果：
+# key0 (956c41bd...): ❌ 无效
+# key1 (3d906058...): ✅ 有效  
+# key2 (88a9a901...): ✅ 有效
+```
+
+### 修复方案
+1. **更新api_client_manager.py** (第163-167行)
+   - 移除失效的key0
+   - 使用有效的key1和key2
+
+2. **修复smart_batch_runner.py** (第727行)
+   - 添加`dest='idealab_key_index'`修复参数映射
+
+3. **降低并发限制** (避免限流)
+   - ultra_parallel_runner.py: max_workers从5降到1
+   - run_systematic_test_final.sh: qwen强制限制从2降到1
+
+### 验证结果
+- API测试：2个有效keys工作正常
+- 并发测试：10/10成功
+- QPS测试：22.43 QPS（提升2倍+）
+
+### 影响的文件
+- api_client_manager.py
+- smart_batch_runner.py  
+- ultra_parallel_runner.py
+- run_systematic_test_final.sh
+
+### 经验教训
+1. API key失效应该逐个测试验证
+2. 参数传递需要使用dest确保正确映射
+3. IdealLab API有严格限流，保守设置更稳定

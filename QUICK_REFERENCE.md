@@ -1,15 +1,19 @@
-# PILOT-Bench 快速参考指南 v3.0
+# PILOT-Bench 快速参考指南 v3.5
 
 ## 🎯 最常用命令
 
-### 运行测试
+### 运行测试（已集成智能数据收集）
 ```bash
-# 标准测试（JSON格式）
+# 标准测试（自动使用智能收集器）
 ./run_systematic_test_final.sh
 
-# Parquet格式测试（推荐）
-export STORAGE_FORMAT=parquet
-./run_systematic_test_final.sh --auto
+# 使用优化配置
+source ./smart_env.sh
+./run_systematic_test_final.sh --phase 5.1
+
+# 指定收集器规模
+export COLLECTOR_SCALE=small  # 适合小批量测试
+./run_systematic_test_final.sh
 
 # 指定模型测试
 python smart_batch_runner.py --model gpt-4o-mini --prompt-types optimal --difficulty easy
