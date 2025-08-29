@@ -1511,9 +1511,8 @@ class BatchTestRunner:
                 for future in future_to_task:
                     if not future.done():
                         future.cancel()
-                # 等待正在执行的任务完成后关闭executor
-                # 注意：这里应该等待，否则可能丢失最后的任务结果
-                executor.shutdown(wait=True, cancel_futures=True)
+                # 不调用executor.shutdown()，让with语句自动处理
+                # 避免wait=True导致永久等待卡死的问题
         
         # 如果使用checkpoint，最后保存剩余的
         if not self.enable_database_updates and self.checkpoint_interval > 0:
