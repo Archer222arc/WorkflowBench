@@ -1310,7 +1310,8 @@ class BatchTestRunner:
         qps = qps if qps is not None else 0
         min_interval = 0 if api_provider == 'azure' else (1.0 / qps if qps > 0 else 0)
         
-        with ThreadPoolExecutor(max_workers=workers) as executor:
+        executor = ThreadPoolExecutor(max_workers=workers)
+        try:
             # 提交所有任务
             self.logger.info(f"Starting batch test with {len(tasks)} tasks, {workers} workers")
             self.logger.info(f"Each task timeout: 10 minutes, Total batch timeout: 20 minutes")
@@ -1511,8 +1512,12 @@ class BatchTestRunner:
                 for future in future_to_task:
                     if not future.done():
                         future.cancel()
-                # 不调用executor.shutdown()，让with语句自动处理
+                # 不调用executor.shutdown()，将在finally中处理
                 # 避免wait=True导致永久等待卡死的问题
+        
+        finally:
+            # 显式关闭executor，使用wait=False避免卡死
+            executor.shutdown(wait=False)
         
         # 如果使用checkpoint，最后保存剩余的
         if not self.enable_database_updates and self.checkpoint_interval > 0:
