@@ -360,6 +360,12 @@ class EnhancedCumulativeManager(CumulativeTestManager):
         
         return True
     
+    def _safe_increment_error(self, task_data: dict, error_field: str):
+        """安全地增加错误计数，确保字段存在"""
+        if error_field not in task_data:
+            task_data[error_field] = 0
+        task_data[error_field] += 1
+    
     def _update_v3_structure_immediate(self, record: TestRecord, model: str, effective_prompt: str):
         """
         立即更新V3层次结构，防止数据被覆盖
@@ -925,7 +931,8 @@ class EnhancedCumulativeManager(CumulativeTestManager):
         success_level = test_dict.get("success_level", "failure")
         
         if success_level != "full_success":  # full_success之外都应该有错误分类
-            task_data["total_errors"] += 1
+            # 🔧 安全访问：确保字段存在
+            self._safe_increment_error(task_data, "total_errors")
             
             # 首先检查是否已经有AI分类结果（由batch_test_runner提供）
             ai_error_category = self._get_record_attr(record, 'ai_error_category', None)
@@ -941,45 +948,45 @@ class EnhancedCumulativeManager(CumulativeTestManager):
                         print(f"[TASK-AI-CLASSIFY] Using fuzzy-matched AI classification: {ai_category} -> {matched_error}")
                         # 更新对应的错误计数
                         if matched_error == 'tool_selection_errors':
-                            task_data["tool_selection_errors"] += 1
+                            self._safe_increment_error(task_data, "tool_selection_errors")
                         elif matched_error == 'parameter_config_errors':
-                            task_data["parameter_config_errors"] += 1
+                            self._safe_increment_error(task_data, "parameter_config_errors")
                         elif matched_error == 'sequence_order_errors':
-                            task_data["sequence_order_errors"] += 1
+                            self._safe_increment_error(task_data, "sequence_order_errors")
                         elif matched_error == 'dependency_errors':
-                            task_data["dependency_errors"] += 1
+                            self._safe_increment_error(task_data, "dependency_errors")
                         elif matched_error == 'timeout_errors':
-                            task_data["timeout_errors"] += 1
+                            self._safe_increment_error(task_data, "timeout_errors")
                         elif matched_error == 'tool_call_format_errors':
-                            task_data["tool_call_format_errors"] += 1
+                            self._safe_increment_error(task_data, "tool_call_format_errors")
                         elif matched_error == 'max_turns_errors':
-                            task_data["max_turns_errors"] += 1
+                            self._safe_increment_error(task_data, "max_turns_errors")
                         else:
-                            task_data["other_errors"] += 1
+                            self._safe_increment_error(task_data, "other_errors")
                     else:
                         # 无法匹配，归为other_errors
                         print(f"[TASK-AI-CLASSIFY] Cannot match AI classification: {ai_category}, using other_errors")
-                        task_data["other_errors"] += 1
+                        self._safe_increment_error(task_data, "other_errors")
                 except ImportError:
                     # 如果没有fuzzy matcher，使用简单字符串匹配
                     print(f"[TASK-AI-CLASSIFY] Using existing AI classification (no fuzzy): {ai_category}")
                     
                     if 'tool_selection' in ai_category:
-                        task_data["tool_selection_errors"] += 1
+                        self._safe_increment_error(task_data, "tool_selection_errors")
                     elif 'parameter' in ai_category or 'param' in ai_category:
-                        task_data["parameter_config_errors"] += 1
+                        self._safe_increment_error(task_data, "parameter_config_errors")
                     elif 'sequence' in ai_category:
-                        task_data["sequence_order_errors"] += 1
+                        self._safe_increment_error(task_data, "sequence_order_errors")
                     elif 'dependency' in ai_category:
-                        task_data["dependency_errors"] += 1
+                        self._safe_increment_error(task_data, "dependency_errors")
                     elif 'timeout' in ai_category:
-                        task_data["timeout_errors"] += 1
+                        self._safe_increment_error(task_data, "timeout_errors")
                     elif 'format' in ai_category or 'tool_call_format' in ai_category:
-                        task_data["tool_call_format_errors"] += 1
+                        self._safe_increment_error(task_data, "tool_call_format_errors")
                     elif 'max_turns' in ai_category:
-                        task_data["max_turns_errors"] += 1
+                        self._safe_increment_error(task_data, "max_turns_errors")
                     else:
-                        task_data["other_errors"] += 1
+                        self._safe_increment_error(task_data, "other_errors")
                 
                 ai_confidence = self._get_record_attr(record, 'ai_confidence', None)
                 if ai_confidence is not None:
@@ -1042,7 +1049,7 @@ class EnhancedCumulativeManager(CumulativeTestManager):
                         is_format_error = False
                 
                 if is_format_error:
-                    task_data["tool_call_format_errors"] += 1
+                    self._safe_increment_error(task_data, "tool_call_format_errors")
                     task_type_str = self._get_record_attr(record, 'task_type', 'unknown')
                     print(f"[FORMAT-ERROR-DETECTED] {normalized_model} {task_type_str}: Confirmed format error based on error message")
                 elif self.use_ai_classification and self.ai_classifier:
@@ -1077,21 +1084,21 @@ class EnhancedCumulativeManager(CumulativeTestManager):
                         
                         # 根据AI分类结果更新任务统计
                         if category.value == 'tool_selection_errors':
-                            task_data["tool_selection_errors"] += 1
+                            self._safe_increment_error(task_data, "tool_selection_errors")
                         elif category.value == 'parameter_config_errors':
-                            task_data["parameter_config_errors"] += 1
+                            self._safe_increment_error(task_data, "parameter_config_errors")
                         elif category.value == 'sequence_order_errors':
-                            task_data["sequence_order_errors"] += 1
+                            self._safe_increment_error(task_data, "sequence_order_errors")
                         elif category.value == 'dependency_errors':
-                            task_data["dependency_errors"] += 1
+                            self._safe_increment_error(task_data, "dependency_errors")
                         elif category.value == 'timeout_errors':
-                            task_data["timeout_errors"] += 1
+                            self._safe_increment_error(task_data, "timeout_errors")
                         elif category.value == 'tool_call_format_errors':
-                            task_data["tool_call_format_errors"] += 1
+                            self._safe_increment_error(task_data, "tool_call_format_errors")
                         elif category.value == 'max_turns_errors':
-                            task_data["max_turns_errors"] += 1
+                            self._safe_increment_error(task_data, "max_turns_errors")
                         else:
-                            task_data["other_errors"] += 1
+                            self._safe_increment_error(task_data, "other_errors")
                         
                         task_type_str = self._get_record_attr(record, 'task_type', 'unknown')
                         print(f"[AI-CLASSIFY-TASK] {normalized_model} {task_type_str}: {error_type} (confidence: {confidence:.2f})")
@@ -1201,7 +1208,7 @@ class EnhancedCumulativeManager(CumulativeTestManager):
         
         if tool_calls_len == 0 and executed_tools_len == 0:
             # 没有成功执行任何工具调用，这是典型的format error
-            task_data["tool_call_format_errors"] += 1
+            self._safe_increment_error(task_data, "tool_call_format_errors")
             return
         
         # 使用传统的错误分类逻辑
@@ -1210,21 +1217,21 @@ class EnhancedCumulativeManager(CumulativeTestManager):
         if error_msg:
             error_type = self._classify_error(error_msg)
             if error_type == "timeout":
-                task_data["timeout_errors"] += 1
+                self._safe_increment_error(task_data, "timeout_errors")
             elif error_type == "format":
-                task_data["tool_call_format_errors"] += 1
+                self._safe_increment_error(task_data, "tool_call_format_errors")
             elif error_type == "max_turns":
-                task_data["max_turns_errors"] += 1
+                self._safe_increment_error(task_data, "max_turns_errors")
             elif error_type == "tool_selection":
-                task_data["tool_selection_errors"] += 1
+                self._safe_increment_error(task_data, "tool_selection_errors")
             elif error_type == "parameter":
-                task_data["parameter_config_errors"] += 1
+                self._safe_increment_error(task_data, "parameter_config_errors")
             elif error_type == "sequence":
-                task_data["sequence_order_errors"] += 1
+                self._safe_increment_error(task_data, "sequence_order_errors")
             elif error_type == "dependency":
-                task_data["dependency_errors"] += 1
+                self._safe_increment_error(task_data, "dependency_errors")
             elif error_type in ["other", "tool_level_error", "unknown"]:
-                task_data["other_errors"] += 1
+                self._safe_increment_error(task_data, "other_errors")
         else:
             # 无错误消息但非full_success，检查execution_history中的工具级错误
             execution_history = getattr(record, 'execution_history', [])
@@ -1260,37 +1267,37 @@ class EnhancedCumulativeManager(CumulativeTestManager):
                         most_common_error = Counter(error_types).most_common(1)[0][0]
                         
                         if most_common_error == "timeout":
-                            task_data["timeout_errors"] += 1
+                            self._safe_increment_error(task_data, "timeout_errors")
                         elif most_common_error == "format":
                             # 再次检查是否确实是格式错误
                             if self._is_confirmed_format_error([most_common_error]):
-                                task_data["tool_call_format_errors"] += 1
+                                self._safe_increment_error(task_data, "tool_call_format_errors")
                             else:
                                 # 不确定的格式错误，归类为其他错误
-                                task_data["other_errors"] += 1
+                                self._safe_increment_error(task_data, "other_errors")
                         elif most_common_error == "max_turns":
-                            task_data["max_turns_errors"] += 1
+                            self._safe_increment_error(task_data, "max_turns_errors")
                         elif most_common_error == "tool_selection":
-                            task_data["tool_selection_errors"] += 1
+                            self._safe_increment_error(task_data, "tool_selection_errors")
                         elif most_common_error == "parameter":
-                            task_data["parameter_config_errors"] += 1
+                            self._safe_increment_error(task_data, "parameter_config_errors")
                         elif most_common_error == "sequence":
-                            task_data["sequence_order_errors"] += 1
+                            self._safe_increment_error(task_data, "sequence_order_errors")
                         elif most_common_error == "dependency":
-                            task_data["dependency_errors"] += 1
+                            self._safe_increment_error(task_data, "dependency_errors")
                         else:
-                            task_data["other_errors"] += 1
+                            self._safe_increment_error(task_data, "other_errors")
                     else:
                         # 无法分类的错误，不归为other_errors
-                        # task_data["other_errors"] += 1
+                        # self._safe_increment_error(task_data, "other_errors")
                         pass  # 跳过未分类的错误
                 else:
                     # 没有工具失败，但非full_success，不归为other_errors
-                    # task_data["other_errors"] += 1
+                    # self._safe_increment_error(task_data, "other_errors")
                     pass  # 跳过未分类的错误
             else:
                 # 没有execution_history，无法进一步分析，不归为other_errors
-                # task_data["other_errors"] += 1
+                # self._safe_increment_error(task_data, "other_errors")
                 pass  # 跳过未分类的错误
     
     def _update_prompt_summary(self, prompt_data):

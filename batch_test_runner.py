@@ -81,7 +81,7 @@ class BatchTestRunner:
     def __init__(self, debug: bool = False, silent: bool = False, use_adaptive: bool = False, 
                  save_logs: bool = False, enable_database_updates: bool = True, 
                  use_ai_classification: bool = True, checkpoint_interval: int = 0,
-                 idealab_key_index: Optional[int] = None):
+                 idealab_key_index: Optional[int] = None, is_subprocess: bool = False):
         """初始化测试运行器"""
         self.debug = debug
         self.silent = silent
@@ -92,6 +92,7 @@ class BatchTestRunner:
         self.checkpoint_interval = checkpoint_interval  # 中间保存间隔（每N个测试保存一次）
         self.pending_results = []  # 待保存的结果缓存
         self.idealab_key_index = idealab_key_index  # IdealLab API key索引
+        self.is_subprocess = is_subprocess  # 标记是否为子进程，用于控制退出行为
         
         # 初始化存储适配器（稍后创建，需要manager）
         self.storage_adapter = None
@@ -1593,6 +1594,12 @@ class BatchTestRunner:
                 self.logger.info("✅ 存储适配器资源清理完成")
         except Exception as e:
             self.logger.warning(f"⚠️ 清理存储适配器时出现问题: {e}")
+        
+        # 🚀 新增：显式退出进程，确保子进程不会卡住父进程
+        if hasattr(self, 'is_subprocess') and self.is_subprocess:
+            self.logger.info("🔚 子进程测试完成，主动退出")
+            import sys
+            sys.exit(0)
         
         return results
     

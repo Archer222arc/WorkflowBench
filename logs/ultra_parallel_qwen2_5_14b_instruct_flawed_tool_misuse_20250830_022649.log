@@ -1,0 +1,138 @@
+=== 测试开始时间: 2025年 8月30日 星期六 02时28分35秒 EDT ===
+=== 环境变量 ===
+USE_RESULT_COLLECTOR=true
+STORAGE_FORMAT=json
+CUSTOM_WORKERS=50
+=== 命令执行 ===
+INFO:__main__:使用环境变量 RATE_MODE: fixed
+INFO:__main__:初始化实例池: 17个实例 (2个Azure + 6个IdealLab)
+INFO:result_collector:ResultCollector初始化，临时目录: temp_results
+INFO:result_collector:ResultAggregator初始化
+INFO:__main__:🆕 启用ResultCollector模式，支持零冲突并发
+INFO:__main__:资源池状态: 17个实例, 容量1306
+INFO:__main__:
+🎯 检测到Qwen模型，使用队列调度器
+INFO:__main__:   模型: qwen2.5-14b-instruct → Key2
+INFO:__main__:   Prompt类型: flawed_tool_misuse
+INFO:__main__:   难度: easy
+INFO:__main__:🔄 Key2: 执行 qwen2.5-14b-instruct-easy
+INFO:__main__:🎯 使用qwen智能分片策略: qwen2.5-14b-instruct
+INFO:__main__:🔄 真正多Key并发策略:
+INFO:__main__:   模型: qwen2.5-14b-instruct (规模: 14b)
+INFO:__main__:   使用Keys: key0, key1, key2
+INFO:__main__:   总实例数: 20
+INFO:__main__:   分片数: 3 (每个key独立分片)
+INFO:__main__:   实例分配: [7, 7, 6]
+INFO:__main__:   🚀 启用3倍API并发！
+INFO:__main__:🚀 启动3个分片并发执行
+INFO:__main__:  IdealLab qwen模型限制: qwen-key0 强制使用 max_workers=1, qps=10
+INFO:__main__:    注意: IdealLab API并发限制严格，忽略--max-workers设置
+INFO:__main__:  使用IdealLab API Key 0
+INFO:__main__:🚀 启动分片 qwen2.5-14b-instruct_easy_flawed_tool_misuse_key0: qwen-key0
+INFO:__main__:   实例数: 7, 模型: qwen2.5-14b-instruct
+INFO:__main__:   传递STORAGE_FORMAT=json给子进程
+INFO:__main__:   传递USE_PARTIAL_LOADING=true给子进程
+INFO:__main__:   传递TASK_LOAD_COUNT=20给子进程
+INFO:__main__:   传递SKIP_MODEL_LOADING=true给子进程
+INFO:__main__:   传递USE_RESULT_COLLECTOR=true给子进程
+INFO:__main__:   传递KMP_DUPLICATE_LIB_OK=TRUE给子进程
+INFO:__main__:   设置PYTHONMALLOC=malloc给子进程
+INFO:__main__:   分片1: qwen-key0 (7个实例)
+INFO:__main__:  IdealLab qwen模型限制: qwen-key1 强制使用 max_workers=1, qps=10
+INFO:__main__:    注意: IdealLab API并发限制严格，忽略--max-workers设置
+INFO:__main__:  使用IdealLab API Key 1
+INFO:__main__:🚀 启动分片 qwen2.5-14b-instruct_easy_flawed_tool_misuse_key1: qwen-key1
+INFO:__main__:   实例数: 7, 模型: qwen2.5-14b-instruct
+INFO:__main__:   传递STORAGE_FORMAT=json给子进程
+INFO:__main__:   传递USE_PARTIAL_LOADING=true给子进程
+INFO:__main__:   传递TASK_LOAD_COUNT=20给子进程
+INFO:__main__:   传递SKIP_MODEL_LOADING=true给子进程
+INFO:__main__:   传递USE_RESULT_COLLECTOR=true给子进程
+INFO:__main__:   传递KMP_DUPLICATE_LIB_OK=TRUE给子进程
+INFO:__main__:   设置PYTHONMALLOC=malloc给子进程
+INFO:__main__:   分片2: qwen-key1 (7个实例)
+INFO:__main__:  使用IdealLab API Key 2
+INFO:__main__:🚀 启动分片 qwen2.5-14b-instruct_easy_flawed_tool_misuse_key2: qwen-key2
+INFO:__main__:   实例数: 6, 模型: qwen2.5-14b-instruct
+INFO:__main__:   传递STORAGE_FORMAT=json给子进程
+INFO:__main__:   传递USE_PARTIAL_LOADING=true给子进程
+INFO:__main__:   传递TASK_LOAD_COUNT=20给子进程
+INFO:__main__:   传递SKIP_MODEL_LOADING=true给子进程
+INFO:__main__:   传递USE_RESULT_COLLECTOR=true给子进程
+INFO:__main__:   传递KMP_DUPLICATE_LIB_OK=TRUE给子进程
+INFO:__main__:   设置PYTHONMALLOC=malloc给子进程
+INFO:__main__:   分片3: qwen-key2 (6个实例)
+INFO:__main__:等待分片1完成（20实例×50workers，最多等待50分钟）...
+2025-08-30 02:28:35,751 - faiss.loader - INFO - Loading faiss.
+2025-08-30 02:28:35,751 - faiss.loader - INFO - Loading faiss.
+2025-08-30 02:28:35,751 - faiss.loader - INFO - Loading faiss.
+2025-08-30 02:28:35,761 - faiss.loader - INFO - Successfully loaded faiss.
+2025-08-30 02:28:35,761 - faiss.loader - INFO - Successfully loaded faiss.
+2025-08-30 02:28:35,762 - faiss.loader - INFO - Successfully loaded faiss.
+[INFO] ⚡ SKIP_MODEL_LOADING=true - Skipping torch imports
+[INFO] 使用JSON存储格式
+[INFO] 使用JSON存储格式
+[INFO] 使用JSON存储格式
+[INFO] 使用JSON存储格式
+
+============================================================
+智能批测试: qwen2.5-14b-instruct (idealab)
+Prompt types: ['flawed_tool_misuse']
+难度: easy
+目标: 每种配置 6 个实例
+============================================================
+✓ simple_task         :  52/  6 已完成 [跳过]
+✓ basic_task          :  52/  6 已完成 [跳过]
+✓ data_pipeline       :  48/  6 已完成 [跳过]
+✓ api_integration     :  24/  6 已完成 [跳过]
+✓ multi_stage_pipeline:  22/  6 已完成 [跳过]
+
+✅ 所有测试已完成，跳过此配置
+[INFO] ⚡ SKIP_MODEL_LOADING=true - Skipping torch imports
+[INFO] 使用JSON存储格式
+[INFO] 使用JSON存储格式
+[INFO] 使用JSON存储格式
+[INFO] 使用JSON存储格式
+
+============================================================
+智能批测试: qwen2.5-14b-instruct (idealab)
+Prompt types: ['flawed_tool_misuse']
+难度: easy
+目标: 每种配置 7 个实例
+============================================================
+✓ simple_task         :  52/  7 已完成 [跳过]
+✓ basic_task          :  52/  7 已完成 [跳过]
+✓ data_pipeline       :  48/  7 已完成 [跳过]
+✓ api_integration     :  24/  7 已完成 [跳过]
+✓ multi_stage_pipeline:  22/  7 已完成 [跳过]
+
+✅ 所有测试已完成，跳过此配置
+[INFO] ⚡ SKIP_MODEL_LOADING=true - Skipping torch imports
+[INFO] 使用JSON存储格式
+[INFO] 使用JSON存储格式
+[INFO] 使用JSON存储格式
+[INFO] 使用JSON存储格式
+
+============================================================
+智能批测试: qwen2.5-14b-instruct (idealab)
+Prompt types: ['flawed_tool_misuse']
+难度: easy
+目标: 每种配置 7 个实例
+============================================================
+✓ simple_task         :  52/  7 已完成 [跳过]
+✓ basic_task          :  52/  7 已完成 [跳过]
+✓ data_pipeline       :  48/  7 已完成 [跳过]
+✓ api_integration     :  24/  7 已完成 [跳过]
+✓ multi_stage_pipeline:  22/  7 已完成 [跳过]
+
+✅ 所有测试已完成，跳过此配置
+INFO:__main__:✅ 分片1完成
+INFO:__main__:等待分片2完成（20实例×50workers，最多等待50分钟）...
+INFO:__main__:✅ 分片2完成
+INFO:__main__:等待分片3完成（20实例×50workers，最多等待50分钟）...
+INFO:__main__:✅ 分片3完成
+INFO:__main__:📊 并发执行结果: 3/3 分片成功
+INFO:__main__:✅ Key2: 完成 qwen2.5-14b-instruct-easy
+INFO:__main__:最终利用率: 1.1%
+=== 测试结束时间: 2025年 8月30日 星期六 02时28分37秒 EDT ===
+=== 退出码: 0 ===

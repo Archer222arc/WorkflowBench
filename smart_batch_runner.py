@@ -453,6 +453,7 @@ def run_batch_test_smart(model: str, prompt_types: str, difficulty: str,
         use_adaptive=adaptive,
         save_logs=save_logs,
         enable_database_updates=not use_collector,  # collector模式禁用实时写入
+        is_subprocess=True,  # 标记为子进程
         use_ai_classification=use_ai_classification,  # 传递AI分类参数
         idealab_key_index=kwargs.get('idealab_key_index'),  # 传递API key索引
         checkpoint_interval=checkpoint_interval if batch_commit else 0  # 使用用户指定的间隔  # 中间保存间隔
@@ -858,6 +859,7 @@ def _run_azure_parallel_tasks(all_tasks: List, model: str, difficulty: str, prov
         use_adaptive=adaptive,
         save_logs=kwargs.get('save_logs', True),
         enable_database_updates=True,  # 总是启用数据库更新以防数据丢失
+        is_subprocess=True,  # 标记为子进程
         use_ai_classification=kwargs.get('ai_classification', True),  # 传递AI分类参数
         checkpoint_interval=checkpoint_interval if batch_commit else 0  # 使用用户指定的间隔
     )
@@ -986,6 +988,7 @@ def _run_single_prompt_tasks(tasks: List, model: str, prompt_type: str, difficul
         use_adaptive=adaptive,
         save_logs=kwargs.get('save_logs', True),
         enable_database_updates=True,  # 总是启用数据库更新以防数据丢失
+        is_subprocess=True,  # 标记为子进程
         use_ai_classification=kwargs.get('ai_classification', True),  # 传递AI分类参数
         checkpoint_interval=0  # 单个prompt type不需要checkpoint
     )
@@ -1014,6 +1017,7 @@ def _run_provider_tasks(tasks, max_workers, initial_qps, adaptive, save_logs, si
         use_adaptive=adaptive,
         save_logs=save_logs,
         enable_database_updates=enable_database_updates,
+        is_subprocess=True,  # 标记为子进程
         use_ai_classification=use_ai_classification,  # 传递AI分类参数
         checkpoint_interval=checkpoint_interval
     )
