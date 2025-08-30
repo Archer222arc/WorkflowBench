@@ -421,14 +421,26 @@ class EnhancedCumulativeManager(CumulativeTestManager):
             # 确保task_type层级存在并更新统计
             diff_data = rate_data["by_difficulty"][difficulty]
             if task_type not in diff_data["by_task_type"]:
+                # 🔧 修复：使用正确的字段名，与现有数据库结构一致
                 diff_data["by_task_type"][task_type] = {
                     "total": 0,
-                    "successful": 0,
+                    "success": 0,  # 修复：使用 "success" 而不是 "successful"
                     "partial": 0,
                     "failed": 0,
                     "success_rate": 0.0,
                     "partial_rate": 0.0,
-                    "failure_rate": 0.0
+                    "failure_rate": 0.0,
+                    "weighted_success_score": 0.0,
+                    "full_success_rate": 0.0,
+                    "partial_success_rate": 0.0,
+                    "avg_execution_time": 0.0,
+                    "avg_turns": 0.0,
+                    "avg_tool_calls": 0.0,
+                    "tool_coverage_rate": 0.0,
+                    "avg_workflow_score": 0.0,
+                    "avg_phase2_score": 0.0,
+                    "avg_quality_score": 0.0,
+                    "avg_final_score": 0.0
                 }
                 print(f"[V3_UPDATE] 创建新任务类型结构: {model} -> {effective_prompt} -> {tool_rate_key} -> {difficulty} -> {task_type}")
             
@@ -440,7 +452,7 @@ class EnhancedCumulativeManager(CumulativeTestManager):
             partial_success = self._get_record_attr(record, 'partial_success', False)
             
             if success:
-                task_stats["successful"] += 1
+                task_stats["success"] += 1  # 修复：使用 "success" 字段
             elif partial_success:
                 task_stats["partial"] += 1
             else:
@@ -449,7 +461,7 @@ class EnhancedCumulativeManager(CumulativeTestManager):
             # 重新计算比率
             total = task_stats["total"]
             if total > 0:
-                task_stats["success_rate"] = task_stats["successful"] / total
+                task_stats["success_rate"] = task_stats["success"] / total  # 修复：使用 "success" 字段
                 task_stats["partial_rate"] = task_stats["partial"] / total
                 task_stats["failure_rate"] = task_stats["failed"] / total
             
