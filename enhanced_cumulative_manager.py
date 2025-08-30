@@ -170,32 +170,47 @@ class EnhancedCumulativeManager(CumulativeTestManager):
         # Enable V2 model by default
         self.use_v2_model = use_v2_model
         
+    def _get_record_attr(self, record, attr_name, default=None):
+        """Safely get attribute from record whether it's dict or object"""
+        if isinstance(record, dict):
+            return record.get(attr_name, default)
+        else:
+            return getattr(record, attr_name, default)
+    
     def add_test_result_with_classification(self, record: TestRecord) -> bool:
         """Add test result with real-time error classification"""
         with self.runtime_lock:
             # Get or create runtime stats
-            normalized_model = normalize_model_name(record.model)
+            model_name = self._get_record_attr(record, 'model', 'unknown')
+            normalized_model = normalize_model_name(model_name)
             model_stats = self.runtime_stats.setdefault(normalized_model, {})
             
             # Determine effective prompt type
-            if record.is_flawed and record.flaw_type:
-                effective_prompt = f"flawed_{record.flaw_type}"
+            is_flawed = self._get_record_attr(record, 'is_flawed', False)
+            flaw_type = self._get_record_attr(record, 'flaw_type', None)
+            prompt_type = self._get_record_attr(record, 'prompt_type', 'optimal')
+            success = self._get_record_attr(record, 'success', False)
+                
+            if is_flawed and flaw_type:
+                effective_prompt = f"flawed_{flaw_type}"
             else:
-                effective_prompt = record.prompt_type
+                effective_prompt = prompt_type
             
             prompt_stats = model_stats.setdefault(effective_prompt, RuntimeErrorStats())
             
             # Classify error if test failed or partial success (which also has errors)
-            has_errors = (not record.success or 
-                         hasattr(record, 'success_level') and getattr(record, 'success_level', '') == 'partial_success')
+            success_level = self._get_record_attr(record, 'success_level', '')
+            has_errors = (not success or success_level == 'partial_success')
             
             if has_errors:
                 error_type = 'unknown'
                 
                 # 首先检查是否已经有AI分类结果（由batch_test_runner提供）
-                if hasattr(record, 'ai_error_category') and record.ai_error_category:
+                ai_error_category = self._get_record_attr(record, 'ai_error_category', None)
+                    
+                if ai_error_category:
                     # 使用batch_test_runner已经做好的AI分类
-                    ai_category = str(record.ai_error_category).lower()
+                    ai_category = str(ai_error_category).lower()
                     prompt_stats.total_errors += 1
                     
                     print(f"[AI-CLASSIFY-EXISTING] Using existing AI classification: {ai_category}")
@@ -227,7 +242,9 @@ class EnhancedCumulativeManager(CumulativeTestManager):
                         error_type = 'other_errors'
                     
                     if hasattr(record, 'ai_confidence'):
-                        print(f"[AI-CLASSIFY-EXISTING] {normalized_model} {record.task_type}: {error_type} (confidence: {record.ai_confidence:.2f})")
+                        task_type = self._get_record_attr(record, 'task_type', 'unknown')
+                        ai_confidence = self._get_record_attr(record, 'ai_confidence', 0.0)
+                        print(f"[AI-CLASSIFY-EXISTING] {normalized_model} {task_type}: {error_type} (confidence: {ai_confidence:.2f})")
                     
                 # 如果没有现有分类，再使用自己的AI分类器
                 elif self.use_ai_classification and self.ai_classifier:
@@ -236,7 +253,7 @@ class EnhancedCumulativeManager(CumulativeTestManager):
                         
                         # 构建错误上下文
                         # 对于partial success，如果没有明确错误消息，构建描述性消息
-                        error_msg = record.error_message
+                        error_msg = self._get_record_attr(record, 'error_message', '')
                         if not error_msg and getattr(record, 'success_level', '') == 'partial_success':
                             format_count = getattr(record, 'format_error_count', 0)
                             if format_count > 0:
@@ -246,12 +263,12 @@ class EnhancedCumulativeManager(CumulativeTestManager):
                         
                         context = ErrorContext(
                             task_description=getattr(record, 'task_description', 'Unknown task'),
-                            task_type=record.task_type,
+                            task_type=self._get_record_attr(record, 'task_type', 'unknown'),
                             required_tools=getattr(record, 'required_tools', []),
                             executed_tools=getattr(record, 'executed_tools', []),
                             is_partial_success=(getattr(record, 'success_level', '') == 'partial_success'),
                             tool_execution_results=getattr(record, 'tool_calls', []),
-                            execution_time=record.execution_time,
+                            execution_time=self._get_record_attr(record, 'execution_time', 0.0),
                             total_turns=getattr(record, 'turns', 0),
                             error_message=error_msg or "Unknown error"
                         )
@@ -280,15 +297,17 @@ class EnhancedCumulativeManager(CumulativeTestManager):
                         else:
                             prompt_stats.other_errors += 1
                         
-                        print(f"[AI-CLASSIFY-NEW] {normalized_model} {record.task_type}: {error_type} (confidence: {confidence:.2f}) - {reason[:50]}")
+                        task_type = self._get_record_attr(record, 'task_type', 'unknown')
+                        print(f"[AI-CLASSIFY-NEW] {normalized_model} {task_type}: {error_type} (confidence: {confidence:.2f}) - {reason[:50]}")
                         
                     except Exception as e:
                         print(f"[ERROR] AI classification failed: {e}, falling back to rule-based")
                         import traceback
                         print(f"[DEBUG] Full traceback: {traceback.format_exc()}")
                         # 回退到基于规则的分类
-                        if record.error_message:
-                            error_type = prompt_stats.categorize_and_count(record.error_message)
+                        error_msg = self._get_record_attr(record, 'error_message', None)
+                        if error_msg:
+                            error_type = prompt_stats.categorize_and_count(error_msg)
                         else:
                             prompt_stats.total_errors += 1
                             # 没有错误消息时，归类为other_errors
@@ -296,8 +315,9 @@ class EnhancedCumulativeManager(CumulativeTestManager):
                             error_type = 'other_errors'
                 else:
                     # 使用基于规则的分类（原有逻辑）
-                    if record.error_message:
-                        error_type = prompt_stats.categorize_and_count(record.error_message)
+                    error_msg = self._get_record_attr(record, 'error_message', None)
+                    if error_msg:
+                        error_type = prompt_stats.categorize_and_count(error_msg)
                     else:
                         prompt_stats.total_errors += 1
                         # 没有错误消息时，归类为other_errors
@@ -305,12 +325,14 @@ class EnhancedCumulativeManager(CumulativeTestManager):
                         error_type = 'other_errors'
                 
                 # 存储分类结果
-                record.error_classification = error_type
+                if not isinstance(record, dict):
+                    record.error_classification = error_type
             
             # Track assisted statistics
-            if record.format_error_count > 0:
-                success = record.success or record.partial_success
-                prompt_stats.add_assisted_test(success, record.format_error_count)
+            format_error_count = self._get_record_attr(record, 'format_error_count', 0)
+            if format_error_count > 0:
+                success = self._get_record_attr(record, 'success', False) or self._get_record_attr(record, 'partial_success', False)
+                prompt_stats.add_assisted_test(success, format_error_count)
             
             # Add to buffer
             self.update_buffer.append(record)
@@ -334,6 +356,13 @@ class EnhancedCumulativeManager(CumulativeTestManager):
                 self.last_flush_time = datetime.now()
         
         return True
+    
+    def append_test_result(self, record: TestRecord) -> bool:
+        """
+        别名方法，为了兼容性
+        调用 add_test_result_with_classification
+        """
+        return self.add_test_result_with_classification(record)
     
     def _flush_buffer(self):
         """Flush buffer to database with aggregated statistics"""
@@ -447,7 +476,7 @@ class EnhancedCumulativeManager(CumulativeTestManager):
             self._save_runtime_report()
         
         # 保存数据库到文件
-        self.save_database()
+        self.save_database_enhanced()
     
     def _save_runtime_report(self):
         """Save runtime statistics report"""
@@ -519,18 +548,55 @@ class EnhancedCumulativeManager(CumulativeTestManager):
     def _add_test_result_v2(self, record: TestRecord):
         """Add test result using V2 model with hierarchical structure"""
         # 规范化模型名称
-        normalized_model = normalize_model_name(record.model)
+        model_name = self._get_record_attr(record, 'model', 'unknown')
+        normalized_model = normalize_model_name(model_name)
         
-        # 确保模型存在于数据库中
+        # 确保模型存在于数据库中 - 内层数据保护修复
         if normalized_model not in self.database["models"]:
-            self.database["models"][normalized_model] = {
-                "model_name": normalized_model,
-                "first_test_time": datetime.now().isoformat(),
-                "last_test_time": datetime.now().isoformat(),
-                "total_tests": 0,
-                "overall_stats": {},
-                "by_prompt_type": {}
-            }
+            # 🔧 数据保护修复：先检查磁盘上是否有最新数据
+            try:
+                if self.db_file.exists():
+                    # 重新加载磁盘数据，检查其他进程是否已创建此模型
+                    with open(self.db_file, 'r', encoding='utf-8') as f:
+                        latest_disk_data = json.load(f)
+                    
+                    if normalized_model in latest_disk_data.get("models", {}):
+                        # 其他进程已创建，合并磁盘数据避免覆盖
+                        self.database["models"][normalized_model] = latest_disk_data["models"][normalized_model]
+                        print(f"[ENHANCED_DATA_PROTECTION] 合并来自磁盘的模型数据: {normalized_model}")
+                    else:
+                        # 真正的新模型，创建空结构
+                        self.database["models"][normalized_model] = {
+                            "model_name": normalized_model,
+                            "first_test_time": datetime.now().isoformat(),
+                            "last_test_time": datetime.now().isoformat(),
+                            "total_tests": 0,
+                            "overall_stats": {},
+                            "by_prompt_type": {}
+                        }
+                        print(f"[ENHANCED_DATA_PROTECTION] 创建新模型结构: {normalized_model}")
+                else:
+                    # 数据库文件不存在，创建新模型
+                    self.database["models"][normalized_model] = {
+                        "model_name": normalized_model,
+                        "first_test_time": datetime.now().isoformat(),
+                        "last_test_time": datetime.now().isoformat(),
+                        "total_tests": 0,
+                        "overall_stats": {},
+                        "by_prompt_type": {}
+                    }
+                    print(f"[ENHANCED_DATA_PROTECTION] 创建首个模型结构: {normalized_model}")
+            except Exception as e:
+                print(f"[ENHANCED_DATA_PROTECTION] 磁盘数据加载失败，使用内存数据: {e}")
+                # 回退到原始逻辑
+                self.database["models"][normalized_model] = {
+                    "model_name": normalized_model,
+                    "first_test_time": datetime.now().isoformat(),
+                    "last_test_time": datetime.now().isoformat(),
+                    "total_tests": 0,
+                    "overall_stats": {},
+                    "by_prompt_type": {}
+                }
         
         model_data = self.database["models"][normalized_model]
         model_data["last_test_time"] = datetime.now().isoformat()
@@ -539,29 +605,55 @@ class EnhancedCumulativeManager(CumulativeTestManager):
         # 直接使用字典操作，不使用V2对象
         
         # 准备测试记录字典，包含所有关键字段
-        test_dict = {
-            'success': record.success,
-            'partial_success': getattr(record, 'partial_success', False),
-            'execution_time': record.execution_time,
-            'turns': record.turns,
-            'tool_calls': record.tool_calls if record.tool_calls else [],
-            'error_message': record.error_message,
-            # 添加关键的缺失字段
-            'workflow_score': getattr(record, 'workflow_score', 0.0),
-            'phase2_score': getattr(record, 'phase2_score', 0.0),
-            'quality_score': getattr(record, 'quality_score', 0.0),
-            'final_score': getattr(record, 'final_score', 0.0),
-            'required_tools': getattr(record, 'required_tools', []),
-            'executed_tools': getattr(record, 'executed_tools', []),
-            'tool_coverage_rate': getattr(record, 'tool_coverage_rate', 0.0),
-            'success_level': getattr(record, 'success_level', 'failure'),
-            'task_instance': getattr(record, 'task_instance', {}),
-            'format_error_count': getattr(record, 'format_error_count', 0),
-            'tool_reliability': getattr(record, 'tool_reliability', 100.0)
-        }
+        # 处理record可能是dict或TestRecord对象的情况
+        if isinstance(record, dict):
+            test_dict = {
+                'success': record.get('success', False),
+                'partial_success': record.get('partial_success', False),
+                'execution_time': record.get('execution_time', 0.0),
+                'turns': record.get('turns', 0),
+                'tool_calls': record.get('tool_calls', []),
+                'error_message': record.get('error_message', None),
+                # 添加关键的缺失字段
+                'workflow_score': record.get('workflow_score', 0.0),
+                'phase2_score': record.get('phase2_score', 0.0),
+                'quality_score': record.get('quality_score', 0.0),
+                'final_score': record.get('final_score', 0.0),
+                'required_tools': record.get('required_tools', []),
+                'executed_tools': record.get('executed_tools', []),
+                'tool_coverage_rate': record.get('tool_coverage_rate', 0.0),
+                'success_level': record.get('success_level', 'failure'),
+                'task_instance': record.get('task_instance', {}),
+                'format_error_count': record.get('format_error_count', 0),
+                'tool_reliability': record.get('tool_reliability', 100.0)
+            }
+        else:
+            test_dict = {
+                'success': record.success,
+                'partial_success': getattr(record, 'partial_success', False),
+                'execution_time': record.execution_time,
+                'turns': record.turns,
+                'tool_calls': record.tool_calls if record.tool_calls else [],
+                'error_message': record.error_message,
+                # 添加关键的缺失字段
+                'workflow_score': getattr(record, 'workflow_score', 0.0),
+                'phase2_score': getattr(record, 'phase2_score', 0.0),
+                'quality_score': getattr(record, 'quality_score', 0.0),
+                'final_score': getattr(record, 'final_score', 0.0),
+                'required_tools': getattr(record, 'required_tools', []),
+                'executed_tools': getattr(record, 'executed_tools', []),
+                'tool_coverage_rate': getattr(record, 'tool_coverage_rate', 0.0),
+                'success_level': getattr(record, 'success_level', 'failure'),
+                'task_instance': getattr(record, 'task_instance', {}),
+                'format_error_count': getattr(record, 'format_error_count', 0),
+                'tool_reliability': getattr(record, 'tool_reliability', 100.0)
+            }
         
         # 获取tool_success_rate（可能需要从record属性中提取）
-        tool_success_rate = getattr(record, 'tool_success_rate', 1.0)
+        if isinstance(record, dict):
+            tool_success_rate = record.get('tool_success_rate', 1.0)
+        else:
+            tool_success_rate = getattr(record, 'tool_success_rate', 1.0)
         
         # 更新overall_stats
         if "overall_stats" not in model_data:
@@ -581,10 +673,19 @@ class EnhancedCumulativeManager(CumulativeTestManager):
         model_data["total_tests"] = model_data.get("total_tests", 0) + 1
         
         # 确定有效的prompt_type（与runtime_stats保持一致）
-        if record.is_flawed and record.flaw_type:
-            effective_prompt = f"flawed_{record.flaw_type}"
+        if isinstance(record, dict):
+            is_flawed = record.get('is_flawed', False)
+            flaw_type = record.get('flaw_type', None)
+            prompt_type = record.get('prompt_type', 'optimal')
         else:
-            effective_prompt = record.prompt_type
+            is_flawed = record.is_flawed
+            flaw_type = record.flaw_type
+            prompt_type = record.prompt_type
+            
+        if is_flawed and flaw_type:
+            effective_prompt = f"flawed_{flaw_type}"
+        else:
+            effective_prompt = prompt_type
         
         # 更新层次结构
         if effective_prompt not in model_data["by_prompt_type"]:
@@ -605,18 +706,26 @@ class EnhancedCumulativeManager(CumulativeTestManager):
         
         rate_data = prompt_data["by_tool_success_rate"][rate_bucket]
         
-        if record.difficulty not in rate_data["by_difficulty"]:
-            rate_data["by_difficulty"][record.difficulty] = {
+        # 获取difficulty和task_type
+        if isinstance(record, dict):
+            difficulty = record.get('difficulty', 'easy')
+            task_type = record.get('task_type', 'unknown')
+        else:
+            difficulty = record.difficulty
+            task_type = record.task_type
+        
+        if difficulty not in rate_data["by_difficulty"]:
+            rate_data["by_difficulty"][difficulty] = {
                 "by_task_type": {}
             }
         
-        diff_data = rate_data["by_difficulty"][record.difficulty]
+        diff_data = rate_data["by_difficulty"][difficulty]
         
-        if record.task_type not in diff_data["by_task_type"]:
-            diff_data["by_task_type"][record.task_type] = {}
+        if task_type not in diff_data["by_task_type"]:
+            diff_data["by_task_type"][task_type] = {}
         
         # 直接更新任务统计字典
-        task_data = diff_data["by_task_type"][record.task_type]
+        task_data = diff_data["by_task_type"][task_type]
         
         # 初始化统计字段（如果不存在）
         if "total" not in task_data:
@@ -667,7 +776,9 @@ class EnhancedCumulativeManager(CumulativeTestManager):
         
         # 更新统计
         task_data["total"] += 1
-        if record.success:
+        # 安全获取success值，支持dict和对象
+        success_value = record.get('success', False) if isinstance(record, dict) else getattr(record, 'success', False)
+        if success_value:
             task_data["success"] += 1
             if test_dict.get("success_level") == "full_success":
                 task_data.setdefault("full_success", 0)
@@ -687,7 +798,8 @@ class EnhancedCumulativeManager(CumulativeTestManager):
         if test_dict.get("format_error_count", 0) > 0:
             task_data["tests_with_assistance"] += 1
             task_data["total_assisted_turns"] += test_dict["format_error_count"]
-            if record.success:
+            # 使用之前计算的success_value，避免重复访问
+            if success_value:
                 task_data["assisted_success"] += 1
             else:
                 task_data["assisted_failure"] += 1
@@ -700,9 +812,10 @@ class EnhancedCumulativeManager(CumulativeTestManager):
             task_data["total_errors"] += 1
             
             # 首先检查是否已经有AI分类结果（由batch_test_runner提供）
-            if hasattr(record, 'ai_error_category') and record.ai_error_category:
+            ai_error_category = self._get_record_attr(record, 'ai_error_category', None)
+            if ai_error_category:
                 # 使用batch_test_runner已经做好的AI分类
-                ai_category = str(record.ai_error_category).lower()
+                ai_category = str(ai_error_category).lower()
                 
                 # 尝试使用模糊匹配确保正确分类
                 try:
@@ -752,8 +865,10 @@ class EnhancedCumulativeManager(CumulativeTestManager):
                     else:
                         task_data["other_errors"] += 1
                 
-                if hasattr(record, 'ai_confidence'):
-                    print(f"[TASK-AI-CLASSIFY] {normalized_model} {record.task_type}: confidence={record.ai_confidence:.2f}")
+                ai_confidence = self._get_record_attr(record, 'ai_confidence', None)
+                if ai_confidence is not None:
+                    task_type_str = self._get_record_attr(record, 'task_type', 'unknown')
+                    print(f"[TASK-AI-CLASSIFY] {normalized_model} {task_type_str}: confidence={ai_confidence:.2f}")
             
             # 如果没有现有AI分类，检查是否为明显的format error
             else:
@@ -812,14 +927,15 @@ class EnhancedCumulativeManager(CumulativeTestManager):
                 
                 if is_format_error:
                     task_data["tool_call_format_errors"] += 1
-                    print(f"[FORMAT-ERROR-DETECTED] {normalized_model} {record.task_type}: Confirmed format error based on error message")
+                    task_type_str = self._get_record_attr(record, 'task_type', 'unknown')
+                    print(f"[FORMAT-ERROR-DETECTED] {normalized_model} {task_type_str}: Confirmed format error based on error message")
                 elif self.use_ai_classification and self.ai_classifier:
                     # 使用AI分类器进行错误分类
                     try:
                         from focused_ai_classifier import ErrorContext
                         
                         # 构建错误上下文
-                        error_msg = record.error_message
+                        error_msg = self._get_record_attr(record, 'error_message', '')
                         if not error_msg and success_level == 'partial_success':
                             format_count = getattr(record, 'format_error_count', 0)
                             if format_count > 0:
@@ -827,15 +943,16 @@ class EnhancedCumulativeManager(CumulativeTestManager):
                             else:
                                 error_msg = "Partial success - quality issues detected"
                         
+                        task_type_str = self._get_record_attr(record, 'task_type', 'unknown')
                         context = ErrorContext(
-                            task_description=getattr(record, 'task_description', f'{record.task_type} task'),
-                            task_type=record.task_type,
+                            task_description=self._get_record_attr(record, 'task_description', f'{task_type_str} task'),
+                            task_type=self._get_record_attr(record, 'task_type', 'unknown'),
                             required_tools=getattr(record, 'required_tools', []),
                             executed_tools=getattr(record, 'executed_tools', []),
                             is_partial_success=(success_level == 'partial_success'),
                             tool_execution_results=getattr(record, 'execution_history', []),
-                            execution_time=record.execution_time,
-                            total_turns=record.turns,
+                            execution_time=self._get_record_attr(record, 'execution_time', 0.0),
+                            total_turns=self._get_record_attr(record, 'turns', 0),
                             error_message=error_msg
                         )
                         
@@ -860,7 +977,8 @@ class EnhancedCumulativeManager(CumulativeTestManager):
                         else:
                             task_data["other_errors"] += 1
                         
-                        print(f"[AI-CLASSIFY-TASK] {normalized_model} {record.task_type}: {error_type} (confidence: {confidence:.2f})")
+                        task_type_str = self._get_record_attr(record, 'task_type', 'unknown')
+                        print(f"[AI-CLASSIFY-TASK] {normalized_model} {task_type_str}: {error_type} (confidence: {confidence:.2f})")
                         
                     except Exception as e:
                         print(f"[AI-CLASSIFY-TASK] Failed: {e}, using fallback classification")
@@ -916,9 +1034,21 @@ class EnhancedCumulativeManager(CumulativeTestManager):
             
             # 使用增量平均更新执行统计
             n = task_data["total"]
-            task_data["avg_execution_time"] += (record.execution_time - task_data["avg_execution_time"]) / n
-            task_data["avg_turns"] += (record.turns - task_data["avg_turns"]) / n
-            task_data["avg_tool_calls"] += (len(record.tool_calls) if record.tool_calls else 0 - task_data["avg_tool_calls"]) / n
+            # 安全获取execution_time和turns
+            exec_time = record.get('execution_time', 0) if isinstance(record, dict) else getattr(record, 'execution_time', 0)
+            turns = record.get('turns', 0) if isinstance(record, dict) else getattr(record, 'turns', 0)
+            task_data["avg_execution_time"] += (exec_time - task_data["avg_execution_time"]) / n
+            task_data["avg_turns"] += (turns - task_data["avg_turns"]) / n
+            # 处理tool_calls可能是int或list的情况
+            tool_calls_count = 0
+            # 安全获取tool_calls
+            tool_calls = record.get('tool_calls', []) if isinstance(record, dict) else getattr(record, 'tool_calls', [])
+            if tool_calls:
+                if isinstance(tool_calls, (list, tuple)):
+                    tool_calls_count = len(tool_calls)
+                elif isinstance(tool_calls, int):
+                    tool_calls_count = tool_calls
+            task_data["avg_tool_calls"] += (tool_calls_count - task_data["avg_tool_calls"]) / n
             task_data["tool_coverage_rate"] += (test_dict.get("tool_coverage_rate", 0) - task_data["tool_coverage_rate"]) / n
             
             # 更新质量分数
@@ -959,8 +1089,10 @@ class EnhancedCumulativeManager(CumulativeTestManager):
             return
         
         # 使用传统的错误分类逻辑
-        if record.error_message:
-            error_type = self._classify_error(record.error_message)
+        # 安全获取error_message
+        error_msg = record.get('error_message', None) if isinstance(record, dict) else getattr(record, 'error_message', None)
+        if error_msg:
+            error_type = self._classify_error(error_msg)
             if error_type == "timeout":
                 task_data["timeout_errors"] += 1
             elif error_type == "format":
@@ -988,7 +1120,7 @@ class EnhancedCumulativeManager(CumulativeTestManager):
                     # 处理不同类型的execution_history条目
                     if hasattr(h, 'success'):
                         # ToolExecutionResult对象
-                        if not h.success:
+                        if not getattr(h, 'success', True):
                             failed_tools.append(h)
                     elif isinstance(h, dict):
                         # 字典格式
@@ -1177,3 +1309,126 @@ class EnhancedCumulativeManager(CumulativeTestManager):
         # 这个方法可以根据具体情况进一步优化
         # 目前先返回True保持现有行为，但可以后续改进
         return True
+    
+    def save_database_enhanced(self):
+        """增强的数据库保存方法 - 更强的数据保护，避免卡死"""
+        import time
+        import os
+        
+        print(f"[SAVE_ENHANCED] 开始增强保存，时间: {datetime.now().strftime('%H:%M:%S')}")
+        
+        # 设置保存超时时间，避免无限等待
+        MAX_SAVE_TIME = 30  # 30秒超时
+        start_time = time.time()
+        
+        try:
+            # 先尝试使用父类的安全保存方法
+            if hasattr(self, 'file_lock') and self.file_lock:
+                # 有文件锁的情况下，使用非阻塞机制
+                print(f"[SAVE_ENHANCED] 使用文件锁机制保存")
+                
+                def timeout_update_func(current_data):
+                    # 检查是否超时
+                    if time.time() - start_time > MAX_SAVE_TIME:
+                        raise TimeoutError(f"保存操作超时({MAX_SAVE_TIME}秒)")
+                    
+                    # 智能合并逻辑
+                    if current_data and isinstance(current_data, dict):
+                        merged_models = self.database.get("models", {}).copy()
+                        
+                        # 保留磁盘上其他进程写入的数据
+                        for model_name, disk_model_data in current_data.get("models", {}).items():
+                            if model_name not in merged_models:
+                                merged_models[model_name] = disk_model_data
+                                print(f"[SAVE_ENHANCED] 保留其他进程的模型数据: {model_name}")
+                            else:
+                                # 合并prompt_type数据
+                                memory_model = merged_models[model_name]
+                                if isinstance(memory_model, dict) and isinstance(disk_model_data, dict):
+                                    memory_prompts = memory_model.get("by_prompt_type", {})
+                                    disk_prompts = disk_model_data.get("by_prompt_type", {})
+                                    
+                                    # 保留磁盘上的新prompt_type
+                                    for prompt_type, disk_prompt_data in disk_prompts.items():
+                                        if prompt_type not in memory_prompts:
+                                            memory_prompts[prompt_type] = disk_prompt_data
+                                            print(f"[SAVE_ENHANCED] 保留{model_name}的新prompt_type: {prompt_type}")
+                                    
+                                    memory_model["by_prompt_type"] = memory_prompts
+                        
+                        self.database["models"] = merged_models
+                    
+                    return self._serialize_database()
+                
+                # 尝试安全更新
+                success = self.file_lock.update_json_safe(timeout_update_func)
+                if success:
+                    print(f"[SAVE_ENHANCED] 文件锁保存成功")
+                    return
+                else:
+                    print(f"[SAVE_ENHANCED] 文件锁保存失败，使用备用方法")
+            
+            # 备用保存方法：非阻塞原子写入
+            self._save_database_atomic_safe()
+            
+        except Exception as e:
+            print(f"[SAVE_ENHANCED] 保存过程出现异常: {e}")
+            # 最后的备用方法：直接调用父类方法
+            try:
+                super().save_database()
+                print(f"[SAVE_ENHANCED] 使用父类备用方法保存成功")
+            except Exception as e2:
+                print(f"[SAVE_ENHANCED] 所有保存方法都失败: {e2}")
+                raise
+    
+    def _save_database_atomic_safe(self):
+        """原子安全保存 - 非阻塞版本"""
+        import tempfile
+        import shutil
+        
+        print(f"[ATOMIC_SAFE] 开始原子安全保存")
+        
+        with self.lock:
+            # 更新时间戳
+            self.database["last_updated"] = datetime.now().isoformat()
+            
+            # 如果存在数据库文件，先读取并合并
+            if self.db_file.exists():
+                try:
+                    with open(self.db_file, 'r', encoding='utf-8') as f:
+                        disk_data = json.load(f)
+                    
+                    # 简单的数据合并：保留磁盘上其他进程添加的模型
+                    if "models" in disk_data:
+                        for model_name, disk_model_data in disk_data["models"].items():
+                            if model_name not in self.database.get("models", {}):
+                                self.database["models"][model_name] = disk_model_data
+                                print(f"[ATOMIC_SAFE] 合并磁盘模型: {model_name}")
+                                
+                except Exception as e:
+                    print(f"[ATOMIC_SAFE] 合并磁盘数据时出错(继续保存): {e}")
+            
+            # 使用临时文件原子写入
+            try:
+                # 创建临时文件在同一目录下
+                temp_fd, temp_path = tempfile.mkstemp(
+                    dir=self.db_file.parent, 
+                    suffix='.tmp', 
+                    prefix=f'{self.db_file.stem}_'
+                )
+                
+                with os.fdopen(temp_fd, 'w', encoding='utf-8') as f:
+                    json.dump(self._serialize_database(), f, indent=2, ensure_ascii=False)
+                
+                # 原子替换
+                shutil.move(temp_path, self.db_file)
+                print(f"[ATOMIC_SAFE] 原子保存成功")
+                
+            except Exception as e:
+                # 清理临时文件
+                try:
+                    if os.path.exists(temp_path):
+                        os.unlink(temp_path)
+                except:
+                    pass
+                raise e

@@ -1,0 +1,1937 @@
+===== 分片 qwen2.5-14b-instruct_easy_operation_defects_key1 =====
+时间: 2025-08-28T00:52:49.874788
+模型: qwen2.5-14b-instruct
+实例: qwen-key1
+命令: python -u smart_batch_runner.py --model qwen2.5-14b-instruct --deployment qwen-key1 --prompt-types flawed_missing_step,flawed_redundant_operations --difficulty easy --task-types all --num-instances 20 --max-workers 1 --tool-success-rate 0.8 --batch-commit --checkpoint-interval 20 --ai-classification --no-adaptive --qps 50 --prompt-parallel
+环境变量:
+  STORAGE_FORMAT=json
+  PYTHONFAULTHANDLER=1
+  PYTHONUNBUFFERED=1
+==================================================
+
+[00:52:50.496] 
+[00:52:50.496] A module that was compiled using NumPy 1.x cannot be run in
+[00:52:50.496] NumPy 2.2.6 as it may crash. To support both 1.x and 2.x
+[00:52:50.496] versions of NumPy, modules must be compiled with NumPy 2.0.
+[00:52:50.496] Some module may need to rebuild instead e.g. with 'pybind11>=2.12'.
+[00:52:50.496] 
+[00:52:50.496] If you are a user of the module, the easiest solution will be to
+[00:52:50.496] downgrade to 'numpy<2' or try to upgrade the affected module.
+[00:52:50.496] We expect that some modules will need time to support NumPy 2.
+[00:52:50.496] 
+[00:52:50.496] Traceback (most recent call last):  File "/Users/ruicheng/Documents/GitHub/WorkflowBench/smart_batch_runner.py", line 21, in <module>
+[00:52:50.496]     from batch_test_runner import BatchTestRunner, TestTask
+[00:52:50.496]   File "/Users/ruicheng/Documents/GitHub/WorkflowBench/batch_test_runner.py", line 26, in <module>
+[00:52:50.496]     from mdp_workflow_generator import MDPWorkflowGenerator
+[00:52:50.496]   File "/Users/ruicheng/Documents/GitHub/WorkflowBench/mdp_workflow_generator.py", line 17, in <module>
+[00:52:50.496]     import torch
+[00:52:50.496]   File "/Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/__init__.py", line 1477, in <module>
+[00:52:50.496]     from .functional import *  # noqa: F403
+[00:52:50.496]   File "/Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/functional.py", line 9, in <module>
+[00:52:50.497]     import torch.nn.functional as F
+[00:52:50.497]   File "/Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/nn/__init__.py", line 1, in <module>
+[00:52:50.497]     from .modules import *  # noqa: F403
+[00:52:50.497]   File "/Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/nn/modules/__init__.py", line 35, in <module>
+[00:52:50.497]     from .transformer import TransformerEncoder, TransformerDecoder, \
+[00:52:50.497]   File "/Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/nn/modules/transformer.py", line 20, in <module>
+[00:52:50.497]     device: torch.device = torch.device(torch._C._get_default_device()),  # torch.device('cpu'),
+[00:52:50.497] /Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/nn/modules/transformer.py:20: UserWarning: Failed to initialize NumPy: _ARRAY_API not found (Triggered internally at /Users/runner/work/pytorch/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:84.)
+[00:52:50.497]   device: torch.device = torch.device(torch._C._get_default_device()),  # torch.device('cpu'),
+[00:52:51.334] 2025-08-28 00:52:51,334 - faiss.loader - INFO - Loading faiss.
+[00:52:51.353] 2025-08-28 00:52:51,352 - faiss.loader - INFO - Successfully loaded faiss.
+[00:52:51.994] [INFO] 使用JSON存储格式
+[00:52:51.995] [INFO] 使用JSON存储格式
+[00:52:52.472] [INFO] 使用JSON存储格式
+[00:52:52.474] [INFO] 使用JSON存储格式
+[00:52:52.475] 
+[00:52:52.475] ============================================================
+[00:52:52.475] 智能批测试: qwen2.5-14b-instruct (idealab)
+[00:52:52.475] Prompt types: ['flawed_missing_step', 'flawed_redundant_operations']
+[00:52:52.475] 难度: easy
+[00:52:52.475] 目标: 每种配置 20 个实例
+[00:52:52.475] 策略: 2个prompt types使用不同API keys并行
+[00:52:52.476] ============================================================
+[00:52:52.497] 
+[00:52:52.497] 总计: 200 个测试任务
+[00:52:52.497]   flawed_missing_step: 100 个任务
+[00:52:52.497]   flawed_redundant_operations: 100 个任务
+[00:52:52.497] 
+[00:52:52.497] 📦 IdealLab并行策略：
+[00:52:52.497]   flawed_missing_step → 轮询使用3个keys
+[00:52:52.497]   flawed_redundant_operations → 轮询使用3个keys
+[00:52:52.497] 
+[00:52:52.497] ⚡ 启动2个并行任务...
+[00:52:52.499] 2025-08-28 00:52:52,499 - smart_model_router - INFO - ✨ Using USER's Azure endpoint for gpt-5-nano
+[00:52:52.515] 2025-08-28 00:52:52,515 - txt_based_ai_classifier - INFO - TXT-based AI classifier initialized with gpt-5-nano (parameter-filtered)
+[00:52:52.515] [AI_DEBUG] AI分类器初始化成功: <txt_based_ai_classifier.TxtBasedAIClassifier object at 0x7fdf9a3fa4f0>
+[00:52:52.515] 2025-08-28 00:52:52,515 - batch_test_runner - INFO - 基于TXT文件的AI错误分类系统已启用 (使用gpt-5-nano)
+[00:52:52.516] [DEBUG] BatchTestRunner initialized with save_logs=True, enable_database_updates=True, use_ai_classification=True, checkpoint_interval=0
+[00:52:52.517] 2025-08-28 00:52:52,517 - txt_based_ai_classifier - INFO - TXT-based AI classifier initialized with gpt-5-nano (parameter-filtered)
+[00:52:52.517] [AI_DEBUG] AI分类器初始化成功: <txt_based_ai_classifier.TxtBasedAIClassifier object at 0x7fdf9a3f22b0>
+[00:52:52.517] [DEBUG] BatchTestRunner initialized with save_logs=True, enable_database_updates=True, use_ai_classification=True, checkpoint_interval=0
+[00:52:53.472] [DEBUG] Creating new ToolCapabilityManager instance
+[00:52:53.472] [OperationEmbeddingIndex] Initializing with unified API client manager
+[00:52:53.472] ['config/config.json', 'config/api_keys.json', 'config/api-keys.json']
+[00:52:53.472] 2025-08-28 00:52:53,472 - api_client_manager - INFO - Loaded configuration from config/config.json
+[00:52:54.805] [OperationEmbeddingIndex] OpenAI client initialized with model: gpt-4o-mini
+[00:52:54.805] [OperationEmbeddingIndex] Using embedding model: text-embedding-3-large
+[00:52:54.805] [OperationEmbeddingIndex] Detecting actual embedding dimension...
+[00:52:54.805] [DEBUG] Creating new ToolCapabilityManager instance
+[00:52:54.806] [OperationEmbeddingIndex] Initializing with unified API client manager
+[00:52:54.816] [OperationEmbeddingIndex] OpenAI client initialized with model: gpt-4o-mini
+[00:52:54.816] [OperationEmbeddingIndex] Using embedding model: text-embedding-3-large
+[00:52:54.816] [OperationEmbeddingIndex] Detecting actual embedding dimension...
+[00:52:55.385] 2025-08-28 00:52:55,384 - httpx - INFO - HTTP Request: POST https://archer222arc.openai.azure.com/openai/deployments/text-embedding-3-large/embeddings?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:52:55.397] [OperationEmbeddingIndex] Detected embedding dimension: 3072
+[00:52:55.398] 2025-08-28 00:52:55,398 - httpx - INFO - HTTP Request: POST https://archer222arc.openai.azure.com/openai/deployments/text-embedding-3-large/embeddings?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:52:55.401] [OperationEmbeddingIndex] Detected embedding dimension: 3072
+[00:52:55.595] [INFO] Loaded 4150 embeddings from persistent cache
+[00:52:55.595] [OperationEmbeddingIndex] Initialized with 4150 cached embeddings
+[00:52:55.600] [INFO] Loaded 4150 embeddings from persistent cache
+[00:52:55.601] [OperationEmbeddingIndex] Initialized with 4150 cached embeddings
+[00:52:55.602] [INFO] Loaded 15 LLM-enhanced operation definitions from cache
+[00:52:55.602] [INFO] Loaded 15 LLM-enhanced operation definitions from cache
+[00:52:55.602] [INFO] Found cached operation index at .mcp_operation_cache/operation_index.pkl
+[00:52:55.603] [INFO] Found cached operation index at .mcp_operation_cache/operation_index.pkl
+[00:52:55.603] [INFO] Loading operation index from .mcp_operation_cache/operation_index.pkl
+[00:52:55.603] [INFO] Loading operation index from .mcp_operation_cache/operation_index.pkl
+[00:52:55.625] [INFO] Successfully loaded FAISS index with dimension 3072[INFO] Successfully loaded FAISS index with dimension 3072
+[00:52:55.625] [INFO] Operation index loaded successfully from .mcp_operation_cache/operation_index.pkl
+[00:52:55.625] [INFO] Loaded 15 operations with dimension 3072
+[00:52:55.625] [INFO] Successfully loaded cached index
+[00:52:55.626] 
+[00:52:55.626] [INFO] Operation index loaded successfully from .mcp_operation_cache/operation_index.pkl
+[00:52:55.626] [INFO] Loaded 15 operations with dimension 3072
+[00:52:55.626] [INFO] Successfully loaded cached index
+[00:52:55.626] [INFO] Operation semantic index initialized
+[00:52:55.627] [INFO] Using device: cpu
+[00:52:55.628] [INFO] Initialized tool success tracking attributes
+[00:52:55.629] [INFO] Initializing embedding manager for enhanced tool selection
+[00:52:55.629] [INFO] Operation semantic index initialized
+[00:52:55.630] [INFO] Using device: cpu
+[00:52:55.630] [INFO] Initialized tool success tracking attributes
+[00:52:55.630] [INFO] Initializing embedding manager for enhanced tool selection
+[00:52:55.630] [MCPEmbeddingManager] Creating new singleton instance
+[00:52:55.630] [MCPEmbeddingManager] Initializing with unified API client manager
+[00:52:55.631] [MCPEmbeddingManager] Creating new singleton instance
+[00:52:55.641] [MCPEmbeddingManager] Using embedding model: text-embedding-3-large
+[00:52:55.642] [MCPEmbeddingManager] Client initialized successfully
+[00:52:55.642] 2025-08-28 00:52:55,642 - mcp_embedding_manager - INFO - Loading embedding cache from .mcp_embedding_cache/embedding_cache.pkl (size: 173790244 bytes)
+[00:52:56.041] 2025-08-28 00:52:56,041 - mcp_embedding_manager - INFO - Loaded 7050 cached embeddings
+[00:53:04.616] 2025-08-28 00:53:04,612 - mcp_embedding_manager - INFO - Loaded search cache with 3 entries
+[00:53:04.619] 2025-08-28 00:53:04,616 - mcp_embedding_manager - INFO - Initialized operation mappings with 149 terms
+[00:53:04.834] 2025-08-28 00:53:04,834 - mcp_embedding_manager - INFO - Loading embedding cache from .mcp_embedding_cache/embedding_cache.pkl (size: 173790244 bytes)
+[00:53:05.192] 2025-08-28 00:53:05,190 - mcp_embedding_manager - INFO - Loaded 7050 cached embeddings
+[00:53:15.639] 2025-08-28 00:53:15,635 - mcp_embedding_manager - INFO - [Cache] Loaded 9650 entries from file
+[00:53:15.642] [MCPEmbeddingManager] Singleton created with 0 cached embeddings
+[00:53:15.642] [INFO] Loading embedding index from .mcp_embedding_cache/tool_index.pkl
+[00:53:15.642] 2025-08-28 00:53:15,637 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:53:15.642] [MCPEmbeddingManager] Singleton created with 0 cached embeddings
+[00:53:15.642] [INFO] Loading embedding index from .mcp_embedding_cache/tool_index.pkl
+[00:53:15.642] 2025-08-28 00:53:15,637 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:53:15.809] 2025-08-28 00:53:15,809 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:53:15.810] 2025-08-28 00:53:15,810 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:53:15.811] 2025-08-28 00:53:15,810 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:53:15.833] [SUCCESS] Loaded 30 tool embeddings
+[00:53:15.833] 2025-08-28 00:53:15,833 - mdp_workflow_generator - INFO - Embedding index loaded successfully
+[00:53:15.833] [SUCCESS] Embedding manager initialized with 30 tools
+[00:53:15.833] [INFO] Initialized task types: ['simple_task', 'data_pipeline', 'api_integration', 'basic_task', 'multi_stage_pipeline']
+[00:53:15.833] [INFO] Loading full MCP protocol registry...
+[00:53:15.838] 2025-08-28 00:53:15,838 - mdp_workflow_generator - INFO - Loaded full tool registry from mcp_generated_library/tool_registry_consolidated.json
+[00:53:15.851] [INFO] Loaded full tool registry with 30 tools
+[00:53:15.851] 2025-08-28 00:53:15,851 - mdp_workflow_generator - INFO - Loading tools from mcp_generated_library/tool_registry_consolidated.json
+[00:53:15.857] [INFO] Loading tools from mcp_generated_library/tool_registry_consolidated.json
+[00:53:15.869] [INFO] Embedding manager ready with 30 tools
+[00:53:15.869] [WARNING] Embedding manager exists but has no embeddings
+[00:53:15.873] [INFO] Consider rebuilding index with: embedding_manager.build_index(tools_path)
+[00:53:15.874] 2025-08-28 00:53:15,874 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:53:15.874] 2025-08-28 00:53:15,874 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:53:15.874] 2025-08-28 00:53:15,874 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:53:15.903] [SUCCESS] Loaded 30 tool embeddings
+[00:53:15.903] 2025-08-28 00:53:15,903 - mdp_workflow_generator - INFO - Embedding index loaded successfully
+[00:53:15.903] [SUCCESS] Embedding manager initialized with 30 tools
+[00:53:15.903] [INFO] Initialized task types: ['simple_task', 'data_pipeline', 'api_integration', 'basic_task', 'multi_stage_pipeline']
+[00:53:15.903] [INFO] Loading full MCP protocol registry...
+[00:53:15.907] 2025-08-28 00:53:15,907 - mdp_workflow_generator - INFO - Loaded full tool registry from mcp_generated_library/tool_registry_consolidated.json
+[00:53:15.907] [INFO] Loaded full tool registry with 30 tools
+[00:53:15.907] 2025-08-28 00:53:15,907 - mdp_workflow_generator - INFO - Loading tools from mcp_generated_library/tool_registry_consolidated.json
+[00:53:15.908] [INFO] Loading tools from mcp_generated_library/tool_registry_consolidated.json
+[00:53:15.910] [INFO] Embedding manager ready with 30 tools
+[00:53:15.910] [WARNING] Embedding manager exists but has no embeddings
+[00:53:15.910] [INFO] Consider rebuilding index with: embedding_manager.build_index(tools_path)
+[00:53:15.912] [INFO] Tool file_operations_reader: semantic operations = ['read', 'write', 'parse', 'transform']
+[00:53:15.913] [INFO] Tool file_operations_scanner: semantic operations = ['read', 'write', 'parse', 'transform']
+[00:53:15.914] [INFO] Tool network_fetcher: semantic operations = ['read', 'write', 'validate', 'integrate']
+[00:53:15.914] [INFO] Tool integration_authenticator: semantic operations = ['integrate', 'transform', 'validate']
+[00:53:15.915] [INFO] Tool utility_logger: semantic operations = ['cache', 'process']
+[00:53:15.915] [INFO] Tool data_processing_parser: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[00:53:15.915] [INFO] Tool file_operations_reader: semantic operations = ['read', 'write', 'parse', 'transform']
+[00:53:15.915] [INFO] Tool file_operations_scanner: semantic operations = ['read', 'write', 'parse', 'transform']
+[00:53:15.915] [INFO] Tool data_processing_transformer: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[00:53:15.915] [INFO] Tool data_processing_validator: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[00:53:15.915] [INFO] Tool network_validator: semantic operations = ['read', 'write', 'validate', 'integrate']
+[00:53:15.915] [INFO] Tool network_fetcher: semantic operations = ['read', 'write', 'validate', 'integrate']
+[00:53:15.915] [INFO] Tool integration_authenticator: semantic operations = ['integrate', 'transform', 'validate']
+[00:53:15.915] [INFO] Tool computation_calculator: semantic operations = ['compute', 'aggregate', 'transform']
+[00:53:15.916] [INFO] Tool data_processing_filter: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[00:53:15.916] [INFO] Tool utility_logger: semantic operations = ['cache', 'process']
+[00:53:15.916] [INFO] Tool data_processing_aggregator: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[00:53:15.916] [INFO] Tool file_operations_converter: semantic operations = ['read', 'write', 'parse', 'transform']
+[00:53:15.916] [INFO] Tool file_operations_compressor: semantic operations = ['read', 'write', 'parse', 'transform']
+[00:53:15.916] [INFO] Tool file_operations_writer: semantic operations = ['read', 'write', 'parse', 'transform']
+[00:53:15.916] [INFO] Tool network_poster: semantic operations = ['read', 'write', 'validate', 'integrate']
+[00:53:15.916] [INFO] Tool network_monitor: semantic operations = ['read', 'write', 'validate', 'integrate']
+[00:53:15.916] [INFO] Tool network_router: semantic operations = ['read', 'write', 'validate', 'integrate'][INFO] Tool data_processing_parser: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[00:53:15.917] [INFO] Tool data_processing_transformer: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[00:53:15.917] 
+[00:53:15.917] [INFO] Tool data_processing_validator: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[00:53:15.917] [INFO] Tool network_validator: semantic operations = ['read', 'write', 'validate', 'integrate']
+[00:53:15.917] [INFO] Tool computation_calculator: semantic operations = ['compute', 'aggregate', 'transform']
+[00:53:15.918] [INFO] Tool data_processing_filter: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[00:53:15.918] [INFO] Tool data_processing_aggregator: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[00:53:15.918] [INFO] Tool file_operations_converter: semantic operations = ['read', 'write', 'parse', 'transform']
+[00:53:15.918] [INFO] Tool file_operations_compressor: semantic operations = ['read', 'write', 'parse', 'transform']
+[00:53:15.918] [INFO] Tool file_operations_writer: semantic operations = ['read', 'write', 'parse', 'transform']
+[00:53:15.918] [INFO] Tool computation_predictor: semantic operations = ['compute', 'aggregate', 'transform'][INFO] Tool network_poster: semantic operations = ['read', 'write', 'validate', 'integrate']
+[00:53:15.919] 
+[00:53:15.919] [INFO] Tool computation_analyzer: semantic operations = ['compute', 'aggregate', 'transform']
+[00:53:15.919] [INFO] Tool network_monitor: semantic operations = ['read', 'write', 'validate', 'integrate']
+[00:53:15.919] [INFO] Tool computation_simulator: semantic operations = ['compute', 'aggregate', 'transform']
+[00:53:15.919] [INFO] Tool computation_optimizer: semantic operations = ['compute', 'aggregate', 'transform']
+[00:53:15.920] [INFO] Tool network_router: semantic operations = ['read', 'write', 'validate', 'integrate']
+[00:53:15.920] [INFO] Tool computation_predictor: semantic operations = ['compute', 'aggregate', 'transform']
+[00:53:15.920] [INFO] Tool integration_mapper: semantic operations = ['integrate', 'transform', 'validate']
+[00:53:15.920] [INFO] Tool computation_analyzer: semantic operations = ['compute', 'aggregate', 'transform']
+[00:53:15.920] [INFO] Tool integration_queue: semantic operations = ['integrate', 'transform', 'validate']
+[00:53:15.920] [INFO] Tool computation_simulator: semantic operations = ['compute', 'aggregate', 'transform']
+[00:53:15.921] [INFO] Tool computation_optimizer: semantic operations = ['compute', 'aggregate', 'transform']
+[00:53:15.921] [INFO] Tool integration_mapper: semantic operations = ['integrate', 'transform', 'validate']
+[00:53:15.921] [INFO] Tool integration_scheduler: semantic operations = ['integrate', 'transform', 'validate']
+[00:53:15.921] [INFO] Tool integration_connector: semantic operations = ['integrate', 'transform', 'validate']
+[00:53:15.921] [INFO] Tool utility_cache: semantic operations = ['cache', 'process']
+[00:53:15.923] [INFO] Tool integration_queue: semantic operations = ['integrate', 'transform', 'validate']
+[00:53:15.923] [INFO] Tool integration_scheduler: semantic operations = ['integrate', 'transform', 'validate']
+[00:53:15.923] [INFO] Tool integration_connector: semantic operations = ['integrate', 'transform', 'validate']
+[00:53:15.923] [INFO] Tool utility_cache: semantic operations = ['cache', 'process']
+[00:53:15.923] [INFO] Tool utility_tracker: semantic operations = ['cache', 'process']
+[00:53:15.923] [INFO] Tool utility_helper: semantic operations = ['cache', 'process']
+[00:53:15.923] [INFO] Tool utility_notifier: semantic operations = ['cache', 'process']
+[00:53:15.923] 2025-08-28 00:53:15,922 - mdp_workflow_generator - INFO - Loaded 30 tools
+[00:53:15.923] [INFO] Setting default state_dim based on loaded tools
+[00:53:15.923] [INFO] state_dim set to 345 (tools=30, base=340, task_types=5)
+[00:53:15.923] 2025-08-28 00:53:15,922 - mdp_workflow_generator - INFO - Default state_dim calculated: 345
+[00:53:15.923] [INFO] Setting default action_dim based on loaded tools
+[00:53:15.923] [INFO] action_dim set to 31 (tools=30 + NO_OP)
+[00:53:15.923] 2025-08-28 00:53:15,922 - mdp_workflow_generator - INFO - Default action_dim calculated: 31
+[00:53:15.924] [INFO] ⚡ SKIP_MODEL_LOADING=true - Skipping neural network model loading
+[00:53:15.924] [INFO] ⚡ Memory optimization: Saving ~350MB by not loading model
+[00:53:15.924] [INFO] ⚡ Will use pre-generated workflows or random policy
+[00:53:15.924] 2025-08-28 00:53:15,922 - mdp_workflow_generator - INFO - Model loading skipped for memory optimization (SKIP_MODEL_LOADING=true)
+[00:53:15.924] [INFO] Initializing TaskManager...
+[00:53:15.925] [INFO] Tool utility_tracker: semantic operations = ['cache', 'process']
+[00:53:15.934] [INFO] Tool utility_helper: semantic operations = ['cache', 'process']
+[00:53:15.937] [INFO] Tool utility_notifier: semantic operations = ['cache', 'process']
+[00:53:15.937] 2025-08-28 00:53:15,937 - mdp_workflow_generator - INFO - Loaded 30 tools
+[00:53:15.939] [INFO] Setting default state_dim based on loaded tools
+[00:53:15.939] [INFO] state_dim set to 345 (tools=30, base=340, task_types=5)
+[00:53:15.939] 2025-08-28 00:53:15,939 - mdp_workflow_generator - INFO - Default state_dim calculated: 345
+[00:53:15.939] [INFO] Setting default action_dim based on loaded tools
+[00:53:15.939] [INFO] action_dim set to 31 (tools=30 + NO_OP)
+[00:53:15.939] 2025-08-28 00:53:15,939 - mdp_workflow_generator - INFO - Default action_dim calculated: 31
+[00:53:15.939] [INFO] ⚡ SKIP_MODEL_LOADING=true - Skipping neural network model loading
+[00:53:15.939] [INFO] ⚡ Memory optimization: Saving ~350MB by not loading model
+[00:53:15.939] [INFO] ⚡ Will use pre-generated workflows or random policy
+[00:53:15.939] 2025-08-28 00:53:15,939 - mdp_workflow_generator - INFO - Model loading skipped for memory optimization (SKIP_MODEL_LOADING=true)
+[00:53:15.940] [INFO] Initializing TaskManager...
+[00:53:24.927] 2025-08-28 00:53:24,918 - unified_training_manager - INFO - Using device: cpu
+[00:53:26.001] 2025-08-28 00:53:25,986 - unified_training_manager - INFO - Task filtering results:
+[00:53:26.003] 2025-08-28 00:53:25,998 - unified_training_manager - INFO -   Total: 5040 -> 5040
+[00:53:26.004] 2025-08-28 00:53:25,999 - unified_training_manager - INFO -   simple_task: 320 -> 320
+[00:53:26.004] 2025-08-28 00:53:25,999 - unified_training_manager - INFO -   data_pipeline: 1520 -> 1520
+[00:53:26.004] 2025-08-28 00:53:25,999 - unified_training_manager - INFO -   api_integration: 1360 -> 1360
+[00:53:26.004] 2025-08-28 00:53:25,999 - unified_training_manager - INFO -   basic_task: 1200 -> 1200
+[00:53:26.004] 2025-08-28 00:53:26,000 - unified_training_manager - INFO -   multi_stage_pipeline: 640 -> 640
+[00:53:26.004] 2025-08-28 00:53:26,000 - unified_training_manager - INFO - Loaded 5040 tasks from mcp_generated_library/task_library_all_difficulties.json
+[00:53:26.013] 2025-08-28 00:53:26,013 - unified_training_manager - INFO - Organized tasks: 5 types, 3 complexity levels, 5 difficulty levels
+[00:53:26.014] [TaskManager] Difficulty level 'easy': 1096 tasks
+[00:53:26.014] [TaskManager] Difficulty level 'very_easy': 856 tasks
+[00:53:26.014] [TaskManager] Difficulty level 'medium': 1136 tasks
+[00:53:26.014] [TaskManager] Difficulty level 'hard': 1096 tasks
+[00:53:26.014] [TaskManager] Difficulty level 'very_hard': 856 tasks
+[00:53:26.050] [INFO] TaskManager initialized with 5040 tasks2025-08-28 00:53:26,049 - unified_training_manager - INFO - Task filtering results:
+[00:53:26.050] 2025-08-28 00:53:26,050 - unified_training_manager - INFO -   Total: 5040 -> 5040
+[00:53:26.050] 2025-08-28 00:53:26,050 - unified_training_manager - INFO -   simple_task: 320 -> 320
+[00:53:26.050] 2025-08-28 00:53:26,050 - unified_training_manager - INFO -   data_pipeline: 1520 -> 1520
+[00:53:26.050] 2025-08-28 00:53:26,050 - unified_training_manager - INFO -   api_integration: 1360 -> 1360
+[00:53:26.050] 2025-08-28 00:53:26,050 - unified_training_manager - INFO -   basic_task: 1200 -> 1200
+[00:53:26.050] 2025-08-28 00:53:26,050 - unified_training_manager - INFO -   multi_stage_pipeline: 640 -> 640
+[00:53:26.050] 2025-08-28 00:53:26,050 - unified_training_manager - INFO - Loaded 5040 tasks from mcp_generated_library/task_library_all_difficulties.json
+[00:53:26.056] 2025-08-28 00:53:26,056 - unified_training_manager - INFO - Organized tasks: 5 types, 3 complexity levels, 5 difficulty levels
+[00:53:26.056] [TaskManager] Difficulty level 'easy': 1096 tasks
+[00:53:26.056] 
+[00:53:26.057] [INFO] Task types available: ['basic_task', 'data_pipeline', 'multi_stage_pipeline', 'simple_task', 'api_integration']
+[00:53:26.057] [INFO] Initializing ToolCallVerifier...
+[00:53:26.062] [TaskManager] Difficulty level 'very_easy': 856 tasks
+[00:53:26.062] [TaskManager] Difficulty level 'medium': 1136 tasks
+[00:53:26.062] [TaskManager] Difficulty level 'hard': 1096 tasks
+[00:53:26.062] [TaskManager] Difficulty level 'very_hard': 856 tasks
+[00:53:26.081] [INFO] TaskManager initialized with 5040 tasks
+[00:53:26.081] [INFO] Task types available: ['basic_task', 'data_pipeline', 'multi_stage_pipeline', 'simple_task', 'api_integration']
+[00:53:26.081] [INFO] Initializing ToolCallVerifier...
+[00:53:26.099] [INFO] ToolCallVerifier initialized with 30 tools[INFO] ToolCallVerifier initialized with 30 tools
+[00:53:26.099] 
+[00:53:26.099] [INFO] Output tools identified: 1
+[00:53:26.099] [INFO] Component initialization status:
+[00:53:26.099]   - embedding_manager: initialized
+[00:53:26.099]   - task_manager: initialized
+[00:53:26.099]   - output_verifier: initialized
+[00:53:26.099]   - tool_capability_manager: initialized
+[00:53:26.099]   - tool_success_rates: initialized with 0 entries
+[00:53:26.099] [INFO] MDPWorkflowGenerator initialization complete
+[00:53:26.099] 2025-08-28 00:53:26,099 - mdp_workflow_generator - INFO - MDPWorkflowGenerator initialized successfully
+[00:53:26.100] [INFO] Output tools identified: 1
+[00:53:26.100] [INFO] Component initialization status:
+[00:53:26.102]   - embedding_manager: initialized[MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:53:26.102] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:53:26.102] [FlawedWorkflowGenerator] Initialized with 30 tools
+[00:53:26.102] [FlawedWorkflowGenerator] RAG support: disabled
+[00:53:26.102] 
+[00:53:26.103]   - task_manager: initialized
+[00:53:26.103]   - output_verifier: initialized
+[00:53:26.103]   - tool_capability_manager: initialized
+[00:53:26.103]   - tool_success_rates: initialized with 0 entries
+[00:53:26.103] [INFO] MDPWorkflowGenerator initialization complete
+[00:53:26.103] 2025-08-28 00:53:26,102 - mdp_workflow_generator - INFO - MDPWorkflowGenerator initialized successfully
+[00:53:26.104] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:53:26.104] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:53:26.104] [FlawedWorkflowGenerator] Initialized with 30 tools
+[00:53:26.104] [FlawedWorkflowGenerator] RAG support: disabled
+[00:53:26.167] 2025-08-28 00:53:26,166 - focused_ai_classifier - INFO - Focused AI classifier initialized with gpt-5-nano (parameter-filtered)
+[00:53:26.168] [INFO] Enhanced manager: AI错误分类系统已启用
+[00:53:26.170] [INFO] 检测到并发环境，使用安全存储模式（ResultCollector）
+[00:53:26.180] 2025-08-28 00:53:26,173 - focused_ai_classifier - INFO - Focused AI classifier initialized with gpt-5-nano (parameter-filtered)
+[00:53:26.180] [INFO] Enhanced manager: AI错误分类系统已启用
+[00:53:26.180] [INFO] 检测到并发环境，使用安全存储模式（ResultCollector）
+[00:53:26.180] 2025-08-28 00:53:26,174 - result_collector - INFO - ResultCollector初始化，临时目录: temp_results
+[00:53:26.180] 2025-08-28 00:53:26,174 - result_merger - INFO - ResultMerger初始化完成
+[00:53:26.180] 2025-08-28 00:53:26,175 - result_collector - INFO - ResultCollector初始化，临时目录: temp_results
+[00:53:26.180] 2025-08-28 00:53:26,176 - result_merger - WARNING - 另一个合并器已在运行 (PID: -1)
+[00:53:26.180] [INFO] 后台合并进程已启动（每10秒合并一次）
+[00:53:26.180] DEBUG: Checking generator attributes
+[00:53:26.180]   - has tool_capabilities: True
+[00:53:26.180]   - has tool_capability_manager: True
+[00:53:26.180]   - has task_manager: True
+[00:53:26.180] [INFO] Loaded 30 tools from generator2025-08-28 00:53:26,177 - result_merger - WARNING - 另一个合并器已在运行 (PID: -1)
+[00:53:26.180] [INFO] 后台合并进程已启动（每10秒合并一次）
+[00:53:26.180] DEBUG: Checking generator attributes
+[00:53:26.180]   - has tool_capabilities: True
+[00:53:26.180] [INFO] Tool names sample: ['computation_analyzer', 'computation_calculator', 'computation_optimizer', 'computation_predictor', 'computation_simulator']...
+[00:53:26.180] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:53:26.180] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:53:26.180] 
+[00:53:26.180] [INFO] Initializing LLM client using APIClientManager
+[00:53:26.180]   - has tool_capability_manager: True
+[00:53:26.180]   - has task_manager: True
+[00:53:26.180] [INFO] Loaded 30 tools from generator
+[00:53:26.180] [INFO] Tool names sample: ['computation_analyzer', 'computation_calculator', 'computation_optimizer', 'computation_predictor', 'computation_simulator']...
+[00:53:26.180] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:53:26.180] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:53:26.180] [INFO] Initializing LLM client using APIClientManager
+[00:53:26.200] [INFO] Using Azure OpenAI client
+[00:53:26.201] [DEBUG] Checking if generator has tool_capability_manager attribute
+[00:53:26.201] [DEBUG] Creating FlawedWorkflowGenerator with correct parameters
+[00:53:26.201] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:53:26.201] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:53:26.201] [FlawedWorkflowGenerator] Initialized with 30 tools
+[00:53:26.201] [FlawedWorkflowGenerator] RAG support: enabled
+[00:53:26.201] [INFO] FlawedWorkflowGenerator initialized successfully
+[00:53:26.201] [INFO] Initializing StableScorer for Phase 2 scoring
+[00:53:26.201] <tool_capability_manager.ToolCapabilityManager object at 0x7fdfdc3d3cd0>
+[00:53:26.201] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:53:26.201] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:53:26.201] [INFO] Loaded tool success history for 0 tools
+[00:53:26.201] [INFO] StableScorer initialized with semantic capability
+[00:53:26.201] [INFO] StableScorer initialized successfully
+[00:53:26.201] [INFO] Loading task instances...
+[00:53:26.201] [INFO] Using Azure OpenAI client
+[00:53:26.201] [DEBUG] Checking if generator has tool_capability_manager attribute
+[00:53:26.201] [DEBUG] Creating FlawedWorkflowGenerator with correct parameters
+[00:53:26.201] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:53:26.201] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:53:26.201] [FlawedWorkflowGenerator] Initialized with 30 tools
+[00:53:26.201] [FlawedWorkflowGenerator] RAG support: enabled
+[00:53:26.201] [INFO] FlawedWorkflowGenerator initialized successfully
+[00:53:26.201] [INFO] Initializing StableScorer for Phase 2 scoring
+[00:53:26.201] <tool_capability_manager.ToolCapabilityManager object at 0x7fdfed4de410>
+[00:53:26.201] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:53:26.201] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:53:26.201] [INFO] Loaded tool success history for 0 tools
+[00:53:26.201] [INFO] StableScorer initialized with semantic capability
+[00:53:26.201] [INFO] StableScorer initialized successfully
+[00:53:26.201] [INFO] Loading task instances...
+[00:53:26.201] [INFO] Loading task instances from mcp_generated_library/difficulty_versions/task_library_enhanced_v3_easy.json
+[00:53:26.202] [INFO] Loading task instances from mcp_generated_library/difficulty_versions/task_library_enhanced_v3_easy.json
+[00:53:26.234] [INFO] Loaded 630 task instances
+[00:53:26.235] [INFO] Loaded 630 task instances
+[00:53:26.235] [INFO] Task instances loaded: ['basic_task', 'data_pipeline', 'multi_stage_pipeline', 'simple_task', 'api_integration']
+[00:53:26.235] [INFO] Task instances loaded: ['basic_task', 'data_pipeline', 'multi_stage_pipeline', 'simple_task', 'api_integration']
+[00:53:59.202] 2025-08-28 00:53:59,197 - smart_model_router - INFO - Using idealab for qwen2.5-14b-instruct
+[00:53:59.248] 2025-08-28 00:53:59,248 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:53:59.249] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:53:59.250] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:53:59.253] 2025-08-28 00:53:59,251 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:53:59.253] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:53:59.254] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:53:59.254] 2025-08-28 00:53:59,251 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:53:59.254] 2025-08-28 00:53:59,252 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:53:59.448] 2025-08-28 00:53:59,448 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:53:59.448] 2025-08-28 00:53:59,448 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:53:59.448] 2025-08-28 00:53:59,448 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:53:59.462] 2025-08-28 00:53:59,462 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:53:59.462] 2025-08-28 00:53:59,462 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:53:59.462] 2025-08-28 00:53:59,462 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:53:59.479] [INFO] Operation semantic index initialized[INFO] Operation semantic index initialized
+[00:53:59.481] 
+[00:53:59.482] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:53:59.495] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:01.248] 2025-08-28 00:54:01,246 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:01.365] 2025-08-28 00:54:01,365 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:01.375]   [SEARCH] Query: data validation parser
+[00:54:01.377]   [SEARCH] Query: data validation parser
+[00:54:01.381] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:01.383] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:02.497] 2025-08-28 00:54:02,497 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:02.504]   [INFO] Tool info request: data_processing_validator
+[00:54:02.518] 2025-08-28 00:54:02,517 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:02.519] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:02.524]   [INFO] Tool info request: data_processing_parser
+[00:54:02.525] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:03.567] 2025-08-28 00:54:03,567 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:03.573]   [INFO] Tool info request: data_processing_parser
+[00:54:03.573] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:03.635] 2025-08-28 00:54:03,634 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:03.640] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:04.667] 2025-08-28 00:54:04,666 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:04.674] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:05.395] 2025-08-28 00:54:05,395 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:05.404] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:05.843] 2025-08-28 00:54:05,843 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:05.849] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:07.050] 2025-08-28 00:54:07,050 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:07.056] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:07.375] 2025-08-28 00:54:07,375 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:07.385] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:08.129] 2025-08-28 00:54:08,129 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:08.133] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:09.388] 2025-08-28 00:54:09,388 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:09.394] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:09.488] 2025-08-28 00:54:09,488 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:09.495] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:10.666] 2025-08-28 00:54:10,666 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:10.673] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:11.275] 2025-08-28 00:54:11,275 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:11.281] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:11.753] 2025-08-28 00:54:11,753 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:11.795] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:54:11.795] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:54:11.796] [AI_DEBUG] 生成的txt_content长度: 25094
+[00:54:11.796] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:54:11.796]   - use_ai_classification=True
+[00:54:11.796]   - ai_classifier=True
+[00:54:11.796]   - txt_content_len=25094
+[00:54:11.796]   - task_model=qwen2.5-14b-instruct
+[00:54:11.796] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:54:11.822] 2025-08-28 00:54:11,822 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:54:11.822] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:54:11.822] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:54:11.822] 2025-08-28 00:54:11,822 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:54:11.889] 2025-08-28 00:54:11,889 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:54:11.889] 2025-08-28 00:54:11,889 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:54:11.889] 2025-08-28 00:54:11,889 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:54:11.902] [INFO] Operation semantic index initialized
+[00:54:11.903] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:13.637] 2025-08-28 00:54:13,637 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:13.645] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:13.714] 2025-08-28 00:54:13,713 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:13.723]   [SEARCH] Query: data validation parser
+[00:54:13.724] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:14.712] 2025-08-28 00:54:14,712 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:14.721] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:14.914] 2025-08-28 00:54:14,914 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:14.923]   [INFO] Tool info request: data_processing_validator
+[00:54:14.923] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:15.841] 2025-08-28 00:54:15,841 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:15.875] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:54:15.875] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:54:15.876] [AI_DEBUG] 生成的txt_content长度: 30113
+[00:54:15.876] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:54:15.876]   - use_ai_classification=True
+[00:54:15.876]   - ai_classifier=True
+[00:54:15.876]   - txt_content_len=30113
+[00:54:15.876]   - task_model=qwen2.5-14b-instruct
+[00:54:15.876] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:54:15.900] 2025-08-28 00:54:15,900 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:54:15.900] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:54:15.900] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:54:15.900] 2025-08-28 00:54:15,900 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:54:15.957] 2025-08-28 00:54:15,957 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:54:15.957] 2025-08-28 00:54:15,957 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:54:15.957] 2025-08-28 00:54:15,957 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:54:15.970] [INFO] Operation semantic index initialized
+[00:54:15.970] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:16.238] 2025-08-28 00:54:16,238 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:16.248]   [INFO] Tool info request: data_processing_parser
+[00:54:16.248] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:17.019] 2025-08-28 00:54:17,019 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:54:17.040] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.84
+[00:54:17.221] 2025-08-28 00:54:17,221 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:17.229] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:17.743] 2025-08-28 00:54:17,743 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:17.752]   [SEARCH] Query: data validation
+[00:54:17.754] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:18.214] 2025-08-28 00:54:18,214 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:18.224] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:18.950] 2025-08-28 00:54:18,949 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:18.958]   [INFO] Tool info request: data_processing_validator
+[00:54:18.959] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:19.226] 2025-08-28 00:54:19,226 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:19.235] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:20.043] 2025-08-28 00:54:20,043 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:20.052]   [INFO] Tool info request: data_processing_parser
+[00:54:20.054] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:20.236] 2025-08-28 00:54:20,236 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:20.238] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:21.062] 2025-08-28 00:54:21,062 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:21.068] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:21.309] 2025-08-28 00:54:21,309 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:21.320] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:22.100] 2025-08-28 00:54:22,100 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:22.109] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:22.374] 2025-08-28 00:54:22,374 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:22.384] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:22.728] 2025-08-28 00:54:22,728 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:54:22.734] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[00:54:23.104] 2025-08-28 00:54:23,104 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:23.115] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:23.391] 2025-08-28 00:54:23,390 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:23.417] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:54:23.417] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:54:23.417] [AI_DEBUG] 生成的txt_content长度: 25958
+[00:54:23.418] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:54:23.418]   - use_ai_classification=True
+[00:54:23.418]   - ai_classifier=True
+[00:54:23.418]   - txt_content_len=25958
+[00:54:23.418]   - task_model=qwen2.5-14b-instruct
+[00:54:23.418] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:54:23.472] 2025-08-28 00:54:23,472 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:54:23.472] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:54:23.472] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:54:23.472] 2025-08-28 00:54:23,472 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:54:23.540] 2025-08-28 00:54:23,540 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:54:23.540] 2025-08-28 00:54:23,540 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:54:23.540] 2025-08-28 00:54:23,540 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:54:23.554] [INFO] Operation semantic index initialized
+[00:54:23.555] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:24.238] 2025-08-28 00:54:24,238 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:24.247] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:24.807] 2025-08-28 00:54:24,807 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:54:24.809]   [SEARCH] Query: data validation parser
+[00:54:24.809] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:25.227] 2025-08-28 00:54:25,226 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:25.236] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:26.194] 2025-08-28 00:54:26,194 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:54:26.196]   [INFO] Tool info request: data_processing_validator
+[00:54:26.199] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:26.343] 2025-08-28 00:54:26,343 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:26.353] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:27.336] 2025-08-28 00:54:27,336 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:27.353] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:54:27.353] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:54:27.353] [AI_DEBUG] 生成的txt_content长度: 26546
+[00:54:27.353] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:54:27.353]   - use_ai_classification=True
+[00:54:27.353]   - ai_classifier=True
+[00:54:27.353]   - txt_content_len=26546
+[00:54:27.353]   - task_model=qwen2.5-14b-instruct
+[00:54:27.353] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:54:27.388] 2025-08-28 00:54:27,387 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:54:27.388] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:54:27.388] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:54:27.388] 2025-08-28 00:54:27,388 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:54:27.441] 2025-08-28 00:54:27,441 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:54:27.441] 2025-08-28 00:54:27,441 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:54:27.441] 2025-08-28 00:54:27,441 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:54:27.454] [INFO] Operation semantic index initialized
+[00:54:27.455] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:27.893] 2025-08-28 00:54:27,892 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:54:27.893]   [INFO] Tool info request: data_processing_parser
+[00:54:27.894] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:28.834] 2025-08-28 00:54:28,833 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:54:28.837]   [SEARCH] Query: data validation parser
+[00:54:28.838] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:29.083] 2025-08-28 00:54:29,083 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:54:29.086] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:29.363] 2025-08-28 00:54:29,363 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:54:29.366] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[00:54:30.016] 2025-08-28 00:54:30,015 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:54:30.019]   [INFO] Tool info request: data_processing_validator
+[00:54:30.020] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:30.395] 2025-08-28 00:54:30,395 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:54:30.397] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:31.281] 2025-08-28 00:54:31,280 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:54:31.282]   [INFO] Tool info request: data_processing_parser
+[00:54:31.283] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:31.984] 2025-08-28 00:54:31,984 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:54:31.986] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:32.854] 2025-08-28 00:54:32,854 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:54:32.856] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:33.286] 2025-08-28 00:54:33,286 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:54:33.289] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:33.982] 2025-08-28 00:54:33,982 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:54:33.985] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:34.769] 2025-08-28 00:54:34,768 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:54:34.785] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:35.048] 2025-08-28 00:54:35,048 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:54:35.051] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:35.686] 2025-08-28 00:54:35,685 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:54:35.703] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[00:54:36.354] 2025-08-28 00:54:36,354 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:54:36.356] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:36.582] 2025-08-28 00:54:36,582 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:54:36.584] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:37.846] 2025-08-28 00:54:37,846 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:54:37.847] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:38.074] 2025-08-28 00:54:38,074 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:54:38.083] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:54:38.083] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:54:38.083] [AI_DEBUG] 生成的txt_content长度: 26046
+[00:54:38.083] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:54:38.083]   - use_ai_classification=True
+[00:54:38.084]   - ai_classifier=True
+[00:54:38.084]   - txt_content_len=26046
+[00:54:38.085]   - task_model=qwen2.5-14b-instruct
+[00:54:38.085] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:54:38.150] 2025-08-28 00:54:38,149 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:54:38.150] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:54:38.150] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:54:38.150] 2025-08-28 00:54:38,149 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:54:38.224] 2025-08-28 00:54:38,224 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:54:38.224] 2025-08-28 00:54:38,224 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:54:38.224] 2025-08-28 00:54:38,224 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:54:38.236] [INFO] Operation semantic index initialized
+[00:54:38.237] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:38.930] 2025-08-28 00:54:38,930 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:54:38.931] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:40.001] 2025-08-28 00:54:40,001 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:40.007]   [SEARCH] Query: data schema validator
+[00:54:40.009] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:40.732] 2025-08-28 00:54:40,732 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:54:40.741] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:54:40.741] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:54:40.741] [AI_DEBUG] 生成的txt_content长度: 26902
+[00:54:40.741] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:54:40.741]   - use_ai_classification=True
+[00:54:40.741]   - ai_classifier=True
+[00:54:40.741]   - txt_content_len=26902
+[00:54:40.741]   - task_model=qwen2.5-14b-instruct
+[00:54:40.741] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:54:40.767] 2025-08-28 00:54:40,767 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:54:40.767] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:54:40.767] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:54:40.767] 2025-08-28 00:54:40,767 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:54:40.812] 2025-08-28 00:54:40,811 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:54:40.812] 2025-08-28 00:54:40,812 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:54:40.812] 2025-08-28 00:54:40,812 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:54:40.824] [INFO] Operation semantic index initialized
+[00:54:40.825] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:41.155] 2025-08-28 00:54:41,155 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:41.161]   [INFO] Tool info request: data_processing_validator
+[00:54:41.162] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:42.242] 2025-08-28 00:54:42,242 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:42.248]   [INFO] Tool info request: data_processing_parser
+[00:54:42.249] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:42.529] 2025-08-28 00:54:42,528 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:42.530]   [SEARCH] Query: data validation parser
+[00:54:42.531] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:42.818] 2025-08-28 00:54:42,818 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:54:42.819] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[00:54:43.312] 2025-08-28 00:54:43,312 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:43.319] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:43.639] 2025-08-28 00:54:43,638 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:43.640]   [INFO] Tool info request: data_processing_validator
+[00:54:43.641] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:44.331] 2025-08-28 00:54:44,326 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:44.335] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:44.777] 2025-08-28 00:54:44,777 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:44.778]   [INFO] Tool info request: data_processing_parser
+[00:54:44.778] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:45.344] 2025-08-28 00:54:45,344 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:45.351] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:45.789] 2025-08-28 00:54:45,789 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:45.791] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:46.366] 2025-08-28 00:54:46,366 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:46.368] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:46.850] 2025-08-28 00:54:46,850 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:46.853] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:47.324] 2025-08-28 00:54:47,324 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:54:47.326] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[00:54:47.359] 2025-08-28 00:54:47,359 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:47.366] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:47.918] 2025-08-28 00:54:47,918 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:47.920] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:48.356] 2025-08-28 00:54:48,356 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:48.364] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:49.060] 2025-08-28 00:54:49,060 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:49.062] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:49.876] 2025-08-28 00:54:49,876 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:49.890] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:54:49.890] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:54:49.890] [AI_DEBUG] 生成的txt_content长度: 26010
+[00:54:49.890] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:54:49.890]   - use_ai_classification=True
+[00:54:49.891]   - ai_classifier=True
+[00:54:49.891]   - txt_content_len=26010
+[00:54:49.891]   - task_model=qwen2.5-14b-instruct
+[00:54:49.891] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:54:49.911] 2025-08-28 00:54:49,911 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:54:49.911] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:54:49.911] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:54:49.911] 2025-08-28 00:54:49,911 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:54:49.960] 2025-08-28 00:54:49,959 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:54:49.960] 2025-08-28 00:54:49,960 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:54:49.960] 2025-08-28 00:54:49,960 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:54:49.973] [INFO] Operation semantic index initialized
+[00:54:49.973] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:50.168] 2025-08-28 00:54:50,168 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:50.170] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:51.421] 2025-08-28 00:54:51,420 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:51.424] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:51.589] 2025-08-28 00:54:51,589 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:51.594]   [SEARCH] Query: data validation parser
+[00:54:51.595] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:52.702] 2025-08-28 00:54:52,702 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:52.708]   [INFO] Tool info request: data_processing_validator
+[00:54:52.708] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:52.984] 2025-08-28 00:54:52,983 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:52.998] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:54:52.998] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:54:52.998] [AI_DEBUG] 生成的txt_content长度: 26791
+[00:54:52.998] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:54:52.998]   - use_ai_classification=True
+[00:54:52.998]   - ai_classifier=True
+[00:54:52.999]   - txt_content_len=26791
+[00:54:52.999]   - task_model=qwen2.5-14b-instruct
+[00:54:52.999] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:54:53.024] 2025-08-28 00:54:53,024 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:54:53.024] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:54:53.024] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:54:53.024] 2025-08-28 00:54:53,024 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:54:53.077] 2025-08-28 00:54:53,077 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:54:53.077] 2025-08-28 00:54:53,077 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:54:53.077] 2025-08-28 00:54:53,077 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:54:53.091] [INFO] Operation semantic index initialized
+[00:54:53.092] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:53.726] 2025-08-28 00:54:53,726 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:53.731]   [INFO] Tool info request: data_processing_parser
+[00:54:53.732] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:54.751] 2025-08-28 00:54:54,750 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:54.757] 2025-08-28 00:54:54,756 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:54.757] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:54.758]   [SEARCH] Query: data validation parser
+[00:54:54.761] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:55.724] 2025-08-28 00:54:55,724 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:55.731] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:55.790] 2025-08-28 00:54:55,789 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:55.791]   [INFO] Tool info request: data_processing_parser
+[00:54:55.792] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:56.722] 2025-08-28 00:54:56,721 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:56.728] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:56.823] 2025-08-28 00:54:56,823 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:56.826] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:56.887] 2025-08-28 00:54:56,886 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:54:56.889] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.84
+[00:54:57.704] 2025-08-28 00:54:57,703 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:57.710] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:57.835] 2025-08-28 00:54:57,835 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:57.836] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:58.317] 2025-08-28 00:54:58,317 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:54:58.320] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[00:54:58.792] 2025-08-28 00:54:58,791 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:58.797] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:54:59.287] 2025-08-28 00:54:59,287 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:54:59.289] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:00.031] 2025-08-28 00:55:00,030 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:00.035] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:00.411] 2025-08-28 00:55:00,411 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:00.413] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:01.149] 2025-08-28 00:55:01,148 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:01.181] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:55:01.182] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:55:01.184] [AI_DEBUG] 生成的txt_content长度: 25686
+[00:55:01.184] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:55:01.184]   - use_ai_classification=True
+[00:55:01.185]   - ai_classifier=True
+[00:55:01.185]   - txt_content_len=25686
+[00:55:01.185]   - task_model=qwen2.5-14b-instruct
+[00:55:01.185] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:55:01.212] 2025-08-28 00:55:01,212 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:55:01.212] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:55:01.212] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:55:01.212] 2025-08-28 00:55:01,212 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:55:01.278] 2025-08-28 00:55:01,278 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:55:01.278] 2025-08-28 00:55:01,278 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:55:01.278] 2025-08-28 00:55:01,278 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:55:01.292] [INFO] Operation semantic index initialized
+[00:55:01.292] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:01.472] 2025-08-28 00:55:01,472 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:01.474] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:02.498] 2025-08-28 00:55:02,498 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:02.500] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:03.017] 2025-08-28 00:55:03,017 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:03.018]   [SEARCH] Query: data structure validation
+[00:55:03.021] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:03.603] 2025-08-28 00:55:03,602 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:03.605] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:04.191] 2025-08-28 00:55:04,191 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:04.192]   [INFO] Tool info request: data_processing_validator
+[00:55:04.193] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:04.748] 2025-08-28 00:55:04,748 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:04.759] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:55:04.759] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:55:04.759] [AI_DEBUG] 生成的txt_content长度: 26599
+[00:55:04.759] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:55:04.759]   - use_ai_classification=True
+[00:55:04.760]   - ai_classifier=True
+[00:55:04.760]   - txt_content_len=26599
+[00:55:04.760]   - task_model=qwen2.5-14b-instruct
+[00:55:04.760] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:55:04.793] 2025-08-28 00:55:04,793 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:55:04.794] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:55:04.794] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:55:04.794] 2025-08-28 00:55:04,794 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:55:04.842] 2025-08-28 00:55:04,842 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:55:04.842] 2025-08-28 00:55:04,842 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:55:04.842] 2025-08-28 00:55:04,842 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:55:04.855] [INFO] Operation semantic index initialized
+[00:55:04.855] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:05.616] 2025-08-28 00:55:05,616 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:05.618] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:06.174] 2025-08-28 00:55:06,174 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:06.175]   [SEARCH] Query: data validation schema
+[00:55:06.178] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:06.440] 2025-08-28 00:55:06,440 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:55:06.442] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[00:55:07.155] 2025-08-28 00:55:07,155 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:07.157] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:07.410] 2025-08-28 00:55:07,410 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:07.411]   [INFO] Tool info request: data_processing_validator
+[00:55:07.411] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:08.419] 2025-08-28 00:55:08,414 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:08.432]   [INFO] Tool info request: data_processing_parser
+[00:55:08.433] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:08.972] 2025-08-28 00:55:08,971 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:08.973] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:09.531] 2025-08-28 00:55:09,531 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:09.533] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:10.199] 2025-08-28 00:55:10,199 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:10.200] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:10.693] 2025-08-28 00:55:10,692 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:10.697] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:10.916] 2025-08-28 00:55:10,915 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:55:10.920] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[00:55:11.771] 2025-08-28 00:55:11,771 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:11.773] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:11.890] 2025-08-28 00:55:11,890 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:11.892] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:13.240] 2025-08-28 00:55:13,240 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:13.243] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:13.952] 2025-08-28 00:55:13,952 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:13.954] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:14.680] 2025-08-28 00:55:14,679 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:14.683] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:15.479] 2025-08-28 00:55:15,479 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:15.481] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:15.918] 2025-08-28 00:55:15,918 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:15.920] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:16.983] 2025-08-28 00:55:16,982 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:16.999] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:55:16.999] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:55:16.999] [AI_DEBUG] 生成的txt_content长度: 26984
+[00:55:16.999] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:55:16.999]   - use_ai_classification=True
+[00:55:16.999]   - ai_classifier=True
+[00:55:16.999]   - txt_content_len=26984
+[00:55:16.999]   - task_model=qwen2.5-14b-instruct
+[00:55:17.000] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:55:17.030] 2025-08-28 00:55:17,030 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:55:17.030] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:55:17.030] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:55:17.030] 2025-08-28 00:55:17,030 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:55:17.083] 2025-08-28 00:55:17,083 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:55:17.083] 2025-08-28 00:55:17,083 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:55:17.083] 2025-08-28 00:55:17,083 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:55:17.097] [INFO] Operation semantic index initialized
+[00:55:17.098] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:17.166] 2025-08-28 00:55:17,166 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:17.171] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:55:17.171] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:55:17.172] [AI_DEBUG] 生成的txt_content长度: 26472
+[00:55:17.172] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:55:17.172]   - use_ai_classification=True
+[00:55:17.172]   - ai_classifier=True
+[00:55:17.172]   - txt_content_len=26472
+[00:55:17.172]   - task_model=qwen2.5-14b-instruct
+[00:55:17.172] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:55:17.208] 2025-08-28 00:55:17,208 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:55:17.208] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:55:17.208] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:55:17.208] 2025-08-28 00:55:17,208 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:55:17.251] 2025-08-28 00:55:17,251 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:55:17.251] 2025-08-28 00:55:17,251 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:55:17.251] 2025-08-28 00:55:17,251 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:55:17.264] [INFO] Operation semantic index initialized
+[00:55:17.265] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:18.704] 2025-08-28 00:55:18,703 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:18.708]   [SEARCH] Query: data validation parser
+[00:55:18.709] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:18.899] 2025-08-28 00:55:18,899 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:18.900]   [SEARCH] Query: data validation parser
+[00:55:18.901] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:19.675] 2025-08-28 00:55:19,675 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:19.676]   [INFO] Tool info request: data_processing_validator
+[00:55:19.677] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:20.218] 2025-08-28 00:55:20,218 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:20.220]   [INFO] Tool info request: data_processing_validator
+[00:55:20.221] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:20.659] 2025-08-28 00:55:20,659 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:20.661]   [INFO] Tool info request: data_processing_parser
+[00:55:20.662] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:21.304] 2025-08-28 00:55:21,304 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:21.305]   [INFO] Tool info request: data_processing_parser
+[00:55:21.306] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:21.829] 2025-08-28 00:55:21,828 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:21.830] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:22.348] 2025-08-28 00:55:22,343 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:22.357] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:22.635] 2025-08-28 00:55:22,634 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:55:22.652] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[00:55:22.874] 2025-08-28 00:55:22,874 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:22.883] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:23.280] 2025-08-28 00:55:23,279 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:55:23.284] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[00:55:23.486] 2025-08-28 00:55:23,485 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:23.488] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:24.300] 2025-08-28 00:55:24,299 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:24.301] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:24.539] 2025-08-28 00:55:24,539 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:24.542] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:25.327] 2025-08-28 00:55:25,327 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:25.329] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:25.642] 2025-08-28 00:55:25,642 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:25.643] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:26.388] 2025-08-28 00:55:26,388 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:26.389] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:26.725] 2025-08-28 00:55:26,725 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:26.727] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:27.523] 2025-08-28 00:55:27,523 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:27.526] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:27.979] 2025-08-28 00:55:27,979 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:27.981] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:28.679] 2025-08-28 00:55:28,678 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:28.691] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:55:28.691] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:55:28.691] [AI_DEBUG] 生成的txt_content长度: 26802
+[00:55:28.691] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:55:28.691]   - use_ai_classification=True
+[00:55:28.692]   - ai_classifier=True
+[00:55:28.692]   - txt_content_len=26802
+[00:55:28.692]   - task_model=qwen2.5-14b-instruct
+[00:55:28.692] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:55:28.713] 2025-08-28 00:55:28,713 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:55:28.713] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:55:28.713] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:55:28.713] 2025-08-28 00:55:28,713 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:55:28.760] 2025-08-28 00:55:28,760 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:55:28.760] 2025-08-28 00:55:28,760 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:55:28.760] 2025-08-28 00:55:28,760 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:55:28.772] [INFO] Operation semantic index initialized
+[00:55:28.773] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:29.079] 2025-08-28 00:55:29,079 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:29.088] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:55:29.088] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:55:29.088] [AI_DEBUG] 生成的txt_content长度: 26016
+[00:55:29.088] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:55:29.088]   - use_ai_classification=True
+[00:55:29.088]   - ai_classifier=True
+[00:55:29.088]   - txt_content_len=26016
+[00:55:29.088]   - task_model=qwen2.5-14b-instruct
+[00:55:29.088] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:55:29.122] 2025-08-28 00:55:29,122 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:55:29.122] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:55:29.122] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:55:29.122] 2025-08-28 00:55:29,122 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:55:29.157] 2025-08-28 00:55:29,157 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:55:29.158] 2025-08-28 00:55:29,157 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:55:29.158] 2025-08-28 00:55:29,157 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:55:29.171] [INFO] Operation semantic index initialized
+[00:55:29.171] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:30.364] 2025-08-28 00:55:30,364 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:30.371]   [SEARCH] Query: data validation parser
+[00:55:30.374] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:30.883] 2025-08-28 00:55:30,881 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:30.887]   [SEARCH] Query: data validation parser
+[00:55:30.888] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:31.389] 2025-08-28 00:55:31,389 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:31.395]   [INFO] Tool info request: data_processing_parser
+[00:55:31.395] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:32.013] 2025-08-28 00:55:32,013 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:32.019]   [INFO] Tool info request: data_processing_validator
+[00:55:32.020] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:32.740] 2025-08-28 00:55:32,739 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:32.745] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:33.155] 2025-08-28 00:55:33,154 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:33.160]   [INFO] Tool info request: data_processing_parser
+[00:55:33.161] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:34.136] 2025-08-28 00:55:34,135 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:34.142] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:34.145] 2025-08-28 00:55:34,145 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:34.151] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:34.804] 2025-08-28 00:55:34,804 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:55:34.807] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[00:55:35.266] 2025-08-28 00:55:35,266 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:35.272] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:35.318] 2025-08-28 00:55:35,317 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:35.319] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:36.410] 2025-08-28 00:55:36,410 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:36.416] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:36.466] 2025-08-28 00:55:36,466 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:36.472] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:36.841] 2025-08-28 00:55:36,841 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:55:36.843] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[00:55:37.484] 2025-08-28 00:55:37,483 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:37.490] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:37.584] 2025-08-28 00:55:37,584 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:37.591] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:38.563] 2025-08-28 00:55:38,563 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:38.569] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:38.673] 2025-08-28 00:55:38,673 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:38.680] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:39.883] 2025-08-28 00:55:39,882 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:39.888] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:40.005] 2025-08-28 00:55:40,005 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:40.011] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:41.104] 2025-08-28 00:55:41,104 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:41.117] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:55:41.117] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:55:41.118] [AI_DEBUG] 生成的txt_content长度: 25696
+[00:55:41.118] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:55:41.118]   - use_ai_classification=True
+[00:55:41.118]   - ai_classifier=True
+[00:55:41.118]   - txt_content_len=25696
+[00:55:41.118]   - task_model=qwen2.5-14b-instruct
+[00:55:41.118] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:55:41.145] 2025-08-28 00:55:41,145 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:55:41.145] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:55:41.145] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:55:41.145] 2025-08-28 00:55:41,145 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:55:41.198] 2025-08-28 00:55:41,198 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:55:41.198] 2025-08-28 00:55:41,198 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:55:41.198] 2025-08-28 00:55:41,198 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:55:41.211] [INFO] Operation semantic index initialized
+[00:55:41.212] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:41.226] 2025-08-28 00:55:41,226 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:41.236] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:55:41.236] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:55:41.236] [AI_DEBUG] 生成的txt_content长度: 26271
+[00:55:41.236] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:55:41.236]   - use_ai_classification=True
+[00:55:41.241]   - ai_classifier=True
+[00:55:41.242]   - txt_content_len=26271
+[00:55:41.242]   - task_model=qwen2.5-14b-instruct
+[00:55:41.242] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:55:41.260] 2025-08-28 00:55:41,260 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:55:41.260] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:55:41.260] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:55:41.260] 2025-08-28 00:55:41,260 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:55:41.312] 2025-08-28 00:55:41,312 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:55:41.312] 2025-08-28 00:55:41,312 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:55:41.312] 2025-08-28 00:55:41,312 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:55:41.326] [INFO] Operation semantic index initialized
+[00:55:41.326] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:42.498] 2025-08-28 00:55:42,498 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:42.500]   [SEARCH] Query: data validation schema
+[00:55:42.501] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:42.609] 2025-08-28 00:55:42,609 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:42.612]   [SEARCH] Query: data structure validation
+[00:55:42.613] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:43.548] 2025-08-28 00:55:43,548 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:43.549]   [INFO] Tool info request: data_processing_validator
+[00:55:43.549] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:44.135] 2025-08-28 00:55:44,135 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:44.136]   [INFO] Tool info request: data_processing_validator
+[00:55:44.137] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:44.781] 2025-08-28 00:55:44,781 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:44.784]   [INFO] Tool info request: data_processing_parser
+[00:55:44.786] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:46.109] 2025-08-28 00:55:46,108 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:46.110] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:46.206] 2025-08-28 00:55:46,205 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:46.208] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:46.554] 2025-08-28 00:55:46,554 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:55:46.556] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[00:55:46.981] 2025-08-28 00:55:46,981 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:55:46.983] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[00:55:47.198] 2025-08-28 00:55:47,198 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:47.199] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:47.636] 2025-08-28 00:55:47,636 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:47.638] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:48.384] 2025-08-28 00:55:48,384 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:48.386] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:49.337] 2025-08-28 00:55:49,336 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:49.339] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:50.171] 2025-08-28 00:55:50,171 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:50.172] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:51.137] 2025-08-28 00:55:51,136 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:51.140] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:51.271] 2025-08-28 00:55:51,271 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:51.273] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:52.759] 2025-08-28 00:55:52,759 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:52.760] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:53.392] 2025-08-28 00:55:53,392 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:53.393] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:54.011] 2025-08-28 00:55:54,011 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:54.022] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:55:54.022] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:55:54.022] [AI_DEBUG] 生成的txt_content长度: 26520
+[00:55:54.022] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:55:54.022]   - use_ai_classification=True
+[00:55:54.022]   - ai_classifier=True
+[00:55:54.022]   - txt_content_len=26520
+[00:55:54.022]   - task_model=qwen2.5-14b-instruct
+[00:55:54.022] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:55:54.056] 2025-08-28 00:55:54,056 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:55:54.056] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:55:54.056] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:55:54.057] 2025-08-28 00:55:54,056 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:55:54.100] 2025-08-28 00:55:54,099 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:55:54.100] 2025-08-28 00:55:54,100 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:55:54.100] 2025-08-28 00:55:54,100 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:55:54.112] [INFO] Operation semantic index initialized
+[00:55:54.113] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:55.753] 2025-08-28 00:55:55,753 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:55.755] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:55.796] 2025-08-28 00:55:55,796 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:55.802]   [SEARCH] Query: data validation parser
+[00:55:55.803] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:56.874] 2025-08-28 00:55:56,874 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:56.880]   [INFO] Tool info request: data_processing_validator
+[00:55:56.880] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:57.687] 2025-08-28 00:55:57,687 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:57.689] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:57.906] 2025-08-28 00:55:57,906 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:57.912]   [INFO] Tool info request: data_processing_parser
+[00:55:57.912] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:59.007] 2025-08-28 00:55:59,006 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:55:59.015] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:55:59.666] 2025-08-28 00:55:59,666 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:55:59.675] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:55:59.675] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:55:59.675] [AI_DEBUG] 生成的txt_content长度: 28708
+[00:55:59.675] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:55:59.676]   - use_ai_classification=True
+[00:55:59.676]   - ai_classifier=True
+[00:55:59.676]   - txt_content_len=28708
+[00:55:59.676]   - task_model=qwen2.5-14b-instruct
+[00:55:59.676] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:55:59.697] 2025-08-28 00:55:59,697 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:55:59.698] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:55:59.698] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:55:59.698] 2025-08-28 00:55:59,698 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:55:59.744] 2025-08-28 00:55:59,744 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:55:59.744] 2025-08-28 00:55:59,744 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:55:59.744] 2025-08-28 00:55:59,744 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:55:59.758] [INFO] Operation semantic index initialized
+[00:55:59.758] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:00.386] 2025-08-28 00:56:00,386 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:00.393] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:00.634] 2025-08-28 00:56:00,634 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:56:00.635] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[00:56:01.469] 2025-08-28 00:56:01,469 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:01.475] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:01.638] 2025-08-28 00:56:01,638 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:01.646]   [SEARCH] Query: data validation parser
+[00:56:01.647] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:02.585] 2025-08-28 00:56:02,584 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:02.588] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:02.730] 2025-08-28 00:56:02,729 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:02.738]   [INFO] Tool info request: data_processing_validator
+[00:56:02.739] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:03.777] 2025-08-28 00:56:03,777 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:03.783] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:03.838] 2025-08-28 00:56:03,838 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:03.846]   [INFO] Tool info request: data_processing_parser
+[00:56:03.847] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:04.962] 2025-08-28 00:56:04,962 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:04.970] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:04.999] 2025-08-28 00:56:04,999 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:05.006] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:06.123] 2025-08-28 00:56:06,122 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:06.132] 2025-08-28 00:56:06,132 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:06.139] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:56:06.139] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:56:06.140] [AI_DEBUG] 生成的txt_content长度: 26987
+[00:56:06.140] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:56:06.140]   - use_ai_classification=True
+[00:56:06.140]   - ai_classifier=True
+[00:56:06.140]   - txt_content_len=26987
+[00:56:06.140]   - task_model=qwen2.5-14b-instruct
+[00:56:06.140] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:56:06.142] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:06.168] 2025-08-28 00:56:06,168 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:56:06.168] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:56:06.168] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:56:06.168] 2025-08-28 00:56:06,168 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:56:06.221] 2025-08-28 00:56:06,220 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:56:06.221] 2025-08-28 00:56:06,221 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:56:06.221] 2025-08-28 00:56:06,221 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:56:06.234] [INFO] Operation semantic index initialized
+[00:56:06.234] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:06.334] 2025-08-28 00:56:06,333 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:56:06.335] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[00:56:07.185] 2025-08-28 00:56:07,185 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:07.194] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:07.838] 2025-08-28 00:56:07,838 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:07.840]   [SEARCH] Query: data validation parser
+[00:56:07.840] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:08.579] 2025-08-28 00:56:08,579 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:08.589] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:09.168] 2025-08-28 00:56:09,168 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:09.170]   [INFO] Tool info request: data_processing_parser
+[00:56:09.170] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:09.640] 2025-08-28 00:56:09,640 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:09.650] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:10.159] 2025-08-28 00:56:10,159 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:10.161] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:10.649] 2025-08-28 00:56:10,649 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:10.658] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:11.130] 2025-08-28 00:56:11,129 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:11.135] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:11.780] 2025-08-28 00:56:11,780 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:11.793] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:56:11.793] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:56:11.793] [AI_DEBUG] 生成的txt_content长度: 26024
+[00:56:11.793] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:56:11.793]   - use_ai_classification=True
+[00:56:11.793]   - ai_classifier=True
+[00:56:11.793]   - txt_content_len=26024
+[00:56:11.793]   - task_model=qwen2.5-14b-instruct
+[00:56:11.794] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:56:11.811] 2025-08-28 00:56:11,811 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:56:11.811] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:56:11.811] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:56:11.811] 2025-08-28 00:56:11,811 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:56:11.847] 2025-08-28 00:56:11,847 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:56:11.847] 2025-08-28 00:56:11,847 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:56:11.847] 2025-08-28 00:56:11,847 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:56:11.860] [INFO] Operation semantic index initialized
+[00:56:11.860] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:12.178] 2025-08-28 00:56:12,178 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:12.179] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:13.090] 2025-08-28 00:56:13,090 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:56:13.092] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[00:56:13.199] 2025-08-28 00:56:13,199 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:13.202] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:13.558] 2025-08-28 00:56:13,558 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:13.559]   [SEARCH] Query: data validation schema
+[00:56:13.560] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:14.188] 2025-08-28 00:56:14,188 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:14.189] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:14.810] 2025-08-28 00:56:14,809 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:14.811]   [INFO] Tool info request: data_processing_validator
+[00:56:14.812] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:15.260] 2025-08-28 00:56:15,260 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:15.262] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:15.811] 2025-08-28 00:56:15,810 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:15.812]   [INFO] Tool info request: data_processing_parser
+[00:56:15.812] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:16.287] 2025-08-28 00:56:16,287 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:16.293] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:16.836] 2025-08-28 00:56:16,836 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:16.838] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:17.281] 2025-08-28 00:56:17,281 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:17.286] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:56:17.286] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:56:17.287] [AI_DEBUG] 生成的txt_content长度: 26012
+[00:56:17.287] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:56:17.287]   - use_ai_classification=True
+[00:56:17.287]   - ai_classifier=True
+[00:56:17.287]   - txt_content_len=26012
+[00:56:17.287]   - task_model=qwen2.5-14b-instruct
+[00:56:17.287] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:56:17.303] 2025-08-28 00:56:17,303 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:56:17.303] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:56:17.303] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:56:17.303] 2025-08-28 00:56:17,303 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:56:17.342] 2025-08-28 00:56:17,342 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:56:17.343] 2025-08-28 00:56:17,342 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:56:17.343] 2025-08-28 00:56:17,343 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:56:17.356] [INFO] Operation semantic index initialized
+[00:56:17.357] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:17.795] 2025-08-28 00:56:17,794 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:17.801] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:18.507] 2025-08-28 00:56:18,507 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:56:18.507]   [SEARCH] Query: data validation parser
+[00:56:18.508] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:18.834] 2025-08-28 00:56:18,833 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:18.850] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:19.277] 2025-08-28 00:56:19,277 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:56:19.279] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[00:56:20.253] 2025-08-28 00:56:20,252 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:56:20.253]   [INFO] Tool info request: data_processing_validator
+[00:56:20.253] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:20.414] 2025-08-28 00:56:20,414 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:20.416] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:21.329] 2025-08-28 00:56:21,329 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:56:21.330]   [INFO] Tool info request: data_processing_parser
+[00:56:21.331] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:21.413] 2025-08-28 00:56:21,413 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:21.415] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:22.179] 2025-08-28 00:56:22,179 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:56:22.179] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[00:56:22.461] 2025-08-28 00:56:22,461 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:22.463] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:22.728] 2025-08-28 00:56:22,728 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:56:22.730] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:23.492] 2025-08-28 00:56:23,492 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:23.505] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:56:23.505] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:56:23.505] [AI_DEBUG] 生成的txt_content长度: 26063
+[00:56:23.505] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:56:23.505]   - use_ai_classification=True
+[00:56:23.505]   - ai_classifier=True
+[00:56:23.506]   - txt_content_len=26063
+[00:56:23.506]   - task_model=qwen2.5-14b-instruct
+[00:56:23.506] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:56:23.556] 2025-08-28 00:56:23,556 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:56:23.556] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:56:23.556] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:56:23.556] 2025-08-28 00:56:23,556 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:56:23.592] 2025-08-28 00:56:23,592 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:56:23.592] 2025-08-28 00:56:23,592 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:56:23.592] 2025-08-28 00:56:23,592 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:56:23.605] [INFO] Operation semantic index initialized
+[00:56:23.606] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:23.710] 2025-08-28 00:56:23,710 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:56:23.712] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:24.722] 2025-08-28 00:56:24,721 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:56:24.725] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:24.810] 2025-08-28 00:56:24,809 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:56:24.810]   [SEARCH] Query: data validation parser
+[00:56:24.811] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:25.770] 2025-08-28 00:56:25,770 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:56:25.772] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:25.790] 2025-08-28 00:56:25,790 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:56:25.791]   [INFO] Tool info request: data_processing_validator
+[00:56:25.791] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:26.812] 2025-08-28 00:56:26,811 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:56:26.812]   [INFO] Tool info request: data_processing_parser
+[00:56:26.813] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:26.817] 2025-08-28 00:56:26,816 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:56:26.818] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:28.009] 2025-08-28 00:56:28,009 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:56:28.010] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:28.140] 2025-08-28 00:56:28,140 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:56:28.141] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:28.755] 2025-08-28 00:56:28,754 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:56:28.757] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.82
+[00:56:29.055] 2025-08-28 00:56:29,054 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:56:29.062] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:56:29.062] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:56:29.063] [AI_DEBUG] 生成的txt_content长度: 26487
+[00:56:29.063] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:56:29.063]   - use_ai_classification=True
+[00:56:29.063]   - ai_classifier=True
+[00:56:29.063]   - txt_content_len=26487
+[00:56:29.063]   - task_model=qwen2.5-14b-instruct
+[00:56:29.063] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:56:29.097] 2025-08-28 00:56:29,097 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:56:29.097] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:56:29.097] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:56:29.097] 2025-08-28 00:56:29,097 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:56:29.137] 2025-08-28 00:56:29,137 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:56:29.137] 2025-08-28 00:56:29,137 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:56:29.137] 2025-08-28 00:56:29,137 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:56:29.151] [INFO] Operation semantic index initialized
+[00:56:29.151] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:29.615] 2025-08-28 00:56:29,614 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:56:29.619] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:30.647] 2025-08-28 00:56:30,647 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:30.648]   [SEARCH] Query: data validation parser
+[00:56:30.648] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:30.934] 2025-08-28 00:56:30,933 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:56:30.937] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:31.639] 2025-08-28 00:56:31,639 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:31.641]   [INFO] Tool info request: data_processing_parser
+[00:56:31.642] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:32.405] 2025-08-28 00:56:32,405 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:56:32.405] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:32.684] 2025-08-28 00:56:32,683 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:32.688] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:33.615] 2025-08-28 00:56:33,615 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:56:33.617] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:33.769] 2025-08-28 00:56:33,769 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:33.774] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:34.574] 2025-08-28 00:56:34,574 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:56:34.575] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.88
+[00:56:34.923] 2025-08-28 00:56:34,923 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:56:34.925] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:35.087] 2025-08-28 00:56:35,087 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:35.089] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:36.194] 2025-08-28 00:56:36,192 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:36.197] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:36.353] 2025-08-28 00:56:36,352 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:56:36.362] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:56:36.362] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:56:36.362] [AI_DEBUG] 生成的txt_content长度: 25734
+[00:56:36.362] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:56:36.362]   - use_ai_classification=True
+[00:56:36.362]   - ai_classifier=True
+[00:56:36.362]   - txt_content_len=25734
+[00:56:36.362]   - task_model=qwen2.5-14b-instruct
+[00:56:36.363] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:56:36.383] 2025-08-28 00:56:36,383 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:56:36.383] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:56:36.383] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:56:36.383] 2025-08-28 00:56:36,383 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:56:36.426] 2025-08-28 00:56:36,426 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:56:36.426] 2025-08-28 00:56:36,426 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:56:36.426] 2025-08-28 00:56:36,426 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:56:36.441] [INFO] Operation semantic index initialized
+[00:56:36.442] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:37.232] 2025-08-28 00:56:37,232 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:37.235] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:38.096] 2025-08-28 00:56:38,096 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:38.102]   [SEARCH] Query: data validation schema
+[00:56:38.103] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:38.246] 2025-08-28 00:56:38,245 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:38.250] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:39.203] 2025-08-28 00:56:39,203 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:39.209]   [INFO] Tool info request: data_processing_validator
+[00:56:39.209] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:39.418] 2025-08-28 00:56:39,418 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:39.422] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:40.302] 2025-08-28 00:56:40,302 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:40.307]   [INFO] Tool info request: data_processing_parser
+[00:56:40.308] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:40.502] 2025-08-28 00:56:40,501 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:40.513] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:56:40.513] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:56:40.514] [AI_DEBUG] 生成的txt_content长度: 26101
+[00:56:40.514] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:56:40.514]   - use_ai_classification=True
+[00:56:40.514]   - ai_classifier=True
+[00:56:40.514]   - txt_content_len=26101
+[00:56:40.514]   - task_model=qwen2.5-14b-instruct
+[00:56:40.520] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:56:40.540] 2025-08-28 00:56:40,540 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:56:40.540] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:56:40.540] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:56:40.540] 2025-08-28 00:56:40,540 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:56:40.583] 2025-08-28 00:56:40,583 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:56:40.583] 2025-08-28 00:56:40,583 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:56:40.583] 2025-08-28 00:56:40,583 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:56:40.597] [INFO] Operation semantic index initialized
+[00:56:40.597] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:41.351] 2025-08-28 00:56:41,351 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:41.357] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:42.282] 2025-08-28 00:56:42,281 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:42.286]   [SEARCH] Query: data validation schema
+[00:56:42.286] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:42.379] 2025-08-28 00:56:42,378 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:42.386] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:42.699] 2025-08-28 00:56:42,698 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:56:42.699] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[00:56:43.302] 2025-08-28 00:56:43,302 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:43.308]   [INFO] Tool info request: data_processing_validator
+[00:56:43.309] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:43.674] 2025-08-28 00:56:43,673 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:43.680] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:44.363] 2025-08-28 00:56:44,362 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:44.369]   [INFO] Tool info request: data_processing_parser
+[00:56:44.370] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:44.780] 2025-08-28 00:56:44,780 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:44.787] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:45.406] 2025-08-28 00:56:45,406 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:45.409] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:45.957] 2025-08-28 00:56:45,956 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:45.962] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:46.341] 2025-08-28 00:56:46,341 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:46.347] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:47.025] 2025-08-28 00:56:47,025 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:47.031] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:47.393] 2025-08-28 00:56:47,392 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:47.401] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:48.268] 2025-08-28 00:56:48,268 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:48.276] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:56:48.276] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:56:48.276] [AI_DEBUG] 生成的txt_content长度: 26235
+[00:56:48.276] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:56:48.276]   - use_ai_classification=True
+[00:56:48.276]   - ai_classifier=True
+[00:56:48.276]   - txt_content_len=26235
+[00:56:48.276]   - task_model=qwen2.5-14b-instruct
+[00:56:48.276] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:56:48.293] 2025-08-28 00:56:48,293 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:56:48.293] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:56:48.293] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:56:48.293] 2025-08-28 00:56:48,293 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:56:48.331] 2025-08-28 00:56:48,331 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:56:48.331] 2025-08-28 00:56:48,331 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:56:48.331] 2025-08-28 00:56:48,331 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:56:48.345] [INFO] Operation semantic index initialized
+[00:56:48.345] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:48.492] 2025-08-28 00:56:48,491 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:48.498] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:49.295] 2025-08-28 00:56:49,295 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:56:49.296] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.88
+[00:56:49.612] 2025-08-28 00:56:49,611 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:49.619] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:50.198] 2025-08-28 00:56:50,197 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:50.200]   [SEARCH] Query: data validation parser
+[00:56:50.201] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:50.714] 2025-08-28 00:56:50,714 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:50.720] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:51.266] 2025-08-28 00:56:51,266 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:51.268]   [INFO] Tool info request: data_processing_validator
+[00:56:51.268] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:52.341] 2025-08-28 00:56:52,340 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:52.343]   [INFO] Tool info request: data_processing_parser
+[00:56:52.344] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:52.391] 2025-08-28 00:56:52,390 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:52.404] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:56:52.405] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:56:52.405] [AI_DEBUG] 生成的txt_content长度: 26746
+[00:56:52.405] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:56:52.405]   - use_ai_classification=True
+[00:56:52.405]   - ai_classifier=True
+[00:56:52.405]   - txt_content_len=26746
+[00:56:52.405]   - task_model=qwen2.5-14b-instruct
+[00:56:52.405] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:56:52.430] 2025-08-28 00:56:52,430 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:56:52.430] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:56:52.430] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:56:52.430] 2025-08-28 00:56:52,430 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:56:52.477] 2025-08-28 00:56:52,477 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:56:52.477] 2025-08-28 00:56:52,477 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:56:52.477] 2025-08-28 00:56:52,477 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:56:52.490] [INFO] Operation semantic index initialized
+[00:56:52.490] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:53.473] 2025-08-28 00:56:53,472 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:53.476] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:53.663] 2025-08-28 00:56:53,662 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:56:53.663]   [SEARCH] Query: data validation parser
+[00:56:53.663] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:54.530] 2025-08-28 00:56:54,530 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:54.533] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:54.690] 2025-08-28 00:56:54,690 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:56:54.691]   [INFO] Tool info request: data_processing_validator
+[00:56:54.692] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:55.511] 2025-08-28 00:56:55,511 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:55.514] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:56.003] 2025-08-28 00:56:56,003 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:56:56.005]   [INFO] Tool info request: data_processing_parser
+[00:56:56.006] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:56.477] 2025-08-28 00:56:56,477 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:56.479] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:57.493] 2025-08-28 00:56:57,493 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:57.494] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:57.504] 2025-08-28 00:56:57,504 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:56:57.505] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.86
+[00:56:57.531] 2025-08-28 00:56:57,531 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:56:57.532] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:58.564] 2025-08-28 00:56:58,564 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:58.566] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:58.700] 2025-08-28 00:56:58,700 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:56:58.702] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:59.627] 2025-08-28 00:56:59,626 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:56:59.629] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[00:56:59.734] 2025-08-28 00:56:59,734 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:56:59.744] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:56:59.744] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:56:59.744] [AI_DEBUG] 生成的txt_content长度: 25982
+[00:56:59.745] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:56:59.745]   - use_ai_classification=True
+[00:56:59.745]   - ai_classifier=True
+[00:56:59.745]   - txt_content_len=25982
+[00:56:59.745]   - task_model=qwen2.5-14b-instruct
+[00:56:59.745] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:56:59.775] 2025-08-28 00:56:59,775 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:56:59.776] 2025-08-28 00:56:59,776 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:56:59.776] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:56:59.776] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:56:59.776] 2025-08-28 00:56:59,776 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:56:59.777] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:56:59.828] 2025-08-28 00:56:59,828 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:56:59.828] 2025-08-28 00:56:59,828 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:56:59.828] 2025-08-28 00:56:59,828 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:56:59.842] [INFO] Operation semantic index initialized
+[00:56:59.843] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:01.045] 2025-08-28 00:57:01,045 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:01.048]   [SEARCH] Query: data validation
+[00:57:01.049] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:01.177] 2025-08-28 00:57:01,177 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:01.179] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:02.120] 2025-08-28 00:57:02,120 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:02.122]   [INFO] Tool info request: data_processing_validator
+[00:57:02.123] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:02.792] 2025-08-28 00:57:02,791 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:02.797] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:03.543] 2025-08-28 00:57:03,543 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:03.544] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:04.207] 2025-08-28 00:57:04,206 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:04.209] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:04.741] 2025-08-28 00:57:04,741 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:04.744] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:05.524] 2025-08-28 00:57:05,523 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:05.537] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:57:05.537] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:57:05.537] [AI_DEBUG] 生成的txt_content长度: 26809
+[00:57:05.537] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:57:05.537]   - use_ai_classification=True
+[00:57:05.537]   - ai_classifier=True
+[00:57:05.537]   - txt_content_len=26809
+[00:57:05.537]   - task_model=qwen2.5-14b-instruct
+[00:57:05.538] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:57:05.564] 2025-08-28 00:57:05,564 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:57:05.564] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:57:05.564] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:57:05.564] 2025-08-28 00:57:05,564 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:57:05.610] 2025-08-28 00:57:05,610 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:57:05.613] 2025-08-28 00:57:05,610 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:57:05.613] 2025-08-28 00:57:05,610 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:57:05.625] [INFO] Operation semantic index initialized
+[00:57:05.625] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:05.902] 2025-08-28 00:57:05,901 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:05.903] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:07.153] 2025-08-28 00:57:07,153 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:07.160]   [SEARCH] Query: data validation parser
+[00:57:07.161] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:07.213] 2025-08-28 00:57:07,213 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:57:07.215] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[00:57:07.407] 2025-08-28 00:57:07,406 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:07.408] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:08.151] 2025-08-28 00:57:08,151 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:08.158]   [INFO] Tool info request: data_processing_validator
+[00:57:08.158] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:08.614] 2025-08-28 00:57:08,614 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:08.615] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:09.139] 2025-08-28 00:57:09,138 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:09.143]   [INFO] Tool info request: data_processing_parser
+[00:57:09.144] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:09.884] 2025-08-28 00:57:09,884 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:09.887] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:10.256] 2025-08-28 00:57:10,255 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:10.262] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:10.663] 2025-08-28 00:57:10,663 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:57:10.665] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[00:57:11.153] 2025-08-28 00:57:11,153 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:11.157] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:11.295] 2025-08-28 00:57:11,294 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:11.300] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:12.336] 2025-08-28 00:57:12,336 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:12.342] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:12.408] 2025-08-28 00:57:12,408 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:12.413] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:57:12.413] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:57:12.413] [AI_DEBUG] 生成的txt_content长度: 27412
+[00:57:12.413] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:57:12.413]   - use_ai_classification=True
+[00:57:12.413]   - ai_classifier=True
+[00:57:12.413]   - txt_content_len=27412
+[00:57:12.413]   - task_model=qwen2.5-14b-instruct
+[00:57:12.413] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:57:12.431] 2025-08-28 00:57:12,431 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:57:12.431] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:57:12.431] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:57:12.431] 2025-08-28 00:57:12,431 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:57:12.472] 2025-08-28 00:57:12,472 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:57:12.472] 2025-08-28 00:57:12,472 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:57:12.472] 2025-08-28 00:57:12,472 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:57:12.486] [INFO] Operation semantic index initialized
+[00:57:12.486] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:13.449] 2025-08-28 00:57:13,449 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:13.456] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:13.997] 2025-08-28 00:57:13,997 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:13.998]   [SEARCH] Query: data validation parser
+[00:57:14.000] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:14.454] 2025-08-28 00:57:14,453 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:14.459] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:15.046] 2025-08-28 00:57:15,046 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:15.049]   [INFO] Tool info request: data_processing_validator
+[00:57:15.049] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:15.535] 2025-08-28 00:57:15,535 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:15.541] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:16.032] 2025-08-28 00:57:16,031 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:16.033]   [INFO] Tool info request: data_processing_parser
+[00:57:16.034] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:16.604] 2025-08-28 00:57:16,603 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:16.627] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:57:16.627] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:57:16.628] [AI_DEBUG] 生成的txt_content长度: 26903
+[00:57:16.628] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:57:16.628]   - use_ai_classification=True
+[00:57:16.628]   - ai_classifier=True
+[00:57:16.628]   - txt_content_len=26903
+[00:57:16.628]   - task_model=qwen2.5-14b-instruct
+[00:57:16.628] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:57:16.657] 2025-08-28 00:57:16,657 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:57:16.657] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:57:16.657] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:57:16.657] 2025-08-28 00:57:16,657 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:57:16.704] 2025-08-28 00:57:16,704 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:57:16.704] 2025-08-28 00:57:16,704 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:57:16.704] 2025-08-28 00:57:16,704 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:57:16.718] [INFO] Operation semantic index initialized
+[00:57:16.719] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:17.091] 2025-08-28 00:57:17,091 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:17.093] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:17.450] 2025-08-28 00:57:17,449 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:57:17.450] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.86
+[00:57:18.146] 2025-08-28 00:57:18,146 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:18.148] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:18.525] 2025-08-28 00:57:18,524 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:18.530]   [SEARCH] Query: data processing parser
+[00:57:18.532] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:19.213] 2025-08-28 00:57:19,213 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:19.215] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:19.656] 2025-08-28 00:57:19,655 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:19.662]   [INFO] Tool info request: data_processing_parser
+[00:57:19.663] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:20.295] 2025-08-28 00:57:20,295 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:20.296] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:20.585] 2025-08-28 00:57:20,584 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:20.592] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:21.318] 2025-08-28 00:57:21,317 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:21.323] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:21.607] 2025-08-28 00:57:21,607 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:21.613] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:22.309] 2025-08-28 00:57:22,309 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:22.315] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:22.680] 2025-08-28 00:57:22,679 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:22.685] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:23.354] 2025-08-28 00:57:23,354 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:23.361] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:57:23.361] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:57:23.361] [AI_DEBUG] 生成的txt_content长度: 25722
+[00:57:23.361] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:57:23.361]   - use_ai_classification=True
+[00:57:23.361]   - ai_classifier=True
+[00:57:23.361]   - txt_content_len=25722
+[00:57:23.361]   - task_model=qwen2.5-14b-instruct
+[00:57:23.361] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:57:23.382] 2025-08-28 00:57:23,382 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:57:23.382] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:57:23.382] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:57:23.382] 2025-08-28 00:57:23,382 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:57:23.420] 2025-08-28 00:57:23,420 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:57:23.420] 2025-08-28 00:57:23,420 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:57:23.420] 2025-08-28 00:57:23,420 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:57:23.433] [INFO] Operation semantic index initialized
+[00:57:23.434] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:23.978] 2025-08-28 00:57:23,978 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:23.984] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:25.091] 2025-08-28 00:57:25,090 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:25.095]   [SEARCH] Query: data validation schema
+[00:57:25.099] 2025-08-28 00:57:25,099 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:57:25.102] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.82
+[00:57:25.102] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:25.107] 2025-08-28 00:57:25,107 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:25.111] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:26.242] 2025-08-28 00:57:26,242 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:26.248] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:26.314] 2025-08-28 00:57:26,314 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:26.319]   [INFO] Tool info request: data_processing_validator
+[00:57:26.320] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:27.281] 2025-08-28 00:57:27,281 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:27.287] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:27.424] 2025-08-28 00:57:27,424 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:27.429]   [INFO] Tool info request: data_processing_parser
+[00:57:27.430] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:28.545] 2025-08-28 00:57:28,545 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:28.551] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:28.664] 2025-08-28 00:57:28,664 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:28.675] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:57:28.675] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:57:28.675] [AI_DEBUG] 生成的txt_content长度: 25326
+[00:57:28.675] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:57:28.675]   - use_ai_classification=True
+[00:57:28.675]   - ai_classifier=True
+[00:57:28.675]   - txt_content_len=25326
+[00:57:28.675]   - task_model=qwen2.5-14b-instruct
+[00:57:28.675] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:57:28.693] 2025-08-28 00:57:28,693 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:57:28.693] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:57:28.693] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:57:28.693] 2025-08-28 00:57:28,693 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:57:28.734] 2025-08-28 00:57:28,734 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:57:28.734] 2025-08-28 00:57:28,734 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:57:28.734] 2025-08-28 00:57:28,734 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:57:28.747] [INFO] Operation semantic index initialized
+[00:57:28.747] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:29.579] 2025-08-28 00:57:29,579 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:29.588] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:30.338] 2025-08-28 00:57:30,338 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:30.340]   [SEARCH] Query: data validation parser
+[00:57:30.341] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:30.410] 2025-08-28 00:57:30,409 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:57:30.413] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.88
+[00:57:30.710] 2025-08-28 00:57:30,710 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:30.717] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:31.741] 2025-08-28 00:57:31,740 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:31.746] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:32.216] 2025-08-28 00:57:32,215 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:32.216]   [INFO] Tool info request: data_processing_validator
+[00:57:32.217] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:32.846] 2025-08-28 00:57:32,846 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:32.852] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:33.682] 2025-08-28 00:57:33,682 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:33.683]   [INFO] Tool info request: data_processing_parser
+[00:57:33.684] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:33.882] 2025-08-28 00:57:33,882 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:33.893] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:34.253] 2025-08-28 00:57:34,252 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:57:34.257] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.88
+[00:57:34.766] 2025-08-28 00:57:34,766 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:34.768] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:34.988] 2025-08-28 00:57:34,988 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:35.010] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:57:35.010] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:57:35.010] [AI_DEBUG] 生成的txt_content长度: 26111
+[00:57:35.010] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:57:35.010]   - use_ai_classification=True
+[00:57:35.011]   - ai_classifier=True
+[00:57:35.011]   - txt_content_len=26111
+[00:57:35.011]   - task_model=qwen2.5-14b-instruct
+[00:57:35.011] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:57:35.039] 2025-08-28 00:57:35,038 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:57:35.039] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:57:35.039] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:57:35.039] 2025-08-28 00:57:35,039 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:57:35.089] 2025-08-28 00:57:35,089 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:57:35.089] 2025-08-28 00:57:35,089 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:57:35.089] 2025-08-28 00:57:35,089 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:57:35.103] [INFO] Operation semantic index initialized
+[00:57:35.103] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:35.851] 2025-08-28 00:57:35,851 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:35.852] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:36.470] 2025-08-28 00:57:36,469 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:36.472]   [SEARCH] Query: data validation parser
+[00:57:36.474] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:36.929] 2025-08-28 00:57:36,928 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:36.931] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:37.702] 2025-08-28 00:57:37,702 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:37.703]   [INFO] Tool info request: data_processing_validator
+[00:57:37.703] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:38.774] 2025-08-28 00:57:38,773 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:38.776] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:38.920] 2025-08-28 00:57:38,919 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:38.923]   [INFO] Tool info request: data_processing_parser
+[00:57:38.923] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:39.873] 2025-08-28 00:57:39,873 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:39.875] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:40.045] 2025-08-28 00:57:40,045 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:40.047] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:40.143] 2025-08-28 00:57:40,143 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:57:40.145] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.86
+[00:57:40.905] 2025-08-28 00:57:40,905 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:40.906] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:42.021] 2025-08-28 00:57:42,020 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:42.024] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:42.732] 2025-08-28 00:57:42,731 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:42.735] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:43.133] 2025-08-28 00:57:43,132 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:43.135] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:44.273] 2025-08-28 00:57:44,273 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:44.282] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:57:44.282] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:57:44.282] [AI_DEBUG] 生成的txt_content长度: 26638
+[00:57:44.282] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:57:44.282]   - use_ai_classification=True
+[00:57:44.283]   - ai_classifier=True
+[00:57:44.283]   - txt_content_len=26638
+[00:57:44.283]   - task_model=qwen2.5-14b-instruct
+[00:57:44.283] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:57:44.293] 2025-08-28 00:57:44,293 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:44.296] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:44.318] 2025-08-28 00:57:44,318 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:57:44.318] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:57:44.318] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:57:44.318] 2025-08-28 00:57:44,318 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:57:44.367] 2025-08-28 00:57:44,366 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:57:44.367] 2025-08-28 00:57:44,367 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:57:44.367] 2025-08-28 00:57:44,367 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:57:44.381] [INFO] Operation semantic index initialized
+[00:57:44.382] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:45.668] 2025-08-28 00:57:45,667 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:45.672] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:46.156] 2025-08-28 00:57:46,156 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:46.163]   [SEARCH] Query: data validation parser
+[00:57:46.164] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:46.739] 2025-08-28 00:57:46,739 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[00:57:46.753] [DEBUG] Got result for task: has_result=True, save_logs=True
+[00:57:46.753] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[00:57:46.754] [AI_DEBUG] 生成的txt_content长度: 26013
+[00:57:46.754] [AI_DEBUG] _ai_classify_with_txt_content called:
+[00:57:46.754]   - use_ai_classification=True
+[00:57:46.754]   - ai_classifier=True
+[00:57:46.754]   - txt_content_len=26013
+[00:57:46.754]   - task_model=qwen2.5-14b-instruct
+[00:57:46.754] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[00:57:46.781] 2025-08-28 00:57:46,781 - api_client_manager - INFO - Created idealab client for model qwen2.5-14b-instruct
+[00:57:46.781] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140599760205552)
+[00:57:46.781] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[00:57:46.781] 2025-08-28 00:57:46,781 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[00:57:46.828] 2025-08-28 00:57:46,828 - mcp_embedding_manager - INFO - FAISS index loaded
+[00:57:46.828] 2025-08-28 00:57:46,828 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[00:57:46.828] 2025-08-28 00:57:46,828 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[00:57:46.841] [INFO] Operation semantic index initialized
+[00:57:46.842] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:47.301] 2025-08-28 00:57:47,301 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:47.309]   [INFO] Tool info request: data_processing_validator
+[00:57:47.309] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:48.374] 2025-08-28 00:57:48,374 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:48.382]   [INFO] Tool info request: data_processing_parser
+[00:57:48.382] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:48.478] 2025-08-28 00:57:48,478 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:48.484]   [SEARCH] Query: data validation parser
+[00:57:48.484] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:49.402] 2025-08-28 00:57:49,402 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:49.410] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:49.525] 2025-08-28 00:57:49,525 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:57:49.528] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[00:57:49.596] 2025-08-28 00:57:49,596 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:49.602]   [INFO] Tool info request: data_processing_validator
+[00:57:49.602] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:50.410] 2025-08-28 00:57:50,410 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:50.418] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:50.793] 2025-08-28 00:57:50,793 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:50.799]   [INFO] Tool info request: data_processing_parser
+[00:57:50.800] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:51.364] 2025-08-28 00:57:51,364 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:51.384] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:51.804] 2025-08-28 00:57:51,804 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:51.810] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:52.496] 2025-08-28 00:57:52,496 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:52.526] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:52.776] 2025-08-28 00:57:52,775 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:52.777] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:53.553] 2025-08-28 00:57:53,552 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:53.554] 2025-08-28 00:57:53,554 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[00:57:53.556] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[00:57:53.558] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:53.897] 2025-08-28 00:57:53,896 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:53.899] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:54.602] 2025-08-28 00:57:54,602 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:54.609] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct
+[00:57:54.958] 2025-08-28 00:57:54,958 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[00:57:54.964] [LLM_CALL] Using model: qwen2.5-14b-instruct, API name: qwen2.5-14b-instruct

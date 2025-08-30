@@ -274,12 +274,9 @@ class ResultMerger:
             # 获取或创建manager（单例） - 增强数据保护
             manager = _get_or_create_manager(use_ai_classification=True)
             
-            # 🔧 数据保护修复：在处理前强制重新加载最新数据库
-            try:
-                manager.database = manager._load_database()
-                logger.info(f"[MERGER_PROTECTION] 重新加载数据库以获取最新数据")
-            except Exception as e:
-                logger.warning(f"[MERGER_PROTECTION] 数据库重加载失败: {e}")
+            # 🔧 数据保护修复：使用智能合并而不是强制重新加载
+            # 移除强制重新加载，让manager使用其内置的文件锁和合并机制
+            logger.info(f"[MERGER_PROTECTION] 使用manager内置的安全合并机制")
             
             success_count = 0
             for record in records:

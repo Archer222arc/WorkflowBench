@@ -34,8 +34,12 @@ import openai
 HAS_OPENAI = True
 
 
-import faiss
-HAS_FAISS = True
+try:
+    import faiss
+    HAS_FAISS = True
+except ImportError:
+    faiss = None
+    HAS_FAISS = False
 
 
 # Setup logging

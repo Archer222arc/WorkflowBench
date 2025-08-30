@@ -206,7 +206,21 @@ class CumulativeTestManager:
         if self.file_lock:
             # 使用文件锁进行多进程安全写入
             def update_func(current_data):
-                # 忽略当前数据，直接使用内存中的数据
+                # 合并当前磁盘数据和内存数据，避免覆盖其他进程的更新
+                if current_data and isinstance(current_data, dict):
+                    # 合并models数据
+                    if "models" in current_data:
+                        for model_name, model_data in current_data["models"].items():
+                            # 如果这个模型不在内存中，保留磁盘上的数据
+                            if model_name not in self.database.get("models", {}):
+                                self.database["models"][model_name] = model_data
+                    
+                    # 合并test_groups
+                    if "test_groups" in current_data:
+                        for group_id, group_data in current_data["test_groups"].items():
+                            if group_id not in self.database.get("test_groups", {}):
+                                self.database["test_groups"][group_id] = group_data
+                
                 return self._serialize_database()
             
             success = self.file_lock.update_json_safe(update_func)
@@ -214,7 +228,8 @@ class CumulativeTestManager:
                 print("[警告] 使用文件锁保存失败，回退到普通保存")
                 self._save_database_fallback()
         else:
-            self._save_database_fallback()
+            # 🔧 数据保护修复：即使没有文件锁也进行智能合并
+            self._save_database_with_merge()
     
     def _save_database_fallback(self):
         """回退的保存方法（无文件锁）"""
@@ -223,6 +238,53 @@ class CumulativeTestManager:
             temp_file = self.db_file.with_suffix('.tmp')
             with open(temp_file, 'w', encoding='utf-8') as f:
                 # 使用自定义序列化器处理ModelStatistics对象
+                json.dump(self._serialize_database(), f, indent=2, ensure_ascii=False)
+            
+            # 原子替换
+            temp_file.replace(self.db_file)
+    
+    def _save_database_with_merge(self):
+        """带智能合并的保存方法（数据保护增强版）"""
+        with self.lock:
+            # 🔧 数据保护修复：保存前先合并磁盘上的最新数据
+            try:
+                if self.db_file.exists():
+                    # 读取当前磁盘数据
+                    with open(self.db_file, 'r', encoding='utf-8') as f:
+                        disk_data = json.load(f)
+                    
+                    # 智能合并models数据
+                    if "models" in disk_data:
+                        for model_name, disk_model_data in disk_data["models"].items():
+                            if model_name not in self.database.get("models", {}):
+                                # 磁盘上有但内存中没有的模型，保留磁盘数据
+                                self.database["models"][model_name] = disk_model_data
+                                print(f"[SAVE_PROTECTION] 保留磁盘模型数据: {model_name}")
+                            else:
+                                # 两边都有的模型，智能合并prompt_type数据
+                                memory_model = self.database["models"][model_name]
+                                disk_prompts = disk_model_data.get("by_prompt_type", {})
+                                memory_prompts = memory_model.get("by_prompt_type", {})
+                                
+                                # 合并prompt类型，保留所有类型
+                                for prompt_type, prompt_data in disk_prompts.items():
+                                    if prompt_type not in memory_prompts:
+                                        memory_prompts[prompt_type] = prompt_data
+                                        print(f"[SAVE_PROTECTION] 保留磁盘prompt数据: {model_name}/{prompt_type}")
+                    
+                    # 合并test_groups
+                    if "test_groups" in disk_data:
+                        for group_id, group_data in disk_data["test_groups"].items():
+                            if group_id not in self.database.get("test_groups", {}):
+                                self.database["test_groups"][group_id] = group_data
+                
+                print("[SAVE_PROTECTION] 完成智能数据合并")
+            except Exception as e:
+                print(f"[SAVE_PROTECTION] 合并失败，使用纯内存数据: {e}")
+            
+            # 使用原有的安全保存逻辑
+            temp_file = self.db_file.with_suffix('.tmp')
+            with open(temp_file, 'w', encoding='utf-8') as f:
                 json.dump(self._serialize_database(), f, indent=2, ensure_ascii=False)
             
             # 原子替换
@@ -253,18 +315,54 @@ class CumulativeTestManager:
             if not record.timestamp:
                 record.timestamp = datetime.now().isoformat()
             
-            # 初始化模型统计（如果需要）
+            # 初始化模型统计（如果需要）- 内层数据保护修复
             model = normalize_model_name(record.model)  # 规范化模型名称
             if model not in self.database["models"]:
-                # 使用V3字典格式而不是ModelStatistics对象
-                self.database["models"][model] = {
-                    "model_name": model,
-                    "first_test_time": datetime.now().isoformat(),
-                    "last_test_time": datetime.now().isoformat(),
-                    "total_tests": 0,
-                    "overall_stats": {},
-                    "by_prompt_type": {}
-                }
+                # 🔧 数据保护修复：先检查磁盘上是否有最新数据
+                try:
+                    if self.db_file.exists():
+                        # 重新加载磁盘数据，检查其他进程是否已创建此模型
+                        with open(self.db_file, 'r', encoding='utf-8') as f:
+                            latest_disk_data = json.load(f)
+                        
+                        if model in latest_disk_data.get("models", {}):
+                            # 其他进程已创建，合并磁盘数据避免覆盖
+                            self.database["models"][model] = latest_disk_data["models"][model]
+                            print(f"[DATA_PROTECTION] 合并来自磁盘的模型数据: {model}")
+                        else:
+                            # 真正的新模型，创建空结构
+                            self.database["models"][model] = {
+                                "model_name": model,
+                                "first_test_time": datetime.now().isoformat(),
+                                "last_test_time": datetime.now().isoformat(),
+                                "total_tests": 0,
+                                "overall_stats": {},
+                                "by_prompt_type": {}
+                            }
+                            print(f"[DATA_PROTECTION] 创建新模型结构: {model}")
+                    else:
+                        # 数据库文件不存在，创建新模型
+                        self.database["models"][model] = {
+                            "model_name": model,
+                            "first_test_time": datetime.now().isoformat(),
+                            "last_test_time": datetime.now().isoformat(),
+                            "total_tests": 0,
+                            "overall_stats": {},
+                            "by_prompt_type": {}
+                        }
+                        print(f"[DATA_PROTECTION] 创建首个模型结构: {model}")
+                except Exception as e:
+                    print(f"[DATA_PROTECTION] 磁盘数据加载失败，使用内存数据: {e}")
+                    # 回退到原始逻辑
+                    self.database["models"][model] = {
+                        "model_name": model,
+                        "first_test_time": datetime.now().isoformat(),
+                        "last_test_time": datetime.now().isoformat(),
+                        "total_tests": 0,
+                        "overall_stats": {},
+                        "by_prompt_type": {}
+                    }
+                
                 # 更新已测试模型列表
                 if model not in self.database["summary"]["models_tested"]:
                     self.database["summary"]["models_tested"].append(model)

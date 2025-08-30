@@ -14,9 +14,23 @@ Key Features:
 """
 
 import json
-import torch
-import torch.nn as nn
+import os
 import networkx as nx
+
+# Conditional torch import for memory optimization
+try:
+    if os.getenv('SKIP_MODEL_LOADING', 'false').lower() != 'true':
+        import torch
+        import torch.nn as nn
+        TORCH_AVAILABLE = True
+    else:
+        print("[INFO] ⚡ SKIP_MODEL_LOADING=true - Skipping torch imports")
+        torch = None
+        TORCH_AVAILABLE = False
+except ImportError as e:
+    print(f"[WARNING] torch import failed: {e}")
+    torch = None
+    TORCH_AVAILABLE = False
 import numpy as np
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple, Set
@@ -130,11 +144,15 @@ class MDPWorkflowGenerator:
         self.tool_capability_manager = get_tool_capability_manager()
         
         # 设置设备（GPU优先）
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        print(f"[INFO] Using device: {self.device}")
-        if self.device.type == 'cuda':
-            print(f"[INFO] GPU: {torch.cuda.get_device_name()}")
-            print(f"[INFO] GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+        if TORCH_AVAILABLE:
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            print(f"[INFO] Using device: {self.device}")
+            if self.device.type == 'cuda':
+                print(f"[INFO] GPU: {torch.cuda.get_device_name()}")
+                print(f"[INFO] GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+        else:
+            self.device = None
+            print(f"[INFO] ⚡ SKIP_MODEL_LOADING=true - No device initialization")
         
         # 初始化阈值配置
         if thresholds is None:
@@ -304,7 +322,7 @@ class MDPWorkflowGenerator:
 
 
 
-    def update_network(self, network_state_dict: Dict[str, torch.Tensor], algorithm: str = None):
+    def update_network(self, network_state_dict: Dict[str, "torch.Tensor"], algorithm: str = None):
         """更新生成器使用的网络
         
         Args:
@@ -338,7 +356,7 @@ class MDPWorkflowGenerator:
         
         print(f"[INFO] Network update complete")
 
-    def set_network_reference(self, network: nn.Module, algorithm: str):
+    def set_network_reference(self, network: "nn.Module", algorithm: str):
         """直接设置网络引用（共享网络对象）
         
         Args:

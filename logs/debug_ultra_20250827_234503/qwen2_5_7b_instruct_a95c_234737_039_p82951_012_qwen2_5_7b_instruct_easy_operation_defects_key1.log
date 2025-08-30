@@ -1,0 +1,129 @@
+===== 分片 qwen2.5-7b-instruct_easy_operation_defects_key1 =====
+时间: 2025-08-27T23:47:37.046195
+模型: qwen2.5-7b-instruct
+实例: qwen-key1
+命令: python -u smart_batch_runner.py --model qwen2.5-7b-instruct --deployment qwen-key1 --prompt-types flawed_missing_step,flawed_redundant_operations --difficulty easy --task-types all --num-instances 20 --max-workers 2 --tool-success-rate 0.8 --batch-commit --checkpoint-interval 20 --ai-classification --no-adaptive --qps 50 --prompt-parallel
+环境变量:
+  STORAGE_FORMAT=json
+  PYTHONFAULTHANDLER=1
+  PYTHONUNBUFFERED=1
+==================================================
+
+[23:47:38.657] 
+[23:47:38.685] A module that was compiled using NumPy 1.x cannot be run in
+[23:47:38.687] NumPy 2.2.6 as it may crash. To support both 1.x and 2.x
+[23:47:38.687] versions of NumPy, modules must be compiled with NumPy 2.0.
+[23:47:38.687] Some module may need to rebuild instead e.g. with 'pybind11>=2.12'.
+[23:47:38.687] 
+[23:47:38.687] If you are a user of the module, the easiest solution will be to
+[23:47:38.687] downgrade to 'numpy<2' or try to upgrade the affected module.
+[23:47:38.688] We expect that some modules will need time to support NumPy 2.
+[23:47:38.691] 
+[23:47:38.691] Traceback (most recent call last):  File "/Users/ruicheng/Documents/GitHub/WorkflowBench/smart_batch_runner.py", line 21, in <module>
+[23:47:38.691]     from batch_test_runner import BatchTestRunner, TestTask
+[23:47:38.691]   File "/Users/ruicheng/Documents/GitHub/WorkflowBench/batch_test_runner.py", line 26, in <module>
+[23:47:38.692]     from mdp_workflow_generator import MDPWorkflowGenerator
+[23:47:38.692]   File "/Users/ruicheng/Documents/GitHub/WorkflowBench/mdp_workflow_generator.py", line 17, in <module>
+[23:47:38.692]     import torch
+[23:47:38.692]   File "/Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/__init__.py", line 1477, in <module>
+[23:47:38.692]     from .functional import *  # noqa: F403
+[23:47:38.692]   File "/Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/functional.py", line 9, in <module>
+[23:47:38.692]     import torch.nn.functional as F
+[23:47:38.693]   File "/Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/nn/__init__.py", line 1, in <module>
+[23:47:38.693]     from .modules import *  # noqa: F403
+[23:47:38.693]   File "/Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/nn/modules/__init__.py", line 35, in <module>
+[23:47:38.693]     from .transformer import TransformerEncoder, TransformerDecoder, \
+[23:47:38.693]   File "/Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/nn/modules/transformer.py", line 20, in <module>
+[23:47:38.693]     device: torch.device = torch.device(torch._C._get_default_device()),  # torch.device('cpu'),
+[23:47:38.702] /Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/nn/modules/transformer.py:20: UserWarning: Failed to initialize NumPy: _ARRAY_API not found (Triggered internally at /Users/runner/work/pytorch/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:84.)
+[23:47:38.708]   device: torch.device = torch.device(torch._C._get_default_device()),  # torch.device('cpu'),
+[23:47:41.759] 2025-08-27 23:47:41,745 - faiss.loader - INFO - Loading faiss.
+[23:47:41.809] 2025-08-27 23:47:41,808 - faiss.loader - INFO - Successfully loaded faiss.
+[23:47:45.116] [INFO] 使用JSON存储格式
+[23:47:45.132] [INFO] 使用JSON存储格式
+[23:47:47.630] [INFO] 使用JSON存储格式
+[23:47:47.673] [INFO] 使用JSON存储格式
+[23:47:47.687] 
+[23:47:47.687] ============================================================
+[23:47:47.687] 智能批测试: qwen2.5-7b-instruct (idealab)
+[23:47:47.687] Prompt types: ['flawed_missing_step', 'flawed_redundant_operations']
+[23:47:47.687] 难度: easy
+[23:47:47.687] 目标: 每种配置 20 个实例
+[23:47:47.687] 策略: 2个prompt types使用不同API keys并行
+[23:47:47.687] ============================================================
+[23:47:47.733] 
+[23:47:47.734] 总计: 200 个测试任务
+[23:47:47.734]   flawed_missing_step: 100 个任务
+[23:47:47.734]   flawed_redundant_operations: 100 个任务
+[23:47:47.734] 
+[23:47:47.734] 📦 IdealLab并行策略：
+[23:47:47.734]   flawed_missing_step → 轮询使用3个keys
+[23:47:47.734]   flawed_redundant_operations → 轮询使用3个keys
+[23:47:47.734] 
+[23:47:47.734] ⚡ 启动2个并行任务...
+[23:47:47.755] 2025-08-27 23:47:47,753 - smart_model_router - INFO - ✨ Using USER's Azure endpoint for gpt-5-nano
+[23:47:47.961] 2025-08-27 23:47:47,961 - txt_based_ai_classifier - INFO - TXT-based AI classifier initialized with gpt-5-nano (parameter-filtered)
+[23:47:47.963] [AI_DEBUG] AI分类器初始化成功: <txt_based_ai_classifier.TxtBasedAIClassifier object at 0x7fa56709c950>
+[23:47:47.965] 2025-08-27 23:47:47,961 - batch_test_runner - INFO - 基于TXT文件的AI错误分类系统已启用 (使用gpt-5-nano)
+[23:47:47.967] [DEBUG] BatchTestRunner initialized with save_logs=True, enable_database_updates=True, use_ai_classification=True, checkpoint_interval=0
+[23:47:47.969] 2025-08-27 23:47:47,965 - txt_based_ai_classifier - INFO - TXT-based AI classifier initialized with gpt-5-nano (parameter-filtered)
+[23:47:47.971] [AI_DEBUG] AI分类器初始化成功: <txt_based_ai_classifier.TxtBasedAIClassifier object at 0x7fa5670b2770>
+[23:47:47.974] [DEBUG] BatchTestRunner initialized with save_logs=True, enable_database_updates=True, use_ai_classification=True, checkpoint_interval=0
+[23:51:38.664] [DEBUG] Creating new ToolCapabilityManager instance
+[23:51:38.725] [DEBUG] Creating new ToolCapabilityManager instance
+[23:51:38.726] [OperationEmbeddingIndex] Initializing with unified API client manager
+[23:51:38.734] [OperationEmbeddingIndex] Initializing with unified API client manager
+[23:51:38.735] ['config/config.json', 'config/api_keys.json', 'config/api-keys.json']
+[23:51:38.735] ['config/config.json', 'config/api_keys.json', 'config/api-keys.json']
+[23:51:38.774] 2025-08-27 23:51:38,746 - api_client_manager - INFO - Loaded configuration from config/config.json
+[23:51:38.783] 2025-08-27 23:51:38,773 - api_client_manager - INFO - Loaded configuration from config/config.json
+[23:51:39.711] [OperationEmbeddingIndex] OpenAI client initialized with model: gpt-4o-mini
+[23:51:39.749] [OperationEmbeddingIndex] Using embedding model: text-embedding-3-large
+[23:51:39.754] [OperationEmbeddingIndex] Detecting actual embedding dimension...
+[23:51:39.754] [OperationEmbeddingIndex] OpenAI client initialized with model: gpt-4o-mini
+[23:51:39.754] [OperationEmbeddingIndex] Using embedding model: text-embedding-3-large
+[23:51:39.754] [OperationEmbeddingIndex] Detecting actual embedding dimension...
+[23:51:52.508] python(83378) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
+[23:51:55.554] python(83381) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
+[23:51:55.582] python(83384) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
+[23:52:11.958] 2025-08-27 23:52:11,867 - httpx - INFO - HTTP Request: POST https://archer222arc.openai.azure.com/openai/deployments/text-embedding-3-large/embeddings?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[23:52:12.037] 2025-08-27 23:52:11,851 - httpx - INFO - HTTP Request: POST https://archer222arc.openai.azure.com/openai/deployments/text-embedding-3-large/embeddings?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[23:52:12.764] [OperationEmbeddingIndex] Detected embedding dimension: 3072[OperationEmbeddingIndex] Detected embedding dimension: 3072
+[23:52:12.776] 
+[23:52:15.077] [INFO] Loaded 4150 embeddings from persistent cache
+[23:52:15.104] [OperationEmbeddingIndex] Initialized with 4150 cached embeddings
+[23:52:15.106] [INFO] Loaded 4150 embeddings from persistent cache
+[23:52:15.107] [OperationEmbeddingIndex] Initialized with 4150 cached embeddings
+[23:52:15.138] [INFO] Loaded 15 LLM-enhanced operation definitions from cache[INFO] Loaded 15 LLM-enhanced operation definitions from cache
+[23:52:15.146] 
+[23:52:15.149] [INFO] Found cached operation index at .mcp_operation_cache/operation_index.pkl
+[23:52:15.152] [INFO] Loading operation index from .mcp_operation_cache/operation_index.pkl
+[23:52:15.157] [INFO] Found cached operation index at .mcp_operation_cache/operation_index.pkl
+[23:52:15.157] [INFO] Loading operation index from .mcp_operation_cache/operation_index.pkl
+[23:52:15.309] [INFO] Successfully loaded FAISS index with dimension 3072
+[23:52:15.313] [INFO] Operation index loaded successfully from .mcp_operation_cache/operation_index.pkl
+[23:52:15.316] [INFO] Loaded 15 operations with dimension 3072
+[23:52:15.319] [INFO] Successfully loaded cached index
+[23:52:15.319] [INFO] Successfully loaded FAISS index with dimension 3072
+[23:52:15.319] [INFO] Operation index loaded successfully from .mcp_operation_cache/operation_index.pkl
+[23:52:15.326] [INFO] Loaded 15 operations with dimension 3072
+[23:52:15.326] [INFO] Successfully loaded cached index
+[23:52:15.359] [INFO] Operation semantic index initialized
+[23:52:15.518] [INFO] Operation semantic index initialized
+[23:52:15.584] [INFO] Using device: cpu[INFO] Using device: cpu
+[23:52:15.602] 
+[23:52:15.741] [INFO] Initialized tool success tracking attributes
+[23:52:15.741] [INFO] Initializing embedding manager for enhanced tool selection
+[23:52:15.742] [MCPEmbeddingManager] Creating new singleton instance
+[23:52:15.756] [INFO] Initialized tool success tracking attributes[MCPEmbeddingManager] Initializing with unified API client manager
+[23:52:15.764] 
+[23:52:15.770] [INFO] Initializing embedding manager for enhanced tool selection
+[23:52:15.771] [MCPEmbeddingManager] Creating new singleton instance
+[23:52:16.249] [MCPEmbeddingManager] Using embedding model: text-embedding-3-large
+[23:52:16.259] [MCPEmbeddingManager] Client initialized successfully
+[23:52:16.260] 2025-08-27 23:52:16,254 - mcp_embedding_manager - INFO - Loading embedding cache from .mcp_embedding_cache/embedding_cache.pkl (size: 173790244 bytes)
+[23:52:22.054] 2025-08-27 23:52:21,965 - mcp_embedding_manager - INFO - Loaded 7050 cached embeddings
+[23:56:33.109] 2025-08-27 23:56:33,015 - mcp_embedding_manager - INFO - Loaded search cache with 3 entries
+[23:56:33.173] 2025-08-27 23:56:33,073 - mcp_embedding_manager - INFO - Initialized operation mappings with 149 terms
+[23:56:34.736] 2025-08-27 23:56:34,731 - mcp_embedding_manager - INFO - Loading embedding cache from .mcp_embedding_cache/embedding_cache.pkl (size: 173790244 bytes)
+[23:56:37.895] 2025-08-27 23:56:37,887 - mcp_embedding_manager - INFO - Loaded 7050 cached embeddings

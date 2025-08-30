@@ -11,8 +11,13 @@ import logging
 from pathlib import Path
 from typing import Optional, Dict, Any, Union, List
 from openai import OpenAI, AzureOpenAI
+import httpx
 
 logger = logging.getLogger(__name__)
+
+def get_default_timeout():
+    """获取默认的超时时间（秒）"""
+    return 150  # 150秒总超时
 
 # 支持的模型列表 (更新：包含所有可用模型)
 SUPPORTED_MODELS = [
@@ -159,11 +164,18 @@ class APIClientManager:
     
     def _initialize_key_pools(self):
         """初始化API Key池"""
-        # IdealLab API Keys池
+        # IdealLab API Keys池（3个keys，不同的BASE_URL）
         self._idealab_keys = [
-            self._config.get('idealab_api_key', '956c41bd0f31beaf68b871d4987af4bb'),
-            '3d906058842b6cf4cee8aaa019f7e77b',
-            '88a9a9010f2864bfb53996279dc6c3b9'
+            '3ddb1451943548a2a1f69fa2ab5a8d1f',  # key0 (新key，新URL)
+            '3d906058842b6cf4cee8aaa019f7e77b',  # key1 (原key，原URL)
+            '88a9a9010f2864bfb53996279dc6c3b9'   # key2 (原key，原URL)
+        ]
+        
+        # 每个key对应的BASE_URL
+        self._idealab_base_urls = [
+            'http://39.96.211.155:8000/proxy/api/openai/v1/',  # key0使用新URL
+            'https://idealab.alibaba-inc.com/api/openai/v1',   # key1使用原URL
+            'https://idealab.alibaba-inc.com/api/openai/v1'    # key2使用原URL
         ]
         
         # Key使用计数（用于轮询）
@@ -175,7 +187,7 @@ class APIClientManager:
             'general': 0
         }
         
-        # Prompt类型到API Key的映射策略
+        # Prompt类型到API Key的映射策略（现在有3个keys）
         self._prompt_key_strategy = {
             'baseline': 0,  # 使用第1个key
             'cot': 1,       # 使用第2个key  
@@ -254,7 +266,9 @@ class APIClientManager:
             client = AzureOpenAI(
                 api_key=api_key,
                 api_version=api_version,
-                azure_endpoint=api_base
+                azure_endpoint=api_base,
+                timeout=150,     # 150秒超时
+                max_retries=0    # 禁用自动重试，手动控制
             )
             # 存储 deployment name 供后续使用
             client.deployment_name = deployment_name
@@ -273,7 +287,11 @@ class APIClientManager:
                 print("[ERROR] Please set 'openai_api_key' in config/config.json or OPENAI_API_KEY environment variable")
                 raise ValueError("OpenAI API key not configured")
             
-            return OpenAI(api_key=api_key)
+            return OpenAI(
+                api_key=api_key,
+                timeout=150,     # 150秒超时
+                max_retries=0    # 禁用自动重试，手动控制
+            )
     
     def get_model_name(self, default: str = "gpt-4o-mini") -> str:
         """Get appropriate model name based on client type
@@ -300,22 +318,68 @@ class APIClientManager:
             prompt_type: Prompt type for key selection strategy
             key_index: Optional explicit key index (0-2)
         """
-        api_base = self._config.get('idealab_api_base')
-        if not api_base:
-            raise ValueError("IdealLab API base URL missing")
+        # 智能选择API Key和对应的BASE_URL
+        api_key, actual_index = self._select_idealab_key_with_index(prompt_type, key_index)
         
-        # 智能选择API Key
-        api_key = self._select_idealab_key(prompt_type, key_index)
+        # 使用对应的BASE_URL
+        api_base = self._idealab_base_urls[actual_index]
         
         client = OpenAI(
             api_key=api_key,
-            base_url=api_base
+            base_url=api_base,
+            timeout=180,     # 180秒超时（IdealLab需要更长时间）
+            max_retries=0    # 禁用自动重试
         )
         client.model_name = model
         client.api_key_used = api_key  # 记录使用的key
         return client
     
+    def _select_idealab_key_with_index(self, prompt_type: Optional[str] = None, key_index: Optional[int] = None) -> tuple:
+        """智能选择IdealLab API Key并返回索引
+        
+        Returns:
+            tuple: (api_key, index) - API key和它的索引
+        """
+        # 检查环境变量覆盖
+        override_key = os.getenv('IDEALAB_API_KEY_OVERRIDE')
+        if override_key:
+            # 如果使用覆盖key，默认使用第一个BASE_URL
+            return override_key, 0
+        
+        # 如果指定了key索引，直接使用
+        if key_index is not None:
+            if 0 <= key_index < len(self._idealab_keys):
+                return self._idealab_keys[key_index], key_index
+            else:
+                logger.warning(f"Invalid key_index {key_index}, falling back to default selection")
+        
+        # 根据prompt_type选择策略
+        if not prompt_type:
+            # 默认轮询
+            self._key_usage_count['general'] += 1
+            idx = self._key_usage_count['general'] % len(self._idealab_keys)
+            return self._idealab_keys[idx], idx
+        
+        # 根据prompt类型固定分配（现在有3个keys）
+        strategy_idx = self._prompt_key_strategy.get(prompt_type, -1)
+        
+        if strategy_idx == -1:
+            # flawed类型或未定义的类型，轮询使用
+            if prompt_type not in self._key_usage_count:
+                self._key_usage_count[prompt_type] = 0
+            self._key_usage_count[prompt_type] += 1
+            idx = self._key_usage_count[prompt_type] % len(self._idealab_keys)
+            return self._idealab_keys[idx], idx
+        else:
+            # 固定分配
+            return self._idealab_keys[strategy_idx], strategy_idx
+    
     def _select_idealab_key(self, prompt_type: Optional[str] = None, key_index: Optional[int] = None) -> str:
+        """智能选择IdealLab API Key（向后兼容接口）"""
+        api_key, _ = self._select_idealab_key_with_index(prompt_type, key_index)
+        return api_key
+    
+    def _select_idealab_key_old(self, prompt_type: Optional[str] = None, key_index: Optional[int] = None) -> str:
         """智能选择IdealLab API Key
         
         策略：
@@ -383,7 +447,9 @@ class APIClientManager:
             client = AzureOpenAI(
                 api_key=api_key,
                 api_version=api_version,
-                azure_endpoint=azure_endpoint
+                azure_endpoint=azure_endpoint,
+                timeout=150,     # 150秒超时
+                max_retries=0    # 禁用自动重试
             )
             client.deployment_name = deployment_name
             return client

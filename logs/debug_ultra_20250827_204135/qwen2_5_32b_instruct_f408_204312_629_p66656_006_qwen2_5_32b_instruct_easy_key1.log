@@ -1,0 +1,438 @@
+===== 分片 qwen2.5-32b-instruct_easy_key1 =====
+时间: 2025-08-27T20:43:12.632071
+模型: qwen2.5-32b-instruct
+实例: qwen-key1
+命令: python -u smart_batch_runner.py --model qwen2.5-32b-instruct --deployment qwen-key1 --prompt-types flawed_sequence_disorder,flawed_tool_misuse,flawed_parameter_error --difficulty easy --task-types all --num-instances 10 --max-workers 6 --tool-success-rate 0.8 --batch-commit --checkpoint-interval 20 --ai-classification --no-adaptive --qps 50 --prompt-parallel
+环境变量:
+  STORAGE_FORMAT=json
+  PYTHONFAULTHANDLER=1
+  PYTHONUNBUFFERED=1
+==================================================
+
+[20:43:13.447] 
+[20:43:13.448] A module that was compiled using NumPy 1.x cannot be run in
+[20:43:13.448] NumPy 2.2.6 as it may crash. To support both 1.x and 2.x
+[20:43:13.448] versions of NumPy, modules must be compiled with NumPy 2.0.
+[20:43:13.448] Some module may need to rebuild instead e.g. with 'pybind11>=2.12'.
+[20:43:13.448] 
+[20:43:13.448] If you are a user of the module, the easiest solution will be to
+[20:43:13.448] downgrade to 'numpy<2' or try to upgrade the affected module.
+[20:43:13.448] We expect that some modules will need time to support NumPy 2.
+[20:43:13.448] 
+[20:43:13.448] Traceback (most recent call last):  File "/Users/ruicheng/Documents/GitHub/WorkflowBench/smart_batch_runner.py", line 21, in <module>
+[20:43:13.448]     from batch_test_runner import BatchTestRunner, TestTask
+[20:43:13.448]   File "/Users/ruicheng/Documents/GitHub/WorkflowBench/batch_test_runner.py", line 26, in <module>
+[20:43:13.448]     from mdp_workflow_generator import MDPWorkflowGenerator
+[20:43:13.448]   File "/Users/ruicheng/Documents/GitHub/WorkflowBench/mdp_workflow_generator.py", line 17, in <module>
+[20:43:13.448]     import torch
+[20:43:13.448]   File "/Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/__init__.py", line 1477, in <module>
+[20:43:13.448]     from .functional import *  # noqa: F403
+[20:43:13.448]   File "/Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/functional.py", line 9, in <module>
+[20:43:13.448]     import torch.nn.functional as F
+[20:43:13.448]   File "/Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/nn/__init__.py", line 1, in <module>
+[20:43:13.449]     from .modules import *  # noqa: F403
+[20:43:13.449]   File "/Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/nn/modules/__init__.py", line 35, in <module>
+[20:43:13.449]     from .transformer import TransformerEncoder, TransformerDecoder, \
+[20:43:13.449]   File "/Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/nn/modules/transformer.py", line 20, in <module>
+[20:43:13.449]     device: torch.device = torch.device(torch._C._get_default_device()),  # torch.device('cpu'),
+[20:43:13.449] /Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/nn/modules/transformer.py:20: UserWarning: Failed to initialize NumPy: _ARRAY_API not found (Triggered internally at /Users/runner/work/pytorch/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:84.)
+[20:43:13.449]   device: torch.device = torch.device(torch._C._get_default_device()),  # torch.device('cpu'),
+[20:43:14.774] 2025-08-27 20:43:14,773 - faiss.loader - INFO - Loading faiss.
+[20:43:14.816] 2025-08-27 20:43:14,816 - faiss.loader - INFO - Successfully loaded faiss.
+[20:43:15.916] [INFO] 使用JSON存储格式
+[20:43:15.919] [INFO] 使用JSON存储格式
+[20:43:16.487] [INFO] 使用JSON存储格式
+[20:43:16.488] [INFO] 使用JSON存储格式
+[20:43:16.492] 
+[20:43:16.493] ============================================================
+[20:43:16.493] 智能批测试: qwen2.5-32b-instruct (idealab)
+[20:43:16.493] Prompt types: ['flawed_sequence_disorder', 'flawed_tool_misuse', 'flawed_parameter_error']
+[20:43:16.493] 难度: easy
+[20:43:16.493] 目标: 每种配置 10 个实例
+[20:43:16.493] 策略: 3个prompt types使用不同API keys并行
+[20:43:16.494] ============================================================
+[20:43:16.535] 
+[20:43:16.538] 总计: 150 个测试任务
+[20:43:16.538]   flawed_sequence_disorder: 50 个任务
+[20:43:16.538]   flawed_tool_misuse: 50 个任务
+[20:43:16.538]   flawed_parameter_error: 50 个任务
+[20:43:16.538] 
+[20:43:16.538] 📦 IdealLab并行策略：
+[20:43:16.538]   flawed_sequence_disorder → 轮询使用3个keys
+[20:43:16.538]   flawed_tool_misuse → 轮询使用3个keys
+[20:43:16.538]   flawed_parameter_error → 轮询使用3个keys
+[20:43:16.538] 
+[20:43:16.538] ⚡ 启动3个并行任务...
+[20:43:16.539] 2025-08-27 20:43:16,539 - smart_model_router - INFO - ✨ Using USER's Azure endpoint for gpt-5-nano
+[20:43:16.641] 2025-08-27 20:43:16,641 - txt_based_ai_classifier - INFO - TXT-based AI classifier initialized with gpt-5-nano (parameter-filtered)
+[20:43:16.641] [AI_DEBUG] AI分类器初始化成功: <txt_based_ai_classifier.TxtBasedAIClassifier object at 0x7fc6743e8b80>
+[20:43:16.642] 2025-08-27 20:43:16,641 - txt_based_ai_classifier - INFO - TXT-based AI classifier initialized with gpt-5-nano (parameter-filtered)
+[20:43:16.642] [AI_DEBUG] AI分类器初始化成功: <txt_based_ai_classifier.TxtBasedAIClassifier object at 0x7fc674418a60>
+[20:43:16.642] 2025-08-27 20:43:16,642 - batch_test_runner - INFO - 基于TXT文件的AI错误分类系统已启用 (使用gpt-5-nano)
+[20:43:16.642] [DEBUG] BatchTestRunner initialized with save_logs=True, enable_database_updates=True, use_ai_classification=True, checkpoint_interval=0
+[20:43:16.642] 2025-08-27 20:43:16,642 - txt_based_ai_classifier - INFO - TXT-based AI classifier initialized with gpt-5-nano (parameter-filtered)
+[20:43:16.642] [AI_DEBUG] AI分类器初始化成功: <txt_based_ai_classifier.TxtBasedAIClassifier object at 0x7fc6743e2c00>
+[20:43:16.642] 2025-08-27 20:43:16,642 - batch_test_runner - INFO - 基于TXT文件的AI错误分类系统已启用 (使用gpt-5-nano)
+[20:43:16.642] [DEBUG] BatchTestRunner initialized with save_logs=True, enable_database_updates=True, use_ai_classification=True, checkpoint_interval=0
+[20:43:16.642] 2025-08-27 20:43:16,641 - batch_test_runner - INFO - 基于TXT文件的AI错误分类系统已启用 (使用gpt-5-nano)
+[20:43:16.642] [DEBUG] BatchTestRunner initialized with save_logs=True, enable_database_updates=True, use_ai_classification=True, checkpoint_interval=0
+[20:43:27.958] [DEBUG] Creating new ToolCapabilityManager instance
+[20:43:27.959] [OperationEmbeddingIndex] Initializing with unified API client manager
+[20:43:27.959] ['config/config.json', 'config/api_keys.json', 'config/api-keys.json']
+[20:43:27.960] [DEBUG] Creating new ToolCapabilityManager instance
+[20:43:27.960] [OperationEmbeddingIndex] Initializing with unified API client manager
+[20:43:27.960] ['config/config.json', 'config/api_keys.json', 'config/api-keys.json']
+[20:43:27.961] 2025-08-27 20:43:27,961 - api_client_manager - INFO - Loaded configuration from config/config.json
+[20:43:27.970] 2025-08-27 20:43:27,970 - api_client_manager - INFO - Loaded configuration from config/config.json
+[20:43:27.994] [OperationEmbeddingIndex] OpenAI client initialized with model: gpt-4o-mini
+[20:43:27.994] [OperationEmbeddingIndex] Using embedding model: text-embedding-3-large
+[20:43:27.994] [OperationEmbeddingIndex] Detecting actual embedding dimension...
+[20:43:27.998] [OperationEmbeddingIndex] OpenAI client initialized with model: gpt-4o-mini
+[20:43:27.998] [OperationEmbeddingIndex] Using embedding model: text-embedding-3-large
+[20:43:27.998] [OperationEmbeddingIndex] Detecting actual embedding dimension...
+[20:43:37.720] [DEBUG] Creating new ToolCapabilityManager instance
+[20:43:37.722] [OperationEmbeddingIndex] Initializing with unified API client manager
+[20:43:37.770] [OperationEmbeddingIndex] OpenAI client initialized with model: gpt-4o-mini
+[20:43:37.770] [OperationEmbeddingIndex] Using embedding model: text-embedding-3-large
+[20:43:37.770] [OperationEmbeddingIndex] Detecting actual embedding dimension...
+[20:43:38.253] 2025-08-27 20:43:38,252 - httpx - INFO - HTTP Request: POST https://archer222arc.openai.azure.com/openai/deployments/text-embedding-3-large/embeddings?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[20:43:38.254] 2025-08-27 20:43:38,253 - httpx - INFO - HTTP Request: POST https://archer222arc.openai.azure.com/openai/deployments/text-embedding-3-large/embeddings?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[20:43:38.279] 2025-08-27 20:43:38,279 - httpx - INFO - HTTP Request: POST https://archer222arc.openai.azure.com/openai/deployments/text-embedding-3-large/embeddings?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[20:43:38.283] [OperationEmbeddingIndex] Detected embedding dimension: 3072
+[20:43:38.284] [OperationEmbeddingIndex] Detected embedding dimension: 3072
+[20:43:38.286] [OperationEmbeddingIndex] Detected embedding dimension: 3072
+[20:43:38.589] [INFO] Loaded 4150 embeddings from persistent cache
+[20:43:38.647] [OperationEmbeddingIndex] Initialized with 4150 cached embeddings
+[20:43:38.648] [INFO] Loaded 4150 embeddings from persistent cache
+[20:43:38.648] [OperationEmbeddingIndex] Initialized with 4150 cached embeddings
+[20:43:38.648] [INFO] Loaded 4150 embeddings from persistent cache
+[20:43:38.648] [OperationEmbeddingIndex] Initialized with 4150 cached embeddings
+[20:43:38.648] [INFO] Loaded 15 LLM-enhanced operation definitions from cache
+[20:43:38.649] [INFO] Loaded 15 LLM-enhanced operation definitions from cache[INFO] Found cached operation index at .mcp_operation_cache/operation_index.pkl[INFO] Loaded 15 LLM-enhanced operation definitions from cache
+[20:43:38.656] [INFO] Found cached operation index at .mcp_operation_cache/operation_index.pkl
+[20:43:38.656] [INFO] Loading operation index from .mcp_operation_cache/operation_index.pkl
+[20:43:38.656] 
+[20:43:38.656] 
+[20:43:38.656] [INFO] Loading operation index from .mcp_operation_cache/operation_index.pkl
+[20:43:38.656] [INFO] Found cached operation index at .mcp_operation_cache/operation_index.pkl
+[20:43:38.656] [INFO] Loading operation index from .mcp_operation_cache/operation_index.pkl
+[20:43:38.692] [INFO] Successfully loaded FAISS index with dimension 3072
+[20:43:38.713] [INFO] Operation index loaded successfully from .mcp_operation_cache/operation_index.pkl
+[20:43:38.713] [INFO] Loaded 15 operations with dimension 3072
+[20:43:38.713] [INFO] Successfully loaded cached index
+[20:43:38.713] [INFO] Successfully loaded FAISS index with dimension 3072
+[20:43:38.713] [INFO] Operation index loaded successfully from .mcp_operation_cache/operation_index.pkl
+[20:43:38.713] [INFO] Loaded 15 operations with dimension 3072
+[20:43:38.713] [INFO] Successfully loaded cached index
+[20:43:38.713] [INFO] Operation semantic index initialized
+[20:43:38.713] [INFO] Using device: cpu
+[20:43:38.713] [INFO] Initialized tool success tracking attributes
+[20:43:38.713] [INFO] Initializing embedding manager for enhanced tool selection
+[20:43:38.713] [MCPEmbeddingManager] Creating new singleton instance
+[20:43:38.714] [INFO] Operation semantic index initialized
+[20:43:38.714] [INFO] Using device: cpu
+[20:43:38.715] [INFO] Initialized tool success tracking attributes
+[20:43:38.717] [INFO] Initializing embedding manager for enhanced tool selection[MCPEmbeddingManager] Initializing with unified API client manager
+[20:43:38.723] 
+[20:43:38.723] [MCPEmbeddingManager] Creating new singleton instance[INFO] Successfully loaded FAISS index with dimension 3072
+[20:43:38.723] [INFO] Operation index loaded successfully from .mcp_operation_cache/operation_index.pkl
+[20:43:38.723] [INFO] Loaded 15 operations with dimension 3072
+[20:43:38.723] [INFO] Successfully loaded cached index
+[20:43:38.726] 
+[20:43:38.726] [INFO] Operation semantic index initialized
+[20:43:38.726] [INFO] Using device: cpu
+[20:43:38.728] [INFO] Initialized tool success tracking attributes
+[20:43:38.730] [INFO] Initializing embedding manager for enhanced tool selection
+[20:43:38.730] [MCPEmbeddingManager] Creating new singleton instance
+[20:43:38.739] [MCPEmbeddingManager] Using embedding model: text-embedding-3-large
+[20:43:38.739] [MCPEmbeddingManager] Client initialized successfully
+[20:43:38.740] 2025-08-27 20:43:38,739 - mcp_embedding_manager - INFO - Loading embedding cache from .mcp_embedding_cache/embedding_cache.pkl (size: 173790244 bytes)
+[20:43:39.784] 2025-08-27 20:43:39,776 - mcp_embedding_manager - INFO - Loaded 7050 cached embeddings
+[20:44:07.869] 2025-08-27 20:44:07,844 - mcp_embedding_manager - INFO - Loaded search cache with 3 entries
+[20:44:07.873] 2025-08-27 20:44:07,870 - mcp_embedding_manager - INFO - Initialized operation mappings with 149 terms
+[20:44:08.053] 2025-08-27 20:44:08,052 - mcp_embedding_manager - INFO - Loading embedding cache from .mcp_embedding_cache/embedding_cache.pkl (size: 173790244 bytes)
+[20:44:08.614] 2025-08-27 20:44:08,614 - mcp_embedding_manager - INFO - Loaded 7050 cached embeddings
+[20:44:59.432] 2025-08-27 20:44:59,403 - mcp_embedding_manager - INFO - [Cache] Loaded 9650 entries from file
+[20:44:59.435] [MCPEmbeddingManager] Singleton created with 0 cached embeddings
+[20:44:59.459] [INFO] Loading embedding index from .mcp_embedding_cache/tool_index.pkl
+[20:44:59.462] [MCPEmbeddingManager] Singleton created with 0 cached embeddings
+[20:44:59.462] [INFO] Loading embedding index from .mcp_embedding_cache/tool_index.pkl
+[20:44:59.464] [MCPEmbeddingManager] Singleton created with 0 cached embeddings
+[20:44:59.465] [INFO] Loading embedding index from .mcp_embedding_cache/tool_index.pkl
+[20:44:59.466] 2025-08-27 20:44:59,465 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[20:44:59.466] 2025-08-27 20:44:59,466 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[20:44:59.466] 2025-08-27 20:44:59,466 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[20:45:11.509] 2025-08-27 20:45:11,475 - mcp_embedding_manager - INFO - FAISS index loaded
+[20:45:11.534] 2025-08-27 20:45:11,392 - mcp_embedding_manager - INFO - FAISS index loaded
+[20:45:11.580] 2025-08-27 20:45:11,512 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[20:45:11.630] 2025-08-27 20:45:11,559 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[20:45:11.663] 2025-08-27 20:45:11,585 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[20:45:12.937] [SUCCESS] Loaded 30 tool embeddings
+[20:45:12.961] 2025-08-27 20:45:11,639 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[20:45:14.071] [SUCCESS] Loaded 30 tool embeddings
+[20:45:14.075] 2025-08-27 20:45:12,958 - mdp_workflow_generator - INFO - Embedding index loaded successfully
+[20:45:14.092] [SUCCESS] Embedding manager initialized with 30 tools2025-08-27 20:45:14,066 - mdp_workflow_generator - INFO - Embedding index loaded successfully
+[20:45:14.096] [SUCCESS] Embedding manager initialized with 30 tools
+[20:45:14.111] 
+[20:45:14.116] [INFO] Initialized task types: ['simple_task', 'data_pipeline', 'api_integration', 'basic_task', 'multi_stage_pipeline'][INFO] Initialized task types: ['simple_task', 'data_pipeline', 'api_integration', 'basic_task', 'multi_stage_pipeline']
+[20:45:14.116] [INFO] Loading full MCP protocol registry...
+[20:45:14.118] 
+[20:45:14.119] [INFO] Loading full MCP protocol registry...
+[20:45:14.223] 2025-08-27 20:45:14,218 - mcp_embedding_manager - INFO - FAISS index loaded
+[20:45:14.476] 2025-08-27 20:45:14,223 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[20:45:14.477] 2025-08-27 20:45:14,225 - mdp_workflow_generator - INFO - Loaded full tool registry from mcp_generated_library/tool_registry_consolidated.json
+[20:45:14.477] [INFO] Loaded full tool registry with 30 tools
+[20:45:14.479] 2025-08-27 20:45:14,476 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[20:45:15.882] [SUCCESS] Loaded 30 tool embeddings
+[20:45:15.919] 2025-08-27 20:45:14,476 - mdp_workflow_generator - INFO - Loaded full tool registry from mcp_generated_library/tool_registry_consolidated.json
+[20:45:15.929] 2025-08-27 20:45:14,479 - mdp_workflow_generator - INFO - Loading tools from mcp_generated_library/tool_registry_consolidated.json
+[20:45:15.932] [INFO] Loading tools from mcp_generated_library/tool_registry_consolidated.json
+[20:45:15.938] 2025-08-27 20:45:15,882 - mdp_workflow_generator - INFO - Embedding index loaded successfully
+[20:45:15.938] [SUCCESS] Embedding manager initialized with 30 tools
+[20:45:15.941] [INFO] Initialized task types: ['simple_task', 'data_pipeline', 'api_integration', 'basic_task', 'multi_stage_pipeline']
+[20:45:15.942] [INFO] Loading full MCP protocol registry...
+[20:45:15.977] [INFO] Loaded full tool registry with 30 tools
+[20:45:15.988] 2025-08-27 20:45:15,978 - mdp_workflow_generator - INFO - Loading tools from mcp_generated_library/tool_registry_consolidated.json
+[20:45:15.993] [INFO] Loading tools from mcp_generated_library/tool_registry_consolidated.json
+[20:45:16.162] [INFO] Embedding manager ready with 30 tools[INFO] Embedding manager ready with 30 tools
+[20:45:16.162] [WARNING] Embedding manager exists but has no embeddings
+[20:45:16.162] [INFO] Consider rebuilding index with: embedding_manager.build_index(tools_path)
+[20:45:16.180] 
+[20:45:16.182] 2025-08-27 20:45:16,182 - mdp_workflow_generator - INFO - Loaded full tool registry from mcp_generated_library/tool_registry_consolidated.json
+[20:45:16.182] [WARNING] Embedding manager exists but has no embeddings
+[20:45:16.182] [INFO] Consider rebuilding index with: embedding_manager.build_index(tools_path)
+[20:45:16.235] [INFO] Loaded full tool registry with 30 tools
+[20:45:16.235] 2025-08-27 20:45:16,235 - mdp_workflow_generator - INFO - Loading tools from mcp_generated_library/tool_registry_consolidated.json
+[20:45:16.235] [INFO] Loading tools from mcp_generated_library/tool_registry_consolidated.json
+[20:45:16.269] [INFO] Embedding manager ready with 30 tools
+[20:45:16.269] [WARNING] Embedding manager exists but has no embeddings
+[20:45:16.269] [INFO] Consider rebuilding index with: embedding_manager.build_index(tools_path)
+[20:45:16.286] [INFO] Tool file_operations_reader: semantic operations = ['read', 'write', 'parse', 'transform']
+[20:45:16.301] [INFO] Tool file_operations_reader: semantic operations = ['read', 'write', 'parse', 'transform'][INFO] Tool file_operations_reader: semantic operations = ['read', 'write', 'parse', 'transform']
+[20:45:16.306] 
+[20:45:16.307] [INFO] Tool file_operations_scanner: semantic operations = ['read', 'write', 'parse', 'transform']
+[20:45:16.308] [INFO] Tool network_fetcher: semantic operations = ['read', 'write', 'validate', 'integrate']
+[20:45:16.308] [INFO] Tool file_operations_scanner: semantic operations = ['read', 'write', 'parse', 'transform']
+[20:45:16.308] [INFO] Tool file_operations_scanner: semantic operations = ['read', 'write', 'parse', 'transform']
+[20:45:16.309] [INFO] Tool integration_authenticator: semantic operations = ['integrate', 'transform', 'validate']
+[20:45:16.311] [INFO] Tool utility_logger: semantic operations = ['cache', 'process']
+[20:45:16.313] [INFO] Tool network_fetcher: semantic operations = ['read', 'write', 'validate', 'integrate']
+[20:45:16.316] [INFO] Tool network_fetcher: semantic operations = ['read', 'write', 'validate', 'integrate'][INFO] Tool data_processing_parser: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[20:45:16.317] 
+[20:45:16.320] [INFO] Tool integration_authenticator: semantic operations = ['integrate', 'transform', 'validate']
+[20:45:16.320] [INFO] Tool utility_logger: semantic operations = ['cache', 'process']
+[20:45:16.320] [INFO] Tool data_processing_transformer: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[20:45:16.320] [INFO] Tool data_processing_validator: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[20:45:16.325] [INFO] Tool integration_authenticator: semantic operations = ['integrate', 'transform', 'validate']
+[20:45:16.325] [INFO] Tool network_validator: semantic operations = ['read', 'write', 'validate', 'integrate']
+[20:45:16.325] [INFO] Tool data_processing_parser: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[20:45:16.330] [INFO] Tool utility_logger: semantic operations = ['cache', 'process']
+[20:45:16.330] [INFO] Tool data_processing_parser: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[20:45:16.330] [INFO] Tool data_processing_transformer: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[20:45:16.330] [INFO] Tool data_processing_transformer: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[20:45:16.330] [INFO] Tool data_processing_validator: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[20:45:16.330] [INFO] Tool computation_calculator: semantic operations = ['compute', 'aggregate', 'transform'][INFO] Tool network_validator: semantic operations = ['read', 'write', 'validate', 'integrate']
+[20:45:16.330] 
+[20:45:16.333] [INFO] Tool data_processing_filter: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[20:45:16.333] [INFO] Tool data_processing_validator: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[20:45:16.333] [INFO] Tool network_validator: semantic operations = ['read', 'write', 'validate', 'integrate']
+[20:45:16.333] [INFO] Tool computation_calculator: semantic operations = ['compute', 'aggregate', 'transform']
+[20:45:16.335] [INFO] Tool data_processing_filter: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[20:45:16.337] [INFO] Tool computation_calculator: semantic operations = ['compute', 'aggregate', 'transform']
+[20:45:16.339] [INFO] Tool data_processing_aggregator: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[20:45:16.339] [INFO] Tool data_processing_aggregator: semantic operations = ['validate', 'transform', 'filter', 'aggregate'][INFO] Tool data_processing_filter: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[20:45:16.339] 
+[20:45:16.339] [INFO] Tool file_operations_converter: semantic operations = ['read', 'write', 'parse', 'transform']
+[20:45:16.339] [INFO] Tool file_operations_compressor: semantic operations = ['read', 'write', 'parse', 'transform']
+[20:45:16.339] [INFO] Tool file_operations_writer: semantic operations = ['read', 'write', 'parse', 'transform']
+[20:45:16.341] [INFO] Tool file_operations_converter: semantic operations = ['read', 'write', 'parse', 'transform']
+[20:45:16.341] [INFO] Tool network_poster: semantic operations = ['read', 'write', 'validate', 'integrate']
+[20:45:16.341] [INFO] Tool data_processing_aggregator: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[20:45:16.343] [INFO] Tool file_operations_compressor: semantic operations = ['read', 'write', 'parse', 'transform']
+[20:45:16.344] [INFO] Tool file_operations_writer: semantic operations = ['read', 'write', 'parse', 'transform'][INFO] Tool network_monitor: semantic operations = ['read', 'write', 'validate', 'integrate']
+[20:45:16.344] 
+[20:45:16.344] [INFO] Tool network_poster: semantic operations = ['read', 'write', 'validate', 'integrate']
+[20:45:16.346] [INFO] Tool file_operations_converter: semantic operations = ['read', 'write', 'parse', 'transform']
+[20:45:16.346] [INFO] Tool file_operations_compressor: semantic operations = ['read', 'write', 'parse', 'transform'][INFO] Tool network_router: semantic operations = ['read', 'write', 'validate', 'integrate']
+[20:45:16.346] 
+[20:45:16.346] [INFO] Tool computation_predictor: semantic operations = ['compute', 'aggregate', 'transform']
+[20:45:16.348] [INFO] Tool file_operations_writer: semantic operations = ['read', 'write', 'parse', 'transform']
+[20:45:16.349] [INFO] Tool network_poster: semantic operations = ['read', 'write', 'validate', 'integrate']
+[20:45:16.349] [INFO] Tool network_monitor: semantic operations = ['read', 'write', 'validate', 'integrate']
+[20:45:16.349] [INFO] Tool computation_analyzer: semantic operations = ['compute', 'aggregate', 'transform']
+[20:45:16.349] [INFO] Tool network_router: semantic operations = ['read', 'write', 'validate', 'integrate']
+[20:45:16.349] [INFO] Tool computation_predictor: semantic operations = ['compute', 'aggregate', 'transform']
+[20:45:16.351] [INFO] Tool computation_analyzer: semantic operations = ['compute', 'aggregate', 'transform']
+[20:45:16.351] [INFO] Tool computation_simulator: semantic operations = ['compute', 'aggregate', 'transform']
+[20:45:16.351] [INFO] Tool network_monitor: semantic operations = ['read', 'write', 'validate', 'integrate']
+[20:45:16.352] [INFO] Tool network_router: semantic operations = ['read', 'write', 'validate', 'integrate']
+[20:45:16.355] [INFO] Tool computation_predictor: semantic operations = ['compute', 'aggregate', 'transform']
+[20:45:16.357] [INFO] Tool computation_simulator: semantic operations = ['compute', 'aggregate', 'transform']
+[20:45:16.358] [INFO] Tool computation_optimizer: semantic operations = ['compute', 'aggregate', 'transform']
+[20:45:16.359] [INFO] Tool integration_mapper: semantic operations = ['integrate', 'transform', 'validate']
+[20:45:16.359] [INFO] Tool integration_queue: semantic operations = ['integrate', 'transform', 'validate']
+[20:45:16.359] [INFO] Tool computation_analyzer: semantic operations = ['compute', 'aggregate', 'transform']
+[20:45:16.359] [INFO] Tool computation_optimizer: semantic operations = ['compute', 'aggregate', 'transform']
+[20:45:16.360] [INFO] Tool integration_scheduler: semantic operations = ['integrate', 'transform', 'validate']
+[20:45:16.360] [INFO] Tool integration_mapper: semantic operations = ['integrate', 'transform', 'validate']
+[20:45:16.360] [INFO] Tool integration_queue: semantic operations = ['integrate', 'transform', 'validate']
+[20:45:16.360] [INFO] Tool integration_connector: semantic operations = ['integrate', 'transform', 'validate']
+[20:45:16.360] [INFO] Tool computation_simulator: semantic operations = ['compute', 'aggregate', 'transform']
+[20:45:16.361] [INFO] Tool utility_cache: semantic operations = ['cache', 'process']
+[20:45:16.362] [INFO] Tool utility_tracker: semantic operations = ['cache', 'process']
+[20:45:16.364] [INFO] Tool integration_scheduler: semantic operations = ['integrate', 'transform', 'validate']
+[20:45:16.364] [INFO] Tool computation_optimizer: semantic operations = ['compute', 'aggregate', 'transform']
+[20:45:16.366] [INFO] Tool utility_helper: semantic operations = ['cache', 'process']
+[20:45:16.367] [INFO] Tool utility_notifier: semantic operations = ['cache', 'process']
+[20:45:16.369] 2025-08-27 20:45:16,369 - mdp_workflow_generator - INFO - Loaded 30 tools
+[20:45:16.379] [INFO] Tool integration_mapper: semantic operations = ['integrate', 'transform', 'validate']
+[20:45:16.381] [INFO] Tool integration_queue: semantic operations = ['integrate', 'transform', 'validate'][INFO] Tool integration_connector: semantic operations = ['integrate', 'transform', 'validate']
+[20:45:16.381] 
+[20:45:16.383] [INFO] Setting default state_dim based on loaded tools
+[20:45:16.386] [INFO] state_dim set to 345 (tools=30, base=340, task_types=5)
+[20:45:16.389] 2025-08-27 20:45:16,388 - mdp_workflow_generator - INFO - Default state_dim calculated: 345
+[20:45:16.389] [INFO] Tool integration_scheduler: semantic operations = ['integrate', 'transform', 'validate']
+[20:45:16.389] [INFO] Setting default action_dim based on loaded tools
+[20:45:16.389] [INFO] action_dim set to 31 (tools=30 + NO_OP)
+[20:45:16.389] 2025-08-27 20:45:16,389 - mdp_workflow_generator - INFO - Default action_dim calculated: 31
+[20:45:16.396] [INFO] Tool integration_connector: semantic operations = ['integrate', 'transform', 'validate']
+[20:45:16.399] [INFO] ⚡ SKIP_MODEL_LOADING=true - Skipping neural network model loading
+[20:45:16.399] [INFO] ⚡ Memory optimization: Saving ~350MB by not loading model
+[20:45:16.399] [INFO] ⚡ Will use pre-generated workflows or random policy
+[20:45:16.399] 2025-08-27 20:45:16,399 - mdp_workflow_generator - INFO - Model loading skipped for memory optimization (SKIP_MODEL_LOADING=true)
+[20:45:16.399] [INFO] Initializing TaskManager...
+[20:45:16.399] [INFO] Tool utility_cache: semantic operations = ['cache', 'process']
+[20:45:16.400] [INFO] Tool utility_tracker: semantic operations = ['cache', 'process']
+[20:45:16.400] [INFO] Tool utility_cache: semantic operations = ['cache', 'process']
+[20:45:16.414] [INFO] Tool utility_tracker: semantic operations = ['cache', 'process']
+[20:45:16.414] [INFO] Tool utility_helper: semantic operations = ['cache', 'process']
+[20:45:16.422] [INFO] Tool utility_helper: semantic operations = ['cache', 'process']
+[20:45:16.438] [INFO] Tool utility_notifier: semantic operations = ['cache', 'process']
+[20:45:16.438] 2025-08-27 20:45:16,438 - mdp_workflow_generator - INFO - Loaded 30 tools
+[20:45:16.440] [INFO] Setting default state_dim based on loaded tools
+[20:45:16.440] [INFO] state_dim set to 345 (tools=30, base=340, task_types=5)
+[20:45:16.441] 2025-08-27 20:45:16,440 - mdp_workflow_generator - INFO - Default state_dim calculated: 345
+[20:45:16.441] [INFO] Setting default action_dim based on loaded tools
+[20:45:16.441] [INFO] Tool utility_notifier: semantic operations = ['cache', 'process']
+[20:45:16.441] 2025-08-27 20:45:16,441 - mdp_workflow_generator - INFO - Loaded 30 tools
+[20:45:16.443] [INFO] Setting default state_dim based on loaded tools
+[20:45:16.444] [INFO] state_dim set to 345 (tools=30, base=340, task_types=5)
+[20:45:16.444] 2025-08-27 20:45:16,444 - mdp_workflow_generator - INFO - Default state_dim calculated: 345
+[20:45:16.444] [INFO] Setting default action_dim based on loaded tools
+[20:45:16.444] [INFO] action_dim set to 31 (tools=30 + NO_OP)[INFO] action_dim set to 31 (tools=30 + NO_OP)
+[20:45:16.444] 2025-08-27 20:45:16,444 - mdp_workflow_generator - INFO - Default action_dim calculated: 31
+[20:45:16.444] 
+[20:45:16.444] [INFO] ⚡ SKIP_MODEL_LOADING=true - Skipping neural network model loading
+[20:45:16.444] [INFO] ⚡ Memory optimization: Saving ~350MB by not loading model
+[20:45:16.444] [INFO] ⚡ Will use pre-generated workflows or random policy2025-08-27 20:45:16,444 - mdp_workflow_generator - INFO - Default action_dim calculated: 31
+[20:45:16.444] [INFO] ⚡ SKIP_MODEL_LOADING=true - Skipping neural network model loading
+[20:45:16.444] [INFO] ⚡ Memory optimization: Saving ~350MB by not loading model
+[20:45:16.444] [INFO] ⚡ Will use pre-generated workflows or random policy
+[20:45:16.444] 2025-08-27 20:45:16,444 - mdp_workflow_generator - INFO - Model loading skipped for memory optimization (SKIP_MODEL_LOADING=true)
+[20:45:16.450] [INFO] Initializing TaskManager...
+[20:45:16.450] 
+[20:45:16.451] 2025-08-27 20:45:16,450 - mdp_workflow_generator - INFO - Model loading skipped for memory optimization (SKIP_MODEL_LOADING=true)
+[20:45:16.451] [INFO] Initializing TaskManager...
+[20:45:40.587] 2025-08-27 20:45:40,558 - unified_training_manager - INFO - Using device: cpu
+[20:45:53.924] 2025-08-27 20:45:53,849 - unified_training_manager - INFO - Task filtering results:
+[20:45:53.940] 2025-08-27 20:45:53,843 - unified_training_manager - INFO - Task filtering results:
+[20:45:53.940] 2025-08-27 20:45:53,839 - unified_training_manager - INFO - Task filtering results:
+[20:45:53.940] 2025-08-27 20:45:53,900 - unified_training_manager - INFO -   Total: 5040 -> 5040
+[20:45:53.942] 2025-08-27 20:45:53,900 - unified_training_manager - INFO -   Total: 5040 -> 5040
+[20:45:53.943] 2025-08-27 20:45:53,901 - unified_training_manager - INFO -   Total: 5040 -> 5040
+[20:45:53.943] 2025-08-27 20:45:53,902 - unified_training_manager - INFO -   simple_task: 320 -> 320
+[20:45:53.943] 2025-08-27 20:45:53,906 - unified_training_manager - INFO -   simple_task: 320 -> 320
+[20:45:53.943] 2025-08-27 20:45:53,906 - unified_training_manager - INFO -   simple_task: 320 -> 320
+[20:45:53.943] 2025-08-27 20:45:53,906 - unified_training_manager - INFO -   data_pipeline: 1520 -> 1520
+[20:45:53.944] 2025-08-27 20:45:53,906 - unified_training_manager - INFO -   data_pipeline: 1520 -> 1520
+[20:45:53.944] 2025-08-27 20:45:53,906 - unified_training_manager - INFO -   data_pipeline: 1520 -> 1520
+[20:45:53.944] 2025-08-27 20:45:53,906 - unified_training_manager - INFO -   api_integration: 1360 -> 1360
+[20:45:53.944] 2025-08-27 20:45:53,906 - unified_training_manager - INFO -   api_integration: 1360 -> 1360
+[20:45:53.944] 2025-08-27 20:45:53,906 - unified_training_manager - INFO -   api_integration: 1360 -> 1360
+[20:45:53.944] 2025-08-27 20:45:53,906 - unified_training_manager - INFO -   basic_task: 1200 -> 1200
+[20:45:53.945] 2025-08-27 20:45:53,906 - unified_training_manager - INFO -   basic_task: 1200 -> 1200
+[20:45:53.945] 2025-08-27 20:45:53,906 - unified_training_manager - INFO -   basic_task: 1200 -> 1200
+[20:45:53.945] 2025-08-27 20:45:53,907 - unified_training_manager - INFO -   multi_stage_pipeline: 640 -> 640
+[20:45:53.945] 2025-08-27 20:45:53,907 - unified_training_manager - INFO -   multi_stage_pipeline: 640 -> 640
+[20:45:53.945] 2025-08-27 20:45:53,907 - unified_training_manager - INFO -   multi_stage_pipeline: 640 -> 640
+[20:45:53.945] 2025-08-27 20:45:53,921 - unified_training_manager - INFO - Loaded 5040 tasks from mcp_generated_library/task_library_all_difficulties.json
+[20:45:53.945] 2025-08-27 20:45:53,920 - unified_training_manager - INFO - Loaded 5040 tasks from mcp_generated_library/task_library_all_difficulties.json
+[20:45:53.945] 2025-08-27 20:45:53,920 - unified_training_manager - INFO - Loaded 5040 tasks from mcp_generated_library/task_library_all_difficulties.json
+[20:45:56.278] 2025-08-27 20:45:56,251 - unified_training_manager - INFO - Organized tasks: 5 types, 3 complexity levels, 5 difficulty levels
+[20:45:56.290] [TaskManager] Difficulty level 'easy': 1096 tasks
+[20:45:56.294] [TaskManager] Difficulty level 'very_easy': 856 tasks
+[20:45:56.295] [TaskManager] Difficulty level 'medium': 1136 tasks
+[20:45:56.297] [TaskManager] Difficulty level 'hard': 1096 tasks
+[20:45:56.297] [TaskManager] Difficulty level 'very_hard': 856 tasks
+[20:45:57.260] [INFO] TaskManager initialized with 5040 tasks
+[20:45:57.262] [INFO] Task types available: ['basic_task', 'data_pipeline', 'multi_stage_pipeline', 'simple_task', 'api_integration']
+[20:45:57.262] [INFO] Initializing ToolCallVerifier...
+[20:45:57.277] 2025-08-27 20:45:56,246 - unified_training_manager - INFO - Organized tasks: 5 types, 3 complexity levels, 5 difficulty levels
+[20:45:57.279] [TaskManager] Difficulty level 'easy': 1096 tasks
+[20:45:57.279] [TaskManager] Difficulty level 'very_easy': 856 tasks
+[20:45:57.279] [TaskManager] Difficulty level 'medium': 1136 tasks
+[20:45:57.279] [TaskManager] Difficulty level 'hard': 1096 tasks
+[20:45:57.282] [TaskManager] Difficulty level 'very_hard': 856 tasks
+[20:45:58.499] 2025-08-27 20:45:57,251 - unified_training_manager - INFO - Organized tasks: 5 types, 3 complexity levels, 5 difficulty levels
+[20:45:58.510] [INFO] TaskManager initialized with 5040 tasks
+[20:45:58.510] [INFO] Task types available: ['basic_task', 'data_pipeline', 'multi_stage_pipeline', 'simple_task', 'api_integration']
+[20:45:58.510] [INFO] Initializing ToolCallVerifier...
+[20:45:58.549] [TaskManager] Difficulty level 'easy': 1096 tasks
+[20:45:58.560] [TaskManager] Difficulty level 'very_easy': 856 tasks
+[20:45:58.560] [TaskManager] Difficulty level 'medium': 1136 tasks
+[20:45:58.560] [TaskManager] Difficulty level 'hard': 1096 tasks
+[20:45:58.560] [TaskManager] Difficulty level 'very_hard': 856 tasks
+[20:45:59.470] [INFO] TaskManager initialized with 5040 tasks
+[20:45:59.479] [INFO] Task types available: ['basic_task', 'data_pipeline', 'multi_stage_pipeline', 'simple_task', 'api_integration']
+[20:45:59.479] [INFO] Initializing ToolCallVerifier...
+[20:45:59.748] [INFO] ToolCallVerifier initialized with 30 tools[INFO] ToolCallVerifier initialized with 30 tools
+[20:45:59.748] [INFO] Output tools identified: 1
+[20:45:59.748] [INFO] Component initialization status:
+[20:45:59.748]   - embedding_manager: initialized
+[20:45:59.748]   - task_manager: initialized
+[20:45:59.748]   - output_verifier: initialized
+[20:45:59.748]   - tool_capability_manager: initialized
+[20:45:59.748]   - tool_success_rates: initialized with 0 entries
+[20:45:59.748] [INFO] MDPWorkflowGenerator initialization complete
+[20:45:59.756] [INFO] ToolCallVerifier initialized with 30 tools
+[20:45:59.756] [INFO] Output tools identified: 1
+[20:45:59.756] [INFO] Component initialization status:
+[20:45:59.757]   - embedding_manager: initialized
+[20:45:59.757]   - task_manager: initialized
+[20:45:59.758]   - output_verifier: initialized
+[20:45:59.759]   - tool_capability_manager: initialized
+[20:45:59.759]   - tool_success_rates: initialized with 0 entries
+[20:45:59.760] [INFO] MDPWorkflowGenerator initialization complete
+[20:45:59.760] 
+[20:45:59.760] [INFO] Output tools identified: 1
+[20:45:59.760] [INFO] Component initialization status:
+[20:45:59.760]   - embedding_manager: initialized
+[20:45:59.760]   - task_manager: initialized
+[20:45:59.760]   - output_verifier: initialized
+[20:45:59.824]   - tool_capability_manager: initialized
+[20:45:59.824]   - tool_success_rates: initialized with 0 entries
+[20:45:59.824] [INFO] MDPWorkflowGenerator initialization complete
+[20:45:59.824] 2025-08-27 20:45:59,750 - mdp_workflow_generator - INFO - MDPWorkflowGenerator initialized successfully
+[20:45:59.824] 2025-08-27 20:45:59,757 - mdp_workflow_generator - INFO - MDPWorkflowGenerator initialized successfully
+[20:45:59.824] 2025-08-27 20:45:59,758 - mdp_workflow_generator - INFO - MDPWorkflowGenerator initialized successfully
+[20:45:59.909] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140491955516288)
+[20:45:59.923] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[20:45:59.933] [FlawedWorkflowGenerator] Initialized with 30 tools[MCPEmbeddingManager] Reusing existing singleton instance (id: 140491955516288)
+[20:45:59.933] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[20:45:59.935] [FlawedWorkflowGenerator] Initialized with 30 tools
+[20:45:59.935] 
+[20:45:59.935] [FlawedWorkflowGenerator] RAG support: disabled
+[20:45:59.935] [FlawedWorkflowGenerator] RAG support: disabled
+[20:45:59.967] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140491955516288)
+[20:45:59.968] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[20:45:59.971] [FlawedWorkflowGenerator] Initialized with 30 tools
+[20:46:00.004] [FlawedWorkflowGenerator] RAG support: disabled
+[20:46:01.868] 2025-08-27 20:46:01,839 - focused_ai_classifier - INFO - Focused AI classifier initialized with gpt-5-nano (parameter-filtered)
+[20:46:01.875] [INFO] Enhanced manager: AI错误分类系统已启用
+[20:46:01.881] 2025-08-27 20:46:01,845 - focused_ai_classifier - INFO - Focused AI classifier initialized with gpt-5-nano (parameter-filtered)
+[20:46:01.881] [INFO] Enhanced manager: AI错误分类系统已启用
+[20:46:01.881] 2025-08-27 20:46:01,859 - focused_ai_classifier - INFO - Focused AI classifier initialized with gpt-5-nano (parameter-filtered)
+[20:46:01.881] [INFO] Enhanced manager: AI错误分类系统已启用
+[20:46:01.900] [INFO] 检测到并发环境，使用安全存储模式（ResultCollector）[INFO] 检测到并发环境，使用安全存储模式（ResultCollector）
+[20:46:01.905] 
+[20:46:01.909] [INFO] 检测到并发环境，使用安全存储模式（ResultCollector）

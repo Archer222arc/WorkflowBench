@@ -3734,7 +3734,8 @@ class WorkflowQualityTester:
         # 3. 执行成功率（如果有执行历史）
         execution_success_rate = 1.0
         if execution_history:
-            successful_executions = sum(1 for ex in execution_history if ex.success)
+            # 处理dict或object
+            successful_executions = sum(1 for ex in execution_history if (ex.get('success', False) if isinstance(ex, dict) else ex.success))
             execution_success_rate = successful_executions / len(execution_history) if execution_history else 0.0
         
         # 4. 完全匹配奖励

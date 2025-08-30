@@ -62,16 +62,24 @@ class DebugUltraParallelRunner:
         # 构建命令（从原始execute_shard_async复制的逻辑）
         prompt_count = len(shard.prompt_types.split(','))
         
-        # 根据模型类型和配置调整参数（简化版）
-        if max_workers is None:
-            if rate_mode == "fixed":
-                max_workers = 30
-            else:
-                max_workers = 50
+        # 根据模型类型和配置调整参数
+        # 判断是否是IdealLab模型（qwen或闭源模型）
+        is_ideallab = ("qwen" in shard.model.lower() or 
+                      any(m in shard.model.lower() for m in ["o3", "gemini", "kimi"]))
         
-        # 多个prompt时调整workers
-        if prompt_count > 1:
-            max_workers = max_workers * prompt_count
+        if is_ideallab:
+            # 所有IdealLab模型严格限制为1个worker，不管有多少prompts
+            max_workers = 1
+            logger.info(f"  IdealLab模型 {shard.model} 强制 max_workers=1（严格限流）")
+        elif max_workers is None:
+            # Azure模型可以根据prompt数量调整
+            if rate_mode == "fixed":
+                base_workers = 30
+            else:
+                base_workers = 50
+            # 只有Azure模型才根据prompt数量调整workers
+            max_workers = base_workers * prompt_count if prompt_count > 1 else base_workers
+            logger.info(f"  Azure模型 {shard.model}: {prompt_count}个prompt × {base_workers} = {max_workers} workers")
         
         # 构建命令
         cmd = [
@@ -95,9 +103,14 @@ class DebugUltraParallelRunner:
         # if silent:
         #     cmd.append("--silent")
         
-        # 根据rate_mode添加参数
+        # 根据rate_mode和模型类型添加参数
         if rate_mode == "fixed":
-            cmd.extend(["--no-adaptive", "--qps", "50"])
+            # IdealLab模型（qwen和闭源）需要QPS限制
+            if is_ideallab:
+                cmd.extend(["--no-adaptive", "--qps", "10"])  # qwen和IdealLab闭源限制QPS为10
+            else:
+                # Azure模型不限制QPS
+                cmd.append("--no-adaptive")  # Azure只设置固定模式，不限制QPS
         else:
             cmd.append("--adaptive")
         
@@ -195,7 +208,32 @@ class DebugUltraParallelRunner:
                 line_count = 0
                 last_activity = time.time()
                 
+                # 添加总体超时控制：3小时
+                MAX_RUNTIME_SECONDS = 3 * 3600  # 3小时
+                NO_OUTPUT_TIMEOUT = 150  # 150秒没有新输出就认为卡住
+                
                 while True:
+                    # 检查总运行时间
+                    elapsed = time.time() - start_time
+                    if elapsed > MAX_RUNTIME_SECONDS:
+                        logger.error(f"[TIMEOUT] 分片 {shard.shard_id} 运行超过3小时，强制终止")
+                        log_file.write(f"\n[ERROR] 超过最大运行时间 {MAX_RUNTIME_SECONDS}秒，强制终止\n")
+                        process.terminate()
+                        time.sleep(2)
+                        if process.poll() is None:
+                            process.kill()
+                        break
+                    
+                    # 检查是否长时间没有输出
+                    if time.time() - last_activity > NO_OUTPUT_TIMEOUT:
+                        logger.error(f"[HANG] 分片 {shard.shard_id} 超过{NO_OUTPUT_TIMEOUT}秒无输出，可能卡住")
+                        log_file.write(f"\n[ERROR] {NO_OUTPUT_TIMEOUT}秒无新输出，进程可能卡住，强制终止\n")
+                        process.terminate()
+                        time.sleep(2)
+                        if process.poll() is None:
+                            process.kill()
+                        break
+                    
                     line = process.stdout.readline()
                     if not line:
                         # 检查进程是否结束
@@ -205,7 +243,6 @@ class DebugUltraParallelRunner:
                         if time.time() - last_activity > 10:
                             log_file.write(f"\n[{datetime.now().isoformat()}] 等待输出中...\n")
                             log_file.flush()
-                            last_activity = time.time()
                         time.sleep(0.1)
                         continue
                     
@@ -336,7 +373,7 @@ def main():
     parser.add_argument('--difficulty', type=str, default='easy', help='难度')
     parser.add_argument('--task-types', type=str, default='all', help='任务类型')
     parser.add_argument('--num-instances', type=int, default=20, help='实例数量')
-    parser.add_argument('--max-workers', type=int, default=5, help='最大工作进程数')
+    parser.add_argument('--max-workers', type=int, default=None, help='最大工作进程数')
     parser.add_argument('--tool-success-rate', type=float, default=0.8, help='工具成功率')
     parser.add_argument('--rate-mode', type=str, default='adaptive', help='速率模式')
     parser.add_argument('--silent', action='store_true', help='静默模式')

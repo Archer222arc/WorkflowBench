@@ -1,0 +1,1406 @@
+===== 分片 qwen2.5-72b-instruct_easy_operation_defects_key1 =====
+时间: 2025-08-27T23:46:05.900298
+模型: qwen2.5-72b-instruct
+实例: qwen-key1
+命令: python -u smart_batch_runner.py --model qwen2.5-72b-instruct --deployment qwen-key1 --prompt-types flawed_missing_step,flawed_redundant_operations --difficulty easy --task-types all --num-instances 20 --max-workers 2 --tool-success-rate 0.8 --batch-commit --checkpoint-interval 20 --ai-classification --no-adaptive --qps 50 --prompt-parallel
+环境变量:
+  STORAGE_FORMAT=json
+  PYTHONFAULTHANDLER=1
+  PYTHONUNBUFFERED=1
+==================================================
+
+[23:46:07.611] 
+[23:46:07.612] A module that was compiled using NumPy 1.x cannot be run in
+[23:46:07.612] NumPy 2.2.6 as it may crash. To support both 1.x and 2.x
+[23:46:07.613] versions of NumPy, modules must be compiled with NumPy 2.0.
+[23:46:07.613] Some module may need to rebuild instead e.g. with 'pybind11>=2.12'.
+[23:46:07.613] 
+[23:46:07.613] If you are a user of the module, the easiest solution will be to
+[23:46:07.613] downgrade to 'numpy<2' or try to upgrade the affected module.
+[23:46:07.613] We expect that some modules will need time to support NumPy 2.
+[23:46:07.613] 
+[23:46:07.613] Traceback (most recent call last):  File "/Users/ruicheng/Documents/GitHub/WorkflowBench/smart_batch_runner.py", line 21, in <module>
+[23:46:07.613]     from batch_test_runner import BatchTestRunner, TestTask
+[23:46:07.613]   File "/Users/ruicheng/Documents/GitHub/WorkflowBench/batch_test_runner.py", line 26, in <module>
+[23:46:07.613]     from mdp_workflow_generator import MDPWorkflowGenerator
+[23:46:07.613]   File "/Users/ruicheng/Documents/GitHub/WorkflowBench/mdp_workflow_generator.py", line 17, in <module>
+[23:46:07.613]     import torch
+[23:46:07.613]   File "/Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/__init__.py", line 1477, in <module>
+[23:46:07.613]     from .functional import *  # noqa: F403
+[23:46:07.613]   File "/Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/functional.py", line 9, in <module>
+[23:46:07.613]     import torch.nn.functional as F
+[23:46:07.613]   File "/Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/nn/__init__.py", line 1, in <module>
+[23:46:07.613]     from .modules import *  # noqa: F403
+[23:46:07.613]   File "/Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/nn/modules/__init__.py", line 35, in <module>
+[23:46:07.613]     from .transformer import TransformerEncoder, TransformerDecoder, \
+[23:46:07.613]   File "/Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/nn/modules/transformer.py", line 20, in <module>
+[23:46:07.613]     device: torch.device = torch.device(torch._C._get_default_device()),  # torch.device('cpu'),
+[23:46:07.613] /Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/nn/modules/transformer.py:20: UserWarning: Failed to initialize NumPy: _ARRAY_API not found (Triggered internally at /Users/runner/work/pytorch/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:84.)
+[23:46:07.613]   device: torch.device = torch.device(torch._C._get_default_device()),  # torch.device('cpu'),
+[23:46:08.364] 2025-08-27 23:46:08,363 - faiss.loader - INFO - Loading faiss.
+[23:46:08.402] 2025-08-27 23:46:08,401 - faiss.loader - INFO - Successfully loaded faiss.
+[23:46:08.991] [INFO] 使用JSON存储格式
+[23:46:08.991] [INFO] 使用JSON存储格式
+[23:46:09.401] [INFO] 使用JSON存储格式
+[23:46:09.403] [INFO] 使用JSON存储格式
+[23:46:09.404] 
+[23:46:09.404] ============================================================
+[23:46:09.404] 智能批测试: qwen2.5-72b-instruct (idealab)
+[23:46:09.404] Prompt types: ['flawed_missing_step', 'flawed_redundant_operations']
+[23:46:09.404] 难度: easy
+[23:46:09.404] 目标: 每种配置 20 个实例
+[23:46:09.404] 策略: 2个prompt types使用不同API keys并行
+[23:46:09.404] ============================================================
+[23:46:09.426] 
+[23:46:09.426] 总计: 200 个测试任务
+[23:46:09.426]   flawed_missing_step: 100 个任务
+[23:46:09.426]   flawed_redundant_operations: 100 个任务
+[23:46:09.426] 
+[23:46:09.426] 📦 IdealLab并行策略：
+[23:46:09.426]   flawed_missing_step → 轮询使用3个keys
+[23:46:09.426]   flawed_redundant_operations → 轮询使用3个keys
+[23:46:09.426] 
+[23:46:09.426] ⚡ 启动2个并行任务...
+[23:46:09.428] 2025-08-27 23:46:09,428 - smart_model_router - INFO - ✨ Using USER's Azure endpoint for gpt-5-nano
+[23:46:09.464] 2025-08-27 23:46:09,464 - txt_based_ai_classifier - INFO - TXT-based AI classifier initialized with gpt-5-nano (parameter-filtered)
+[23:46:09.464] [AI_DEBUG] AI分类器初始化成功: <txt_based_ai_classifier.TxtBasedAIClassifier object at 0x7fe946ffb2f0>
+[23:46:09.465] 2025-08-27 23:46:09,464 - batch_test_runner - INFO - 基于TXT文件的AI错误分类系统已启用 (使用gpt-5-nano)
+[23:46:09.465] [DEBUG] BatchTestRunner initialized with save_logs=True, enable_database_updates=True, use_ai_classification=True, checkpoint_interval=0
+[23:46:09.465] 2025-08-27 23:46:09,465 - txt_based_ai_classifier - INFO - TXT-based AI classifier initialized with gpt-5-nano (parameter-filtered)
+[23:46:09.465] [AI_DEBUG] AI分类器初始化成功: <txt_based_ai_classifier.TxtBasedAIClassifier object at 0x7fe9477f3240>
+[23:46:09.465] 2025-08-27 23:46:09,465 - batch_test_runner - INFO - 基于TXT文件的AI错误分类系统已启用 (使用gpt-5-nano)
+[23:46:09.465] [DEBUG] BatchTestRunner initialized with save_logs=True, enable_database_updates=True, use_ai_classification=True, checkpoint_interval=0
+[23:46:13.308] [DEBUG] Creating new ToolCapabilityManager instance
+[23:46:13.309] [OperationEmbeddingIndex] Initializing with unified API client manager
+[23:46:13.309] ['config/config.json', 'config/api_keys.json', 'config/api-keys.json']
+[23:46:13.309] [DEBUG] Creating new ToolCapabilityManager instance
+[23:46:13.309] [OperationEmbeddingIndex] Initializing with unified API client manager
+[23:46:13.309] ['config/config.json', 'config/api_keys.json', 'config/api-keys.json']
+[23:46:13.309] 2025-08-27 23:46:13,308 - api_client_manager - INFO - Loaded configuration from config/config.json
+[23:46:13.311] 2025-08-27 23:46:13,311 - api_client_manager - INFO - Loaded configuration from config/config.json
+[23:46:13.325] [OperationEmbeddingIndex] OpenAI client initialized with model: gpt-4o-mini[OperationEmbeddingIndex] OpenAI client initialized with model: gpt-4o-mini
+[23:46:13.325] 
+[23:46:13.325] [OperationEmbeddingIndex] Using embedding model: text-embedding-3-large
+[23:46:13.325] [OperationEmbeddingIndex] Detecting actual embedding dimension...
+[23:46:13.325] [OperationEmbeddingIndex] Using embedding model: text-embedding-3-large
+[23:46:13.325] [OperationEmbeddingIndex] Detecting actual embedding dimension...
+[23:46:13.859] 2025-08-27 23:46:13,858 - httpx - INFO - HTTP Request: POST https://archer222arc.openai.azure.com/openai/deployments/text-embedding-3-large/embeddings?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[23:46:13.860] 2025-08-27 23:46:13,859 - httpx - INFO - HTTP Request: POST https://archer222arc.openai.azure.com/openai/deployments/text-embedding-3-large/embeddings?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[23:46:13.923] [OperationEmbeddingIndex] Detected embedding dimension: 3072
+[23:46:13.923] [OperationEmbeddingIndex] Detected embedding dimension: 3072
+[23:46:14.143] [INFO] Loaded 4150 embeddings from persistent cache
+[23:46:14.144] [OperationEmbeddingIndex] Initialized with 4150 cached embeddings
+[23:46:14.144] [INFO] Loaded 15 LLM-enhanced operation definitions from cache
+[23:46:14.145] [INFO] Found cached operation index at .mcp_operation_cache/operation_index.pkl
+[23:46:14.145] [INFO] Loading operation index from .mcp_operation_cache/operation_index.pkl
+[23:46:14.153] [INFO] Successfully loaded FAISS index with dimension 3072
+[23:46:14.153] [INFO] Operation index loaded successfully from .mcp_operation_cache/operation_index.pkl
+[23:46:14.153] [INFO] Loaded 15 operations with dimension 3072
+[23:46:14.153] [INFO] Successfully loaded cached index
+[23:46:14.153] [INFO] Operation semantic index initialized
+[23:46:14.154] [INFO] Using device: cpu
+[23:46:14.157] [INFO] Initialized tool success tracking attributes
+[23:46:14.157] [INFO] Initializing embedding manager for enhanced tool selection
+[23:46:14.157] [MCPEmbeddingManager] Creating new singleton instance
+[23:46:14.158] [MCPEmbeddingManager] Initializing with unified API client manager
+[23:46:14.179] [MCPEmbeddingManager] Using embedding model: text-embedding-3-large
+[23:46:14.181] [MCPEmbeddingManager] Client initialized successfully
+[23:46:14.181] 2025-08-27 23:46:14,180 - mcp_embedding_manager - INFO - Loading embedding cache from .mcp_embedding_cache/embedding_cache.pkl (size: 173790244 bytes)
+[23:46:14.222] [INFO] Loaded 4150 embeddings from persistent cache
+[23:46:14.222] [OperationEmbeddingIndex] Initialized with 4150 cached embeddings
+[23:46:14.222] [INFO] Loaded 15 LLM-enhanced operation definitions from cache
+[23:46:14.227] [INFO] Found cached operation index at .mcp_operation_cache/operation_index.pkl
+[23:46:14.227] [INFO] Loading operation index from .mcp_operation_cache/operation_index.pkl
+[23:46:14.229] [INFO] Successfully loaded FAISS index with dimension 3072
+[23:46:14.229] [INFO] Operation index loaded successfully from .mcp_operation_cache/operation_index.pkl
+[23:46:14.229] [INFO] Loaded 15 operations with dimension 3072
+[23:46:14.230] [INFO] Successfully loaded cached index
+[23:46:14.230] [INFO] Operation semantic index initialized
+[23:46:14.231] [INFO] Using device: cpu
+[23:46:14.235] [INFO] Initialized tool success tracking attributes
+[23:46:14.235] [INFO] Initializing embedding manager for enhanced tool selection
+[23:46:14.235] [MCPEmbeddingManager] Creating new singleton instance
+[23:46:14.418] 2025-08-27 23:46:14,417 - mcp_embedding_manager - INFO - Loaded 7050 cached embeddings
+[23:46:16.647] 2025-08-27 23:46:16,647 - mcp_embedding_manager - INFO - Loaded search cache with 3 entries
+[23:46:16.707] 2025-08-27 23:46:16,647 - mcp_embedding_manager - INFO - Initialized operation mappings with 149 terms
+[23:46:16.770] 2025-08-27 23:46:16,770 - mcp_embedding_manager - INFO - Loading embedding cache from .mcp_embedding_cache/embedding_cache.pkl (size: 173790244 bytes)
+[23:46:16.948] 2025-08-27 23:46:16,945 - mcp_embedding_manager - INFO - Loaded 7050 cached embeddings
+[23:46:22.906] 2025-08-27 23:46:22,901 - mcp_embedding_manager - INFO - [Cache] Loaded 9650 entries from file
+[23:46:22.909] [MCPEmbeddingManager] Singleton created with 0 cached embeddings
+[23:46:22.909] [INFO] Loading embedding index from .mcp_embedding_cache/tool_index.pkl
+[23:46:22.909] 2025-08-27 23:46:22,905 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[23:46:22.909] [MCPEmbeddingManager] Singleton created with 0 cached embeddings
+[23:46:22.909] [INFO] Loading embedding index from .mcp_embedding_cache/tool_index.pkl
+[23:46:22.909] 2025-08-27 23:46:22,905 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[23:46:23.164] 2025-08-27 23:46:23,164 - mcp_embedding_manager - INFO - FAISS index loaded
+[23:46:23.165] 2025-08-27 23:46:23,164 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[23:46:23.165] 2025-08-27 23:46:23,164 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[23:46:23.195] [SUCCESS] Loaded 30 tool embeddings
+[23:46:23.212] 2025-08-27 23:46:23,196 - mdp_workflow_generator - INFO - Embedding index loaded successfully
+[23:46:23.212] [SUCCESS] Embedding manager initialized with 30 tools
+[23:46:23.212] [INFO] Initialized task types: ['simple_task', 'data_pipeline', 'api_integration', 'basic_task', 'multi_stage_pipeline']
+[23:46:23.213] [INFO] Loading full MCP protocol registry...
+[23:46:23.213] 2025-08-27 23:46:23,199 - mdp_workflow_generator - INFO - Loaded full tool registry from mcp_generated_library/tool_registry_consolidated.json
+[23:46:23.213] [INFO] Loaded full tool registry with 30 tools
+[23:46:23.213] 2025-08-27 23:46:23,199 - mdp_workflow_generator - INFO - Loading tools from mcp_generated_library/tool_registry_consolidated.json
+[23:46:23.213] [INFO] Loading tools from mcp_generated_library/tool_registry_consolidated.json
+[23:46:23.213] 2025-08-27 23:46:23,199 - mcp_embedding_manager - INFO - FAISS index loaded
+[23:46:23.213] 2025-08-27 23:46:23,199 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[23:46:23.213] 2025-08-27 23:46:23,199 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[23:46:23.218] [SUCCESS] Loaded 30 tool embeddings
+[23:46:23.218] 2025-08-27 23:46:23,218 - mdp_workflow_generator - INFO - Embedding index loaded successfully
+[23:46:23.218] [SUCCESS] Embedding manager initialized with 30 tools
+[23:46:23.218] [INFO] Initialized task types: ['simple_task', 'data_pipeline', 'api_integration', 'basic_task', 'multi_stage_pipeline']
+[23:46:23.218] [INFO] Loading full MCP protocol registry...
+[23:46:23.220] 2025-08-27 23:46:23,220 - mdp_workflow_generator - INFO - Loaded full tool registry from mcp_generated_library/tool_registry_consolidated.json
+[23:46:23.221] [INFO] Loaded full tool registry with 30 tools
+[23:46:23.221] 2025-08-27 23:46:23,220 - mdp_workflow_generator - INFO - Loading tools from mcp_generated_library/tool_registry_consolidated.json
+[23:46:23.221] [INFO] Loading tools from mcp_generated_library/tool_registry_consolidated.json
+[23:46:23.221] [INFO] Embedding manager ready with 30 tools
+[23:46:23.221] [WARNING] Embedding manager exists but has no embeddings
+[23:46:23.221] [INFO] Consider rebuilding index with: embedding_manager.build_index(tools_path)
+[23:46:23.225] [INFO] Embedding manager ready with 30 tools
+[23:46:23.225] [WARNING] Embedding manager exists but has no embeddings
+[23:46:23.225] [INFO] Consider rebuilding index with: embedding_manager.build_index(tools_path)
+[23:46:23.231] [INFO] Tool file_operations_reader: semantic operations = ['read', 'write', 'parse', 'transform']
+[23:46:23.232] [INFO] Tool file_operations_reader: semantic operations = ['read', 'write', 'parse', 'transform']
+[23:46:23.232] [INFO] Tool file_operations_scanner: semantic operations = ['read', 'write', 'parse', 'transform']
+[23:46:23.232] [INFO] Tool network_fetcher: semantic operations = ['read', 'write', 'validate', 'integrate'][INFO] Tool file_operations_scanner: semantic operations = ['read', 'write', 'parse', 'transform']
+[23:46:23.232] [INFO] Tool network_fetcher: semantic operations = ['read', 'write', 'validate', 'integrate']
+[23:46:23.232] [INFO] Tool integration_authenticator: semantic operations = ['integrate', 'transform', 'validate']
+[23:46:23.232] [INFO] Tool utility_logger: semantic operations = ['cache', 'process']
+[23:46:23.232] 
+[23:46:23.232] [INFO] Tool integration_authenticator: semantic operations = ['integrate', 'transform', 'validate']
+[23:46:23.233] [INFO] Tool utility_logger: semantic operations = ['cache', 'process']
+[23:46:23.233] [INFO] Tool data_processing_parser: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[23:46:23.233] [INFO] Tool data_processing_transformer: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[23:46:23.233] [INFO] Tool data_processing_parser: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[23:46:23.233] [INFO] Tool data_processing_validator: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[23:46:23.233] [INFO] Tool data_processing_transformer: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[23:46:23.233] [INFO] Tool network_validator: semantic operations = ['read', 'write', 'validate', 'integrate']
+[23:46:23.233] [INFO] Tool data_processing_validator: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[23:46:23.233] [INFO] Tool computation_calculator: semantic operations = ['compute', 'aggregate', 'transform']
+[23:46:23.233] [INFO] Tool data_processing_filter: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[23:46:23.233] [INFO] Tool data_processing_aggregator: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[23:46:23.233] [INFO] Tool file_operations_converter: semantic operations = ['read', 'write', 'parse', 'transform']
+[23:46:23.234] [INFO] Tool network_validator: semantic operations = ['read', 'write', 'validate', 'integrate']
+[23:46:23.234] [INFO] Tool computation_calculator: semantic operations = ['compute', 'aggregate', 'transform']
+[23:46:23.234] [INFO] Tool data_processing_filter: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[23:46:23.234] [INFO] Tool file_operations_compressor: semantic operations = ['read', 'write', 'parse', 'transform']
+[23:46:23.234] [INFO] Tool data_processing_aggregator: semantic operations = ['validate', 'transform', 'filter', 'aggregate']
+[23:46:23.234] [INFO] Tool file_operations_writer: semantic operations = ['read', 'write', 'parse', 'transform']
+[23:46:23.235] [INFO] Tool network_poster: semantic operations = ['read', 'write', 'validate', 'integrate']
+[23:46:23.235] [INFO] Tool network_monitor: semantic operations = ['read', 'write', 'validate', 'integrate']
+[23:46:23.235] [INFO] Tool network_router: semantic operations = ['read', 'write', 'validate', 'integrate'][INFO] Tool file_operations_converter: semantic operations = ['read', 'write', 'parse', 'transform']
+[23:46:23.235] 
+[23:46:23.235] [INFO] Tool computation_predictor: semantic operations = ['compute', 'aggregate', 'transform']
+[23:46:23.235] [INFO] Tool computation_analyzer: semantic operations = ['compute', 'aggregate', 'transform']
+[23:46:23.235] [INFO] Tool file_operations_compressor: semantic operations = ['read', 'write', 'parse', 'transform']
+[23:46:23.236] [INFO] Tool computation_simulator: semantic operations = ['compute', 'aggregate', 'transform']
+[23:46:23.236] [INFO] Tool computation_optimizer: semantic operations = ['compute', 'aggregate', 'transform']
+[23:46:23.236] [INFO] Tool integration_mapper: semantic operations = ['integrate', 'transform', 'validate']
+[23:46:23.236] [INFO] Tool integration_queue: semantic operations = ['integrate', 'transform', 'validate']
+[23:46:23.236] [INFO] Tool integration_scheduler: semantic operations = ['integrate', 'transform', 'validate']
+[23:46:23.236] [INFO] Tool integration_connector: semantic operations = ['integrate', 'transform', 'validate']
+[23:46:23.236] [INFO] Tool utility_cache: semantic operations = ['cache', 'process']
+[23:46:23.236] [INFO] Tool utility_tracker: semantic operations = ['cache', 'process']
+[23:46:23.236] [INFO] Tool utility_helper: semantic operations = ['cache', 'process']
+[23:46:23.236] [INFO] Tool file_operations_writer: semantic operations = ['read', 'write', 'parse', 'transform']
+[23:46:23.236] [INFO] Tool utility_notifier: semantic operations = ['cache', 'process']
+[23:46:23.236] 2025-08-27 23:46:23,236 - mdp_workflow_generator - INFO - Loaded 30 tools
+[23:46:23.236] [INFO] Setting default state_dim based on loaded tools[INFO] Tool network_poster: semantic operations = ['read', 'write', 'validate', 'integrate']
+[23:46:23.239] 
+[23:46:23.239] [INFO] state_dim set to 345 (tools=30, base=340, task_types=5)
+[23:46:23.239] 2025-08-27 23:46:23,237 - mdp_workflow_generator - INFO - Default state_dim calculated: 345
+[23:46:23.239] [INFO] Setting default action_dim based on loaded tools
+[23:46:23.239] [INFO] action_dim set to 31 (tools=30 + NO_OP)
+[23:46:23.239] 2025-08-27 23:46:23,237 - mdp_workflow_generator - INFO - Default action_dim calculated: 31
+[23:46:23.239] [INFO] ⚡ SKIP_MODEL_LOADING=true - Skipping neural network model loading
+[23:46:23.239] [INFO] ⚡ Memory optimization: Saving ~350MB by not loading model
+[23:46:23.239] [INFO] ⚡ Will use pre-generated workflows or random policy
+[23:46:23.239] 2025-08-27 23:46:23,237 - mdp_workflow_generator - INFO - Model loading skipped for memory optimization (SKIP_MODEL_LOADING=true)
+[23:46:23.239] [INFO] Initializing TaskManager...
+[23:46:23.239] [INFO] Tool network_monitor: semantic operations = ['read', 'write', 'validate', 'integrate']
+[23:46:23.239] [INFO] Tool network_router: semantic operations = ['read', 'write', 'validate', 'integrate']
+[23:46:23.239] [INFO] Tool computation_predictor: semantic operations = ['compute', 'aggregate', 'transform']
+[23:46:23.239] [INFO] Tool computation_analyzer: semantic operations = ['compute', 'aggregate', 'transform']
+[23:46:23.239] [INFO] Tool computation_simulator: semantic operations = ['compute', 'aggregate', 'transform']
+[23:46:23.239] [INFO] Tool computation_optimizer: semantic operations = ['compute', 'aggregate', 'transform']
+[23:46:23.239] [INFO] Tool integration_mapper: semantic operations = ['integrate', 'transform', 'validate']
+[23:46:23.239] [INFO] Tool integration_queue: semantic operations = ['integrate', 'transform', 'validate']
+[23:46:23.239] [INFO] Tool integration_scheduler: semantic operations = ['integrate', 'transform', 'validate']
+[23:46:23.246] [INFO] Tool integration_connector: semantic operations = ['integrate', 'transform', 'validate']
+[23:46:23.246] [INFO] Tool utility_cache: semantic operations = ['cache', 'process']
+[23:46:23.246] [INFO] Tool utility_tracker: semantic operations = ['cache', 'process']
+[23:46:23.247] [INFO] Tool utility_helper: semantic operations = ['cache', 'process']
+[23:46:23.247] [INFO] Tool utility_notifier: semantic operations = ['cache', 'process']
+[23:46:23.247] 2025-08-27 23:46:23,246 - mdp_workflow_generator - INFO - Loaded 30 tools
+[23:46:23.247] [INFO] Setting default state_dim based on loaded tools
+[23:46:23.247] [INFO] state_dim set to 345 (tools=30, base=340, task_types=5)
+[23:46:23.247] 2025-08-27 23:46:23,247 - mdp_workflow_generator - INFO - Default state_dim calculated: 345
+[23:46:23.247] [INFO] Setting default action_dim based on loaded tools
+[23:46:23.247] [INFO] action_dim set to 31 (tools=30 + NO_OP)
+[23:46:23.247] 2025-08-27 23:46:23,247 - mdp_workflow_generator - INFO - Default action_dim calculated: 31
+[23:46:23.247] [INFO] ⚡ SKIP_MODEL_LOADING=true - Skipping neural network model loading
+[23:46:23.247] [INFO] ⚡ Memory optimization: Saving ~350MB by not loading model
+[23:46:23.247] [INFO] ⚡ Will use pre-generated workflows or random policy
+[23:46:23.247] 2025-08-27 23:46:23,247 - mdp_workflow_generator - INFO - Model loading skipped for memory optimization (SKIP_MODEL_LOADING=true)
+[23:46:23.247] [INFO] Initializing TaskManager...
+[23:46:30.545] 2025-08-27 23:46:30,541 - unified_training_manager - INFO - Using device: cpu
+[23:46:31.214] 2025-08-27 23:46:31,211 - unified_training_manager - INFO - Task filtering results:
+[23:46:31.215] 2025-08-27 23:46:31,213 - unified_training_manager - INFO -   Total: 5040 -> 5040
+[23:46:31.216] 2025-08-27 23:46:31,213 - unified_training_manager - INFO -   simple_task: 320 -> 320
+[23:46:31.216] 2025-08-27 23:46:31,213 - unified_training_manager - INFO -   data_pipeline: 1520 -> 1520
+[23:46:31.218] 2025-08-27 23:46:31,213 - unified_training_manager - INFO -   api_integration: 1360 -> 1360
+[23:46:31.218] 2025-08-27 23:46:31,213 - unified_training_manager - INFO -   basic_task: 1200 -> 1200
+[23:46:31.218] 2025-08-27 23:46:31,213 - unified_training_manager - INFO -   multi_stage_pipeline: 640 -> 640
+[23:46:31.219] 2025-08-27 23:46:31,213 - unified_training_manager - INFO - Loaded 5040 tasks from mcp_generated_library/task_library_all_difficulties.json
+[23:46:31.220] 2025-08-27 23:46:31,220 - unified_training_manager - INFO - Organized tasks: 5 types, 3 complexity levels, 5 difficulty levels
+[23:46:31.220] [TaskManager] Difficulty level 'easy': 1096 tasks
+[23:46:31.220] [TaskManager] Difficulty level 'very_easy': 856 tasks
+[23:46:31.220] [TaskManager] Difficulty level 'medium': 1136 tasks
+[23:46:31.220] [TaskManager] Difficulty level 'hard': 1096 tasks
+[23:46:31.220] [TaskManager] Difficulty level 'very_hard': 856 tasks
+[23:46:31.235] [INFO] TaskManager initialized with 5040 tasks
+[23:46:31.235] [INFO] Task types available: ['basic_task', 'data_pipeline', 'multi_stage_pipeline', 'simple_task', 'api_integration']
+[23:46:31.235] [INFO] Initializing ToolCallVerifier...
+[23:46:31.262] [INFO] ToolCallVerifier initialized with 30 tools
+[23:46:31.262] [INFO] Output tools identified: 1
+[23:46:31.263] [INFO] Component initialization status:
+[23:46:31.263]   - embedding_manager: initialized
+[23:46:31.263]   - task_manager: initialized
+[23:46:31.263]   - output_verifier: initialized
+[23:46:31.264]   - tool_capability_manager: initialized
+[23:46:31.264]   - tool_success_rates: initialized with 0 entries
+[23:46:31.264] [INFO] MDPWorkflowGenerator initialization complete
+[23:46:31.264] 2025-08-27 23:46:31,264 - mdp_workflow_generator - INFO - MDPWorkflowGenerator initialized successfully
+[23:46:31.268] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:46:31.268] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:46:31.268] [FlawedWorkflowGenerator] Initialized with 30 tools
+[23:46:31.268] [FlawedWorkflowGenerator] RAG support: disabled
+[23:46:31.343] 2025-08-27 23:46:31,342 - focused_ai_classifier - INFO - Focused AI classifier initialized with gpt-5-nano (parameter-filtered)
+[23:46:31.344] [INFO] Enhanced manager: AI错误分类系统已启用
+[23:46:31.346] [INFO] 检测到并发环境，使用安全存储模式（ResultCollector）
+[23:46:31.350] 2025-08-27 23:46:31,350 - result_collector - INFO - ResultCollector初始化，临时目录: temp_results
+[23:46:31.350] 2025-08-27 23:46:31,350 - result_merger - INFO - ResultMerger初始化完成
+[23:46:31.362] 2025-08-27 23:46:31,362 - result_merger - WARNING - 另一个合并器已在运行 (PID: -1)
+[23:46:31.362] [INFO] 后台合并进程已启动（每10秒合并一次）
+[23:46:31.369] DEBUG: Checking generator attributes
+[23:46:31.369]   - has tool_capabilities: True
+[23:46:31.369]   - has tool_capability_manager: True
+[23:46:31.369]   - has task_manager: True
+[23:46:31.369] [INFO] Loaded 30 tools from generator
+[23:46:31.369] [INFO] Tool names sample: ['computation_analyzer', 'computation_calculator', 'computation_optimizer', 'computation_predictor', 'computation_simulator']...
+[23:46:31.369] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:46:31.369] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:46:31.369] [INFO] Initializing LLM client using APIClientManager
+[23:46:31.372] 2025-08-27 23:46:31,372 - unified_training_manager - INFO - Task filtering results:
+[23:46:31.372] 2025-08-27 23:46:31,372 - unified_training_manager - INFO -   Total: 5040 -> 5040
+[23:46:31.372] 2025-08-27 23:46:31,372 - unified_training_manager - INFO -   simple_task: 320 -> 320
+[23:46:31.372] 2025-08-27 23:46:31,372 - unified_training_manager - INFO -   data_pipeline: 1520 -> 1520
+[23:46:31.372] 2025-08-27 23:46:31,372 - unified_training_manager - INFO -   api_integration: 1360 -> 1360
+[23:46:31.372] 2025-08-27 23:46:31,372 - unified_training_manager - INFO -   basic_task: 1200 -> 1200
+[23:46:31.372] 2025-08-27 23:46:31,372 - unified_training_manager - INFO -   multi_stage_pipeline: 640 -> 640
+[23:46:31.372] 2025-08-27 23:46:31,372 - unified_training_manager - INFO - Loaded 5040 tasks from mcp_generated_library/task_library_all_difficulties.json
+[23:46:31.378] 2025-08-27 23:46:31,378 - unified_training_manager - INFO - Organized tasks: 5 types, 3 complexity levels, 5 difficulty levels
+[23:46:31.378] [TaskManager] Difficulty level 'easy': 1096 tasks
+[23:46:31.378] [TaskManager] Difficulty level 'very_easy': 856 tasks
+[23:46:31.378] [TaskManager] Difficulty level 'medium': 1136 tasks
+[23:46:31.378] [TaskManager] Difficulty level 'hard': 1096 tasks
+[23:46:31.378] [TaskManager] Difficulty level 'very_hard': 856 tasks
+[23:46:31.394] [INFO] Using Azure OpenAI client
+[23:46:31.396] [DEBUG] Checking if generator has tool_capability_manager attribute
+[23:46:31.396] [INFO] TaskManager initialized with 5040 tasks[DEBUG] Creating FlawedWorkflowGenerator with correct parameters
+[23:46:31.396] [INFO] Task types available: ['basic_task', 'data_pipeline', 'multi_stage_pipeline', 'simple_task', 'api_integration']
+[23:46:31.396] [INFO] Initializing ToolCallVerifier...
+[23:46:31.415] 
+[23:46:31.415] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:46:31.415] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:46:31.415] [FlawedWorkflowGenerator] Initialized with 30 tools
+[23:46:31.415] [FlawedWorkflowGenerator] RAG support: enabled
+[23:46:31.415] [INFO] FlawedWorkflowGenerator initialized successfully
+[23:46:31.416] [INFO] Initializing StableScorer for Phase 2 scoring
+[23:46:31.416] <tool_capability_manager.ToolCapabilityManager object at 0x7fe9714b97a0>
+[23:46:31.416] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:46:31.416] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:46:31.416] [INFO] Loaded tool success history for 0 tools
+[23:46:31.416] [INFO] StableScorer initialized with semantic capability
+[23:46:31.419] [INFO] StableScorer initialized successfully[INFO] ToolCallVerifier initialized with 30 tools
+[23:46:31.419] [INFO] Loading task instances...
+[23:46:31.419] [INFO] Loading task instances from mcp_generated_library/difficulty_versions/task_library_enhanced_v3_easy.json
+[23:46:31.419] 
+[23:46:31.419] [INFO] Output tools identified: 1
+[23:46:31.419] [INFO] Component initialization status:
+[23:46:31.419]   - embedding_manager: initialized
+[23:46:31.419]   - task_manager: initialized
+[23:46:31.419]   - output_verifier: initialized
+[23:46:31.419]   - tool_capability_manager: initialized
+[23:46:31.419]   - tool_success_rates: initialized with 0 entries
+[23:46:31.419] [INFO] MDPWorkflowGenerator initialization complete
+[23:46:31.419] 2025-08-27 23:46:31,419 - mdp_workflow_generator - INFO - MDPWorkflowGenerator initialized successfully
+[23:46:31.439] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:46:31.439] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:46:31.439] [INFO] Loaded 630 task instances[FlawedWorkflowGenerator] Initialized with 30 tools
+[23:46:31.439] [FlawedWorkflowGenerator] RAG support: disabled
+[23:46:31.440] 
+[23:46:31.440] [INFO] Task instances loaded: ['basic_task', 'data_pipeline', 'multi_stage_pipeline', 'simple_task', 'api_integration']
+[23:46:31.475] 2025-08-27 23:46:31,475 - focused_ai_classifier - INFO - Focused AI classifier initialized with gpt-5-nano (parameter-filtered)
+[23:46:31.475] [INFO] Enhanced manager: AI错误分类系统已启用
+[23:46:31.475] [INFO] 检测到并发环境，使用安全存储模式（ResultCollector）
+[23:46:31.476] 2025-08-27 23:46:31,475 - result_collector - INFO - ResultCollector初始化，临时目录: temp_results
+[23:46:31.476] 2025-08-27 23:46:31,476 - result_merger - WARNING - 另一个合并器已在运行 (PID: -1)
+[23:46:31.476] [INFO] 后台合并进程已启动（每10秒合并一次）
+[23:46:31.476] DEBUG: Checking generator attributes
+[23:46:31.476]   - has tool_capabilities: True
+[23:46:31.476]   - has tool_capability_manager: True
+[23:46:31.476]   - has task_manager: True
+[23:46:31.476] [INFO] Loaded 30 tools from generator
+[23:46:31.476] [INFO] Tool names sample: ['computation_analyzer', 'computation_calculator', 'computation_optimizer', 'computation_predictor', 'computation_simulator']...
+[23:46:31.476] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:46:31.476] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:46:31.476] [INFO] Initializing LLM client using APIClientManager
+[23:46:31.490] [INFO] Using Azure OpenAI client
+[23:46:31.490] [DEBUG] Checking if generator has tool_capability_manager attribute
+[23:46:31.490] [DEBUG] Creating FlawedWorkflowGenerator with correct parameters
+[23:46:31.490] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:46:31.490] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:46:31.490] [FlawedWorkflowGenerator] Initialized with 30 tools
+[23:46:31.490] [FlawedWorkflowGenerator] RAG support: enabled
+[23:46:31.490] [INFO] FlawedWorkflowGenerator initialized successfully
+[23:46:31.490] [INFO] Initializing StableScorer for Phase 2 scoring
+[23:46:31.490] <tool_capability_manager.ToolCapabilityManager object at 0x7fe971609c80>
+[23:46:31.490] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:46:31.490] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:46:31.490] [INFO] Loaded tool success history for 0 tools
+[23:46:31.490] [INFO] StableScorer initialized with semantic capability
+[23:46:31.490] [INFO] StableScorer initialized successfully
+[23:46:31.490] [INFO] Loading task instances...
+[23:46:31.490] [INFO] Loading task instances from mcp_generated_library/difficulty_versions/task_library_enhanced_v3_easy.json
+[23:46:31.506] [INFO] Loaded 630 task instances
+[23:46:31.511] [INFO] Task instances loaded: ['basic_task', 'data_pipeline', 'multi_stage_pipeline', 'simple_task', 'api_integration']
+[23:51:28.532] 2025-08-27 23:51:28,435 - smart_model_router - INFO - Using idealab for qwen2.5-72b-instruct
+[23:51:28.622] 2025-08-27 23:51:28,421 - smart_model_router - INFO - Using idealab for qwen2.5-72b-instruct
+[23:51:28.643] 2025-08-27 23:51:28,443 - smart_model_router - INFO - Using idealab for qwen2.5-72b-instruct
+[23:51:28.655] 2025-08-27 23:51:28,446 - smart_model_router - INFO - Using idealab for qwen2.5-72b-instruct
+[23:51:30.371] 2025-08-27 23:51:30,302 - api_client_manager - INFO - Created idealab client for model qwen2.5-72b-instruct
+[23:51:30.388] 2025-08-27 23:51:30,327 - api_client_manager - INFO - Created idealab client for model qwen2.5-72b-instruct
+[23:51:30.393] 2025-08-27 23:51:30,327 - api_client_manager - INFO - Created idealab client for model qwen2.5-72b-instruct
+[23:51:30.393] 2025-08-27 23:51:30,320 - api_client_manager - INFO - Created idealab client for model qwen2.5-72b-instruct
+[23:51:30.396] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:51:30.401] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:51:30.404] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:51:30.405] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:51:30.405] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:51:30.409] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:51:30.410] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:51:30.414] 2025-08-27 23:51:30,414 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[23:51:30.414] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:51:30.414] 2025-08-27 23:51:30,414 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[23:51:30.415] 2025-08-27 23:51:30,414 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[23:51:30.415] 2025-08-27 23:51:30,415 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[23:51:45.980] 2025-08-27 23:51:45,842 - mcp_embedding_manager - INFO - FAISS index loaded
+[23:51:46.022] 2025-08-27 23:51:45,829 - mcp_embedding_manager - INFO - FAISS index loaded
+[23:51:46.025] 2025-08-27 23:51:45,819 - mcp_embedding_manager - INFO - FAISS index loaded
+[23:51:46.027] 2025-08-27 23:51:45,849 - mcp_embedding_manager - INFO - FAISS index loaded
+[23:51:46.027] 2025-08-27 23:51:45,918 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[23:51:46.027] 2025-08-27 23:51:45,918 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[23:51:46.027] 2025-08-27 23:51:45,926 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[23:51:46.027] 2025-08-27 23:51:45,927 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[23:51:46.027] 2025-08-27 23:51:45,934 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[23:51:46.770] 2025-08-27 23:51:45,934 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[23:51:47.092] 2025-08-27 23:51:45,934 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[23:51:47.197] 2025-08-27 23:51:45,930 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[23:51:47.585] [INFO] Operation semantic index initialized
+[23:51:47.594] [INFO] Operation semantic index initialized
+[23:51:47.605] [INFO] Operation semantic index initialized
+[23:51:47.615] [INFO] Operation semantic index initialized
+[23:51:47.663] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:51:47.685] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:51:47.716] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:51:47.753] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:14.158] 2025-08-27 23:52:14,031 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:14.222] 2025-08-27 23:52:14,206 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:14.393] 2025-08-27 23:52:14,338 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:14.745] 2025-08-27 23:52:14,702 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:16.840] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"8a863325-dc77-9b9f-9954-7f7662296dec"}, traceId: 2150457117563531333587824e79d5'}
+[23:52:16.868] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"ca6dacd9-1a4f-9273-a55c-764e28ec7784"}, traceId: 215042f917563531333734766e1a6f'}
+[23:52:18.160]   [SEARCH] Query: data validation parser
+[23:52:18.175]   [SEARCH] Query: data validation parser
+[23:52:18.677] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct[LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:18.682] 
+[23:52:19.107] 2025-08-27 23:52:19,091 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:19.109] 2025-08-27 23:52:19,072 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:19.210] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"b94e9f6b-0e20-9faf-9fd8-d7745038975c"}, traceId: 215042f917563531387954780e1a6f'}[LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"ccf065d2-1eea-934c-a608-e483fa3d84e5"}, traceId: 2150457117563531387207839e79d5'}
+[23:52:19.246] 
+[23:52:19.246] 2025-08-27 23:52:19,220 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:19.256] 2025-08-27 23:52:19,220 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:19.256] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"c5cd892d-45c1-97c2-942b-2ddb4581c1d9"}, traceId: 2150423617563531388762477e0c4d'}
+[23:52:19.256] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"b973c0c7-8899-918d-9600-24f49b571d9d"}, traceId: 2150415d17563531388704165e143f'}
+[23:52:21.312] 2025-08-27 23:52:21,312 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:21.395] 2025-08-27 23:52:21,313 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:21.405] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"1e237c12-d1e1-998a-9628-f97865708bed"}, traceId: 2150423617563531406542502e0c4d'}
+[23:52:21.532] 2025-08-27 23:52:21,532 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:21.829]   [SEARCH] Query: data validation parser
+[23:52:21.850]   [INFO] Tool info request: data_processing_validator
+[23:52:21.862] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:21.872] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:22.925] 2025-08-27 23:52:22,925 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:22.946]   [SEARCH] Query: data validation parser
+[23:52:22.964] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:23.059] 2025-08-27 23:52:23,058 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:23.071]   [INFO] Tool info request: data_processing_parser
+[23:52:23.078] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:23.237] 2025-08-27 23:52:23,236 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:23.249]   [INFO] Tool info request: data_processing_validator
+[23:52:23.269] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:23.575] 2025-08-27 23:52:23,559 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:23.589] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"b0a86ebb-fb7f-9e9a-b3ba-dc29a648c600"}, traceId: 2150415d17563531432424185e143f'}
+[23:52:23.769] 2025-08-27 23:52:23,763 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:23.789] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"9297197c-2d25-9f2b-8b36-ba4da8218dee"}, traceId: 2150457117563531434637853e79d5'}
+[23:52:24.459] 2025-08-27 23:52:24,427 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:24.621] 2025-08-27 23:52:24,619 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:24.861]   [INFO] Tool info request: data_processing_validator
+[23:52:24.871]   [INFO] Tool info request: data_processing_parser
+[23:52:24.901] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:25.010] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:25.828] 2025-08-27 23:52:25,825 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:25.836] 2025-08-27 23:52:25,836 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:25.855] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"d858c666-07a8-99e7-bd5c-30790b4a6c36"}, traceId: 2150423617563531455182559e0c4d'}[LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"3711bffa-d4b1-9ead-a02d-1e67c7483e4e"}, traceId: 215042f917563531455174881e1a6f'}
+[23:52:25.858] 
+[23:52:26.120] 2025-08-27 23:52:26,116 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:26.206]   [INFO] Tool info request: data_processing_parser
+[23:52:26.222] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:26.582] 2025-08-27 23:52:26,563 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:26.785] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:27.156] 2025-08-27 23:52:27,151 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:27.165] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"71584c4b-bac1-96b6-aa64-b669a8b956b4"}, traceId: 2150423617563531468482577e0c4d'}
+[23:52:27.577] 2025-08-27 23:52:27,534 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:27.764] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:28.715] 2025-08-27 23:52:28,559 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:28.732] 2025-08-27 23:52:28,681 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:29.100] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct[LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:29.106] 
+[23:52:31.586] 2025-08-27 23:52:31,514 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:31.603] 2025-08-27 23:52:31,538 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:31.603] 2025-08-27 23:52:31,522 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:31.608] 2025-08-27 23:52:31,565 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:31.684] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"452d6be2-f8fa-908a-ba6e-4d9f6f69fa09"}, traceId: 215042f917563531497484926e1a6f'}[LLM_ERROR] Attempt 3/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"9e6b1673-a9b5-9c1f-8b9e-5d995a0cd672"}, traceId: 2150423617563531497492619e0c4d'}
+[23:52:31.697] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"e42228a0-484b-9d3c-b605-c6203430cc33"}, traceId: 2150415d17563531497484212e143f'}
+[23:52:31.703] 
+[23:52:31.838] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:33.557] 2025-08-27 23:52:33,437 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:33.580] 2025-08-27 23:52:33,578 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:33.632] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"4a111e82-3865-955a-96d0-fe101f7efd1a"}, traceId: 215042f917563531529334936e1a6f'}
+[23:52:33.637] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"1e292407-276d-9522-85ab-e90fd59d4b45"}, traceId: 2150457117563531528197936e79d5'}
+[23:52:34.357] 2025-08-27 23:52:34,327 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:34.467] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"b11ddd64-03c7-9945-98cd-a51a2e6c25be"}, traceId: 2150415d17563531537634221e143f'}
+[23:52:36.204] 2025-08-27 23:52:36,164 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:36.381] 2025-08-27 23:52:36,299 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:36.442] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"8f7336ad-cdf2-90b0-9fad-eba166506faf"}, traceId: 2150457117563531556337952e79d5'}
+[23:52:36.530] [LLM_ERROR] Attempt 3/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"a1183f89-135b-9122-9647-d1bba51c0f1a"}, traceId: 2150415d17563531557804229e143f'}
+[23:52:36.577] 2025-08-27 23:52:36,568 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:36.671]   [INFO] Tool info request: data_processing_parser
+[23:52:36.696] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:37.404] 2025-08-27 23:52:37,379 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:37.435] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:37.905] 2025-08-27 23:52:37,902 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:37.925] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"28f61178-1757-9a17-977f-e5bf98378dfc"}, traceId: 215042f917563531576214949e1a6f'}
+[23:52:38.077] 2025-08-27 23:52:38,070 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:38.096] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:38.612] 2025-08-27 23:52:38,610 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:38.621] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"bead70c8-5e28-96ad-af02-0a9aa2dd1450"}, traceId: 2150423617563531582832715e0c4d'}
+[23:52:39.066] 2025-08-27 23:52:39,063 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:39.067] 2025-08-27 23:52:39,067 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:39.073] [LLM_ERROR] Attempt 4/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"28ba268b-9d1f-9031-bb60-8f01f5988841"}, traceId: 2150415d17563531587714239e143f'}
+[23:52:39.090]   [FORMAT_ISSUE] Turn 6: No tools executed after multiple turns
+[23:52:39.101] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:39.898] 2025-08-27 23:52:39,890 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:40.129] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"d9a35f7f-89c4-9f65-b648-e449f88d3793"}, traceId: 2150423617563531595442722e0c4d'}
+[23:52:40.418] 2025-08-27 23:52:40,387 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:40.671] 2025-08-27 23:52:40,660 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:41.644]   [FORMAT_ISSUE] Turn 7: No tools executed after multiple turns
+[23:52:42.021] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:42.383] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:43.931] 2025-08-27 23:52:43,868 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:44.208] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"4aae6e55-27b8-986a-a32e-00d85f20fdeb"}, traceId: 2150457117563531634078015e79d5'}
+[23:52:44.467] 2025-08-27 23:52:44,431 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:44.473] 2025-08-27 23:52:44,445 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:44.528] 2025-08-27 23:52:44,520 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:44.649]   [FORMAT_ISSUE] Turn 6: No tools executed after multiple turns  [FORMAT_ISSUE] Turn 6: No tools executed after multiple turns
+[23:52:44.654] 
+[23:52:44.697] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:44.698] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:44.704] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:46.273] 2025-08-27 23:52:46,224 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:46.283] 2025-08-27 23:52:46,222 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:46.434] 2025-08-27 23:52:46,428 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:46.443] 2025-08-27 23:52:46,417 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:46.537] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"02986fc3-1f4b-9f8b-bf9d-321a3b3e6eb2"}, traceId: 2150457117563531657178037e79d5'}
+[23:52:46.542] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"1f3b6a62-b561-97ce-81bd-56e0eb46dfb7"}, traceId: 2150423617563531652682746e0c4d'}
+[23:52:46.613]   [FORMAT_ISSUE] Turn 7: No tools executed after multiple turns
+[23:52:46.619]   [FORMAT_ISSUE] Turn 7: No tools executed after multiple turns
+[23:52:46.637] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct[LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:46.645] 
+[23:52:47.621] 2025-08-27 23:52:47,550 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:47.833] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"4dc8e6f9-f19f-9738-b0bb-71df7218d76c"}, traceId: 215042f917563531669144980e1a6f'}
+[23:52:49.263] 2025-08-27 23:52:49,156 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:49.457]   [FORMAT_ISSUE] Turn 6: No tools executed after multiple turns
+[23:52:49.478] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:49.798] 2025-08-27 23:52:49,790 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:49.800] 2025-08-27 23:52:49,798 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:49.870] [LLM_ERROR] Attempt 3/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"f3d45195-0c65-9150-93f9-38a6d145eafc"}, traceId: 2150457117563531694688057e79d5'}
+[23:52:49.901]   [FORMAT_ISSUE] Turn 8: No tools executed after multiple turns
+[23:52:49.941] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:50.034] 2025-08-27 23:52:50,034 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:50.046] 2025-08-27 23:52:50,023 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:50.112] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"3d643191-edfd-9c9d-a03a-db274a1328e8"}, traceId: 2150423617563531696512770e0c4d'}
+[23:52:50.116] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"fb4150f3-45c5-9eb1-bcb5-92a8511efa33"}, traceId: 215042f917563531696304991e1a6f'}
+[23:52:51.877] 2025-08-27 23:52:51,765 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:51.882] 2025-08-27 23:52:51,762 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:51.917]   [FORMAT_ISSUE] Turn 9: No tools executed after multiple turns
+[23:52:51.928] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"a54d32bb-18ea-9d16-8d15-5490d1b2196b"}, traceId: 2150423617563531709262783e0c4d'}
+[23:52:51.937] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:52.781] 2025-08-27 23:52:52,763 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:52.978]   [FORMAT_ISSUE] Turn 8: No tools executed after multiple turns
+[23:52:53.022] 2025-08-27 23:52:53,022 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:53.102] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:53.122]   [FORMAT_ISSUE] Turn 8: No tools executed after multiple turns
+[23:52:53.131] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:53.187] 2025-08-27 23:52:53,186 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:53.217]   [FORMAT_ISSUE] Turn 10: No tools executed after multiple turns
+[23:52:54.768] 2025-08-27 23:52:54,748 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:54.803] 2025-08-27 23:52:54,750 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:54.803] 2025-08-27 23:52:54,787 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:52:54.934] [DEBUG] Got result for task: has_result=True, save_logs=True  [FORMAT_ISSUE] Turn 9: No tools executed after multiple turns
+[23:52:54.947]   [FORMAT_ISSUE] Turn 7: No tools executed after multiple turns
+[23:52:54.949] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[23:52:54.956] [AI_DEBUG] 生成的txt_content长度: 27937
+[23:52:54.956] [AI_DEBUG] _ai_classify_with_txt_content called:
+[23:52:54.956]   - use_ai_classification=True
+[23:52:54.956]   - ai_classifier=True
+[23:52:54.956]   - txt_content_len=27937
+[23:52:54.956]   - task_model=qwen2.5-72b-instruct
+[23:52:54.958] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[23:52:54.984]   [FORMAT_ISSUE] Turn 9: No tools executed after multiple turns
+[23:52:54.999] 
+[23:52:55.124] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:55.134] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:55.210] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:52:56.701] 2025-08-27 23:52:56,674 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:52:56.962] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"4df19b15-41c5-9985-b86f-d13b93aaea0d"}, traceId: 2150457117563531758478082e79d5'}
+[23:52:58.194] 2025-08-27 23:52:58,093 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:53:01.367] 2025-08-27 23:52:58,182 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:53:01.413]   [FORMAT_ISSUE] Turn 8: No tools executed after multiple turns
+[23:53:01.413]   [FORMAT_ISSUE] Turn 10: No tools executed after multiple turns
+[23:53:01.413] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:01.416] 2025-08-27 23:52:59,427 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:53:01.489] 2025-08-27 23:52:59,629 - api_client_manager - INFO - Created idealab client for model qwen2.5-72b-instruct
+[23:53:01.509] 2025-08-27 23:53:01,509 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:53:01.529] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:53:01.529] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:53:01.545] 2025-08-27 23:53:01,545 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[23:53:01.608] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"5f1e22dc-b6e7-97a0-8adf-1ef04ec46490"}, traceId: 2150423617563531789382878e0c4d'}
+[23:53:01.636] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"a0d08587-672c-9112-a891-e5d30d8c5b37"}, traceId: 2150457117563531789308094e79d5'}
+[23:53:03.505] 2025-08-27 23:53:03,505 - api_client_manager - INFO - Created idealab client for model qwen2.5-72b-instruct
+[23:53:03.558] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:53:03.558] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:53:03.583] 2025-08-27 23:53:03,580 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[23:53:04.517] 2025-08-27 23:53:04,517 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:53:04.945]   [FORMAT_ISSUE] Turn 9: No tools executed after multiple turns
+[23:53:05.044] 2025-08-27 23:53:04,883 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:53:05.220]   [FORMAT_ISSUE] Turn 10: No tools executed after multiple turns
+[23:53:05.280] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:05.887] [ERROR] Tool 'utility_helper' at index 28 not found in tool_embeddings
+[23:53:05.888] [DEBUG] tool_names length: 30, tool_embeddings keys: 23
+[23:53:05.889] [DEBUG] Thread ID: 13065146368
+[23:53:07.110] 2025-08-27 23:53:07,110 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:53:07.120] 2025-08-27 23:53:07,106 - mcp_embedding_manager - INFO - FAISS index loaded
+[23:53:07.126] 2025-08-27 23:53:07,126 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[23:53:07.126] 2025-08-27 23:53:07,126 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[23:53:07.221]   [FORMAT_ISSUE] Turn 10: No tools executed after multiple turns
+[23:53:07.288] [DEBUG] Got result for task: has_result=True, save_logs=True
+[23:53:07.317] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[23:53:07.333] [AI_DEBUG] 生成的txt_content长度: 27223
+[23:53:07.333] [AI_DEBUG] _ai_classify_with_txt_content called:
+[23:53:07.333]   - use_ai_classification=True
+[23:53:07.358]   - ai_classifier=True
+[23:53:07.358]   - txt_content_len=27223
+[23:53:07.358]   - task_model=qwen2.5-72b-instruct
+[23:53:07.358] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[23:53:07.358] [INFO] Operation semantic index initialized
+[23:53:07.592] 2025-08-27 23:53:07,592 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[23:53:07.600] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:08.324] 2025-08-27 23:53:08,324 - mcp_embedding_manager - INFO - FAISS index loaded
+[23:53:08.324] 2025-08-27 23:53:08,324 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[23:53:08.324] 2025-08-27 23:53:08,324 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[23:53:08.453] [INFO] Operation semantic index initialized
+[23:53:08.512] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:08.766] 2025-08-27 23:53:08,765 - api_client_manager - INFO - Created idealab client for model qwen2.5-72b-instruct
+[23:53:08.766] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:53:08.766] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:53:08.777] 2025-08-27 23:53:08,775 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[23:53:09.078] 2025-08-27 23:53:09,077 - api_client_manager - INFO - Created idealab client for model qwen2.5-72b-instruct
+[23:53:09.078] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:53:09.078] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:53:09.133] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.7
+[23:53:09.135] 2025-08-27 23:53:09,133 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[23:53:09.483] [DEBUG] Got result for task: has_result=True, save_logs=True
+[23:53:09.484] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[23:53:09.488] [AI_DEBUG] 生成的txt_content长度: 26116
+[23:53:09.488] [AI_DEBUG] _ai_classify_with_txt_content called:
+[23:53:09.488]   - use_ai_classification=True
+[23:53:09.488]   - ai_classifier=True
+[23:53:09.488]   - txt_content_len=26116
+[23:53:09.489]   - task_model=qwen2.5-72b-instruct
+[23:53:09.490] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[23:53:12.773] 2025-08-27 23:53:12,753 - mcp_embedding_manager - INFO - FAISS index loaded
+[23:53:12.781] 2025-08-27 23:53:12,706 - mcp_embedding_manager - INFO - FAISS index loaded
+[23:53:12.782] 2025-08-27 23:53:12,776 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[23:53:12.782] 2025-08-27 23:53:12,773 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:53:12.790] 2025-08-27 23:53:12,777 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[23:53:12.982] 2025-08-27 23:53:12,772 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[23:53:13.011] 2025-08-27 23:53:13,008 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[23:53:13.169] [INFO] Operation semantic index initialized
+[23:53:13.260] [INFO] Operation semantic index initialized
+[23:53:13.266] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"c6c3bdeb-67cd-9769-8c9a-12521afb0d9a"}, traceId: 215041a817563531918164553e3394'}
+[23:53:13.323] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:13.326] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:13.994] 2025-08-27 23:53:13,987 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:53:14.172]   [SEARCH] Query: data validation parser
+[23:53:14.216] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:14.704] 2025-08-27 23:53:14,697 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:53:14.915] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"25d7258e-4183-9aaf-b80f-74280033ee25"}, traceId: 2150413117563531944446718eec49'}
+[23:53:15.108] 2025-08-27 23:53:15,094 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:53:15.461] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"4eddc8ed-827b-95a9-9319-899271485768"}, traceId: 2150436a17563531947895165e2288'}
+[23:53:15.462] 2025-08-27 23:53:15,131 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[23:53:15.464] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[23:53:15.464] 2025-08-27 23:53:15,325 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:53:15.465]   [SEARCH] Query: data validation parser
+[23:53:15.465] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:15.987] 2025-08-27 23:53:15,974 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:53:16.098]   [INFO] Tool info request: data_processing_parser
+[23:53:16.632] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:16.635] 2025-08-27 23:53:16,155 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[23:53:16.635] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.88
+[23:53:16.636] 2025-08-27 23:53:16,551 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:53:16.636]   [INFO] Tool info request: data_processing_validator
+[23:53:16.636] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:16.968] 2025-08-27 23:53:16,951 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:53:17.225] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"b5d1e969-c18e-97c9-a451-c1b9bb915fbe"}, traceId: 2150436a17563531966155182e2288'}
+[23:53:17.785] 2025-08-27 23:53:17,071 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:53:17.798] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"39601242-9663-9719-a330-bcfb4cae8a03"}, traceId: 2150448717563531967665755e81b3'}
+[23:53:17.798] 2025-08-27 23:53:17,197 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:53:18.173] 2025-08-27 23:53:18,104 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:53:18.193] [DEBUG] Got result for task: has_result=True, save_logs=True
+[23:53:18.195] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[23:53:18.286]   [SEARCH] Query: data validation parser
+[23:53:18.292] [AI_DEBUG] 生成的txt_content长度: 27224
+[23:53:18.293] [AI_DEBUG] _ai_classify_with_txt_content called:
+[23:53:18.293]   - use_ai_classification=True
+[23:53:18.293]   - ai_classifier=True
+[23:53:18.293]   - txt_content_len=27224
+[23:53:18.293]   - task_model=qwen2.5-72b-instruct
+[23:53:18.293] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[23:53:18.427] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:18.437] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:18.932] 2025-08-27 23:53:18,927 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:53:19.011] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"1d7a21d1-9df9-9741-991a-6356e9812848"}, traceId: 2150411617563531986223068ee766'}
+[23:53:19.705] 2025-08-27 23:53:19,702 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:53:20.058]   [INFO] Tool info request: data_processing_validator
+[23:53:20.063] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:20.063] 2025-08-27 23:53:19,969 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:53:20.082]   [INFO] Tool info request: data_processing_parser
+[23:53:20.633] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:20.663] 2025-08-27 23:53:20,088 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:53:20.664]   [SEARCH] Query: data validation parser
+[23:53:20.665] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:20.817] 2025-08-27 23:53:20,797 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:53:20.907] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"0cb3b702-0499-97ad-842b-96d9bc421b49"}, traceId: 2150436a17563532003785213e2288'}
+[23:53:21.180] 2025-08-27 23:53:21,162 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:53:21.373] 2025-08-27 23:53:21,332 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:53:21.402] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:21.700] 2025-08-27 23:53:21,671 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:53:21.865]   [INFO] Tool info request: data_processing_parser
+[23:53:21.907] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:21.915] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:22.656] 2025-08-27 23:53:22,639 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:53:22.725] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"6a6e911e-5912-9288-84ce-8606f1dfa386"}, traceId: 2150436a17563532018153924e22eb'}
+[23:53:23.239] 2025-08-27 23:53:23,216 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:53:23.243] 2025-08-27 23:53:23,214 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:53:23.281] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"8b32ca83-789c-9049-afac-06d5d0c2df3f"}, traceId: 2150411617563532023653085ee766'}
+[23:53:23.283] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"e26f2f7b-4818-9a7b-8139-7dbfe108daed"}, traceId: 215041de17563532023891120e33ac'}
+[23:53:23.388] 2025-08-27 23:53:23,375 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[23:53:23.466] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[23:53:23.745] 2025-08-27 23:53:23,731 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:53:23.856]   [INFO] Tool info request: data_processing_parser
+[23:53:23.901] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:25.165] 2025-08-27 23:53:25,148 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:53:25.178] 2025-08-27 23:53:25,166 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:53:25.226] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"f2061d02-d1af-95f6-b3b8-d3b54379e8b7"}, traceId: 2150411617563532048023094ee766'}
+[23:53:25.312] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:25.530] 2025-08-27 23:53:25,518 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:53:25.581] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:25.890] 2025-08-27 23:53:25,877 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:53:25.934] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"6d68b2ca-74e9-961b-b2f2-758348289e5e"}, traceId: 2150436a17563532055265271e2288'}
+[23:53:26.081] 2025-08-27 23:53:26,071 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:53:26.096] 2025-08-27 23:53:26,096 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:53:26.122] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"307e97a3-3b89-9f14-8c5f-dc0076982e67"}, traceId: 2150455217563532057715299e7f9c'}
+[23:53:26.164] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:27.167] 2025-08-27 23:53:27,160 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:53:27.196] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"abc02be3-150e-9f7a-8f68-8e7f0ff0d459"}, traceId: 2150436a17563532068395288e2288'}
+[23:53:27.463] 2025-08-27 23:53:27,460 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:53:27.512] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:27.820] 2025-08-27 23:53:27,814 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:53:27.837] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"b37977f9-40cc-9a87-9d0a-28bbe7ff9d7c"}, traceId: 213e064617563532075308340e0d8a'}
+[23:53:28.042] 2025-08-27 23:53:28,031 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:53:28.061] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"19fc45ca-6d71-90f1-853a-bb7857756bbc"}, traceId: 2150455217563532077484056e80a3'}
+[23:53:28.374] 2025-08-27 23:53:28,365 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:53:28.508] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:30.143] 2025-08-27 23:53:30,088 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:53:30.227] 2025-08-27 23:53:30,218 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:53:30.411] [LLM_ERROR] Attempt 3/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"94f33538-a6fe-9630-8d25-5f03102033c5"}, traceId: 215044da17563532099255478e7fd8'}
+[23:53:30.445]   [FORMAT_ISSUE] Turn 6: No tools executed after multiple turns
+[23:53:30.466] 2025-08-27 23:53:30,463 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:53:30.523] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:30.675] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:31.468] 2025-08-27 23:53:31,396 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:53:31.507] 2025-08-27 23:53:31,401 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:53:31.510] 2025-08-27 23:53:31,388 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:53:32.915] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"85641b1a-1e6b-963d-a90b-a346c596e020"}, traceId: 2150436a17563532108695352e2288'}
+[23:53:32.941] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"841c0693-9628-918b-bd1b-5c3566db70ad"}, traceId: 2150411617563532108503115ee766'}
+[23:53:32.967]   [FORMAT_ISSUE] Turn 6: No tools executed after multiple turns
+[23:53:32.981] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:34.180] 2025-08-27 23:53:34,173 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:53:34.184] 2025-08-27 23:53:34,181 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:53:34.209]   [FORMAT_ISSUE] Turn 7: No tools executed after multiple turns
+[23:53:34.212]   [FORMAT_ISSUE] Turn 6: No tools executed after multiple turns
+[23:53:34.217] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:34.246] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:35.009] 2025-08-27 23:53:35,005 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:53:35.013] 2025-08-27 23:53:35,013 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:53:35.024] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"176c26ff-b67e-9741-a748-b7b31a642386"}, traceId: 213e00cd17563532147214587e9736'}
+[23:53:35.048] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:35.076] 2025-08-27 23:53:35,076 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:53:35.089]   [FORMAT_ISSUE] Turn 7: No tools executed after multiple turns
+[23:53:35.090] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:35.205] 2025-08-27 23:53:35,204 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:53:35.259] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"68a8d073-7392-9d8a-bed1-928f3af099d0"}, traceId: 215045af17563532144717200e7fe7'}
+[23:53:36.155] 2025-08-27 23:53:36,150 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:53:36.161] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"2a6dd4af-8a4d-9fdc-a5ef-7af917fe00a7"}, traceId: 215040b917563532158971558ef0f9'}
+[23:53:36.180] 2025-08-27 23:53:36,179 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:53:36.193]   [FORMAT_ISSUE] Turn 6: No tools executed after multiple turns
+[23:53:36.199] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:36.225] 2025-08-27 23:53:36,225 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:53:36.230]   [FORMAT_ISSUE] Turn 8: No tools executed after multiple turns
+[23:53:36.232] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:36.706] 2025-08-27 23:53:36,703 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:53:36.718] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"4361761b-20e5-910b-b94a-119eb508a49f"}, traceId: 2150411617563532163923137ee766'}
+[23:53:36.800] 2025-08-27 23:53:36,799 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:53:36.803] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"bc004aae-62a7-9475-bc11-0ec10420465c"}, traceId: 2150458717563532165423537e8287'}
+[23:53:37.482] 2025-08-27 23:53:37,475 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:53:37.519]   [FORMAT_ISSUE] Turn 7: No tools executed after multiple turns
+[23:53:37.528] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:37.991] 2025-08-27 23:53:37,982 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:53:38.000] 2025-08-27 23:53:38,000 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:53:38.022] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"0060adfa-9368-96d4-b923-febbd7e109bf"}, traceId: 2150436a17563532176915388e2288'}
+[23:53:38.025] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"5bf2edcd-54b9-96fa-9c56-c882815442f3"}, traceId: 2150411617563532176533143ee766'}
+[23:53:38.896] 2025-08-27 23:53:38,888 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:53:38.924] [LLM_ERROR] Attempt 3/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"4ea2ffe5-e34a-9e45-8029-a9cd11554be0"}, traceId: 2150415b17563532185491425ee328'}
+[23:53:39.827] 2025-08-27 23:53:39,740 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:53:40.118] [LLM_ERROR] Attempt 3/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"3a68f154-caef-9d20-bc9b-cab1212e97c6"}, traceId: 2150417c17563532187973959eef72'}
+[23:53:40.395] 2025-08-27 23:53:40,370 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:53:40.650]   [FORMAT_ISSUE] Turn 9: No tools executed after multiple turns
+[23:53:40.732] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:41.041] 2025-08-27 23:53:40,989 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:53:41.323]   [FORMAT_ISSUE] Turn 8: No tools executed after multiple turns
+[23:53:41.639] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:44.181] 2025-08-27 23:53:44,139 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:53:44.465]   [FORMAT_ISSUE] Turn 10: No tools executed after multiple turns
+[23:53:45.807] 2025-08-27 23:53:45,732 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:53:45.820] 2025-08-27 23:53:45,737 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:53:46.261] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"4fdf2a77-c198-98eb-b188-2c395dab8c93"}, traceId: 2150436a17563532243465412e2288'}[LLM_ERROR] Attempt 4/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"f59ff8a3-aa51-9a32-affe-9e65d7c4fb76"}, traceId: 213e04ea17563532243762677e3634'}
+[23:53:46.287] 
+[23:53:47.254] [DEBUG] Got result for task: has_result=True, save_logs=True
+[23:53:47.320] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[23:53:47.671] [AI_DEBUG] 生成的txt_content长度: 26122
+[23:53:47.691] [AI_DEBUG] _ai_classify_with_txt_content called:
+[23:53:47.691]   - use_ai_classification=True
+[23:53:47.691]   - ai_classifier=True
+[23:53:47.691]   - txt_content_len=26122
+[23:53:47.692]   - task_model=qwen2.5-72b-instruct
+[23:53:47.692] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[23:53:48.493] 2025-08-27 23:53:48,371 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:53:52.192]   [FORMAT_ISSUE] Turn 8: No tools executed after multiple turns
+[23:53:52.273] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:52.615] 2025-08-27 23:53:52,404 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:53:52.616]   [FORMAT_ISSUE] Turn 9: No tools executed after multiple turns
+[23:53:52.616] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:52.616] 2025-08-27 23:53:52,547 - openai._base_client - INFO - Retrying request to /chat/completions in 0.492668 seconds
+[23:53:53.170] 2025-08-27 23:53:53,150 - api_client_manager - INFO - Created idealab client for model qwen2.5-72b-instruct
+[23:53:53.173] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:53:53.174] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:53:53.177] 2025-08-27 23:53:53,174 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[23:53:54.171] 2025-08-27 23:53:54,062 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:53:55.444]   [FORMAT_ISSUE] Turn 10: No tools executed after multiple turns
+[23:53:55.741] [ERROR] Tool 'utility_helper' at index 28 not found in tool_embeddings
+[23:53:55.761] [DEBUG] tool_names length: 30, tool_embeddings keys: 24
+[23:53:55.762] [DEBUG] Thread ID: 13014777856
+[23:53:56.190] 2025-08-27 23:53:56,179 - mcp_embedding_manager - INFO - FAISS index loaded
+[23:53:56.199] 2025-08-27 23:53:56,198 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[23:53:56.199] 2025-08-27 23:53:56,199 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[23:53:57.675] [DEBUG] Got result for task: has_result=True, save_logs=True
+[23:53:57.798] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[23:53:58.648] [AI_DEBUG] 生成的txt_content长度: 25355
+[23:53:58.696] [AI_DEBUG] _ai_classify_with_txt_content called:
+[23:53:58.696]   - use_ai_classification=True
+[23:53:58.696]   - ai_classifier=True
+[23:53:58.696]   - txt_content_len=25355
+[23:53:58.772]   - task_model=qwen2.5-72b-instruct
+[23:53:58.785] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[23:53:58.844] [INFO] Operation semantic index initialized
+[23:53:59.001] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:53:59.731] 2025-08-27 23:53:59,713 - api_client_manager - INFO - Created idealab client for model qwen2.5-72b-instruct
+[23:53:59.741] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:53:59.741] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:53:59.741] 2025-08-27 23:53:59,720 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[23:53:59.987] 2025-08-27 23:53:59,984 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:54:00.237]   [FORMAT_ISSUE] Turn 7: No tools executed after multiple turns
+[23:54:00.373] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:54:00.572] 2025-08-27 23:54:00,540 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:54:00.597]   [FORMAT_ISSUE] Turn 9: No tools executed after multiple turns
+[23:54:00.628] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:54:02.926] 2025-08-27 23:54:02,850 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:54:02.938] 2025-08-27 23:54:02,835 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:54:02.944] 2025-08-27 23:54:02,844 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:54:03.166] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"69337fa0-3ecf-975f-8630-c4309b5b9143"}, traceId: 2150454417563532408225465e803a'}
+[23:54:03.166] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"d50ba974-5a10-9e70-9784-473426b20cc1"}, traceId: 2150454417563532407968908e81c5'}
+[23:54:03.190] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"97510c49-23f8-9037-9883-2c269125b6e2"}, traceId: 2150416317563532407593207e165b'}
+[23:54:04.421] 2025-08-27 23:54:04,420 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[23:54:04.602] 2025-08-27 23:54:04,602 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:54:05.018] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"86fbcabb-6fea-9aae-9e19-af6642febcf4"}, traceId: 213e064b17563532442393706e79b3'}
+[23:54:05.051] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[23:54:05.051] 2025-08-27 23:54:04,827 - mcp_embedding_manager - INFO - FAISS index loaded
+[23:54:05.051] 2025-08-27 23:54:04,827 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[23:54:05.051] 2025-08-27 23:54:04,827 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[23:54:05.051] [INFO] Operation semantic index initialized
+[23:54:05.062] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:54:05.118] 2025-08-27 23:54:05,118 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:54:05.128] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"b8ff9522-113b-92b0-a238-399d52bb466a"}, traceId: 213e011517563532448111264e93b9'}
+[23:54:05.427] 2025-08-27 23:54:05,427 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:54:05.621]   [SEARCH] Query: data processing validator
+[23:54:05.641] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:54:06.073] 2025-08-27 23:54:06,072 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:54:06.073] [LLM_ERROR] Attempt 3/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"68c7573a-2c2e-91cd-8dc8-b9e55442a81e"}, traceId: 213e006c17563532458093257e1156'}
+[23:54:06.578] 2025-08-27 23:54:06,578 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:54:06.579] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"de0b39e8-056a-9730-8f6a-6c12781bd760"}, traceId: 2150416317563532457963239e165b'}
+[23:54:06.749] 2025-08-27 23:54:06,749 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:54:06.757] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"d8cd97f1-0760-9b59-b7eb-bd1bdd94821e"}, traceId: 2150456317563532459321459e7f94'}
+[23:54:08.261] 2025-08-27 23:54:08,261 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:54:08.271] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"ec0b7600-0b4d-9e90-bb5f-2a69a7320f2c"}, traceId: 2150416317563532478983265e165b'}
+[23:54:08.513] 2025-08-27 23:54:08,513 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:54:08.523]   [FORMAT_ISSUE] Turn 10: No tools executed after multiple turns
+[23:54:09.210] 2025-08-27 23:54:09,210 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:54:09.215]   [SEARCH] Query: data validation parser
+[23:54:09.242] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:54:09.463] 2025-08-27 23:54:09,463 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:54:09.480]   [FORMAT_ISSUE] Turn 8: No tools executed after multiple turns
+[23:54:09.480] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:54:09.730] 2025-08-27 23:54:09,730 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:54:09.758] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"1cead6ae-ffc4-98e8-a9e0-9f58a1bd15af"}, traceId: 2150456317563532494461482e7f94'}
+[23:54:09.927] 2025-08-27 23:54:09,926 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:54:09.939] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"928ef06f-e5a0-9b19-9457-35d07a0111e6"}, traceId: 213e03d917563532496648763e1ee9'}
+[23:54:10.781] [DEBUG] Got result for task: has_result=True, save_logs=True
+[23:54:10.812] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[23:54:10.875] [AI_DEBUG] 生成的txt_content长度: 27977
+[23:54:10.907] [AI_DEBUG] _ai_classify_with_txt_content called:
+[23:54:10.907]   - use_ai_classification=True
+[23:54:10.907]   - ai_classifier=True
+[23:54:10.907]   - txt_content_len=27977
+[23:54:10.907]   - task_model=qwen2.5-72b-instruct
+[23:54:10.926] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[23:54:11.156] 2025-08-27 23:54:11,156 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:54:11.191] [LLM_ERROR] Attempt 3/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"bc0facdb-6979-92af-b105-15f1c6c32e1c"}, traceId: 2150416317563532508353289e165b'}
+[23:54:11.423] 2025-08-27 23:54:11,419 - api_client_manager - INFO - Created idealab client for model qwen2.5-72b-instruct
+[23:54:11.423] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:54:11.423] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:54:11.428] 2025-08-27 23:54:11,428 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[23:54:12.022] 2025-08-27 23:54:12,022 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:54:12.083] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"713a8732-47d6-9ac4-ab44-5c92cda2b7f6"}, traceId: 213e058a17563532516428879e367f'}
+[23:54:30.084] 2025-08-27 23:54:29,784 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[23:54:30.152] 2025-08-27 23:54:29,662 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:54:30.196] 2025-08-27 23:54:29,737 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[23:54:31.670] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[23:54:31.777] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.86
+[23:54:32.118]   [INFO] Tool info request: data_processing_validator
+[23:54:32.372] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:54:32.464] 2025-08-27 23:54:32,425 - mcp_embedding_manager - INFO - FAISS index loaded
+[23:54:32.476] 2025-08-27 23:54:32,472 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[23:54:32.501] 2025-08-27 23:54:32,500 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[23:54:34.129] [INFO] Operation semantic index initialized
+[23:54:34.662] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:54:36.290] 2025-08-27 23:54:36,244 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:54:36.310]   [INFO] Tool info request: data_processing_parser
+[23:54:36.330] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:54:37.855] 2025-08-27 23:54:37,825 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:54:38.014] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:54:39.689] 2025-08-27 23:54:39,633 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:54:39.941] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:54:42.059] 2025-08-27 23:54:41,956 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:54:42.447]   [FORMAT_ISSUE] Turn 6: No tools executed after multiple turns
+[23:54:42.481] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:54:43.055] 2025-08-27 23:54:43,032 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:54:43.098] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"80b9eda9-e68d-9f54-89ff-efc401dea22e"}, traceId: 2150456317563532827211719e7f94'}
+[23:54:45.612] 2025-08-27 23:54:45,584 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:54:45.640] 2025-08-27 23:54:45,544 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:54:45.664] 2025-08-27 23:54:45,635 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:54:45.930] [LLM_ERROR] Attempt 4/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"99644ebe-9dd1-9a9e-a53a-c9d9a49feeeb"}, traceId: 2150415c17563532848248729eee83'}[LLM_ERROR] Attempt 3/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"8a6da1d4-0989-9c0f-94dd-9554c2d0990b"}, traceId: 2150409517563532843533741eece3'}
+[23:54:45.951] 
+[23:54:46.395]   [SEARCH] Query: data validation parser
+[23:54:46.618] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:54:47.583] 2025-08-27 23:54:47,555 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:54:47.656] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"a9727998-9c6f-9c1c-a173-76ec70a2aec9"}, traceId: 2150456317563532867011732e7f94'}
+[23:54:49.650] 2025-08-27 23:54:49,592 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:54:49.757]   [INFO] Tool info request: data_processing_parser
+[23:54:49.778] 2025-08-27 23:54:49,747 - openai._base_client - INFO - Retrying request to /chat/completions in 0.489280 seconds
+[23:54:49.808] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:54:50.746] 2025-08-27 23:54:50,744 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:54:50.770] [LLM_ERROR] Attempt 5/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"3b3faa02-8f82-925c-af28-d0f3e6ec99b4"}, traceId: 2150415c17563532898468753eee83'}
+[23:54:51.827] 2025-08-27 23:54:51,744 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:54:51.842] 2025-08-27 23:54:51,840 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:54:51.988] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"728d25e2-275f-9b11-8c6f-c54b46e939e2"}, traceId: 2150411817563532909141494e0ad9'}
+[23:54:52.008]   [FORMAT_ISSUE] Turn 7: No tools executed after multiple turns
+[23:54:52.014] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:54:52.724] [DEBUG] Got result for task: has_result=True, save_logs=True
+[23:54:53.293] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[23:54:53.313] [AI_DEBUG] 生成的txt_content长度: 12842
+[23:54:53.316] [AI_DEBUG] _ai_classify_with_txt_content called:
+[23:54:53.319]   - use_ai_classification=True
+[23:54:53.319]   - ai_classifier=True
+[23:54:53.321]   - txt_content_len=12842
+[23:54:53.326]   - task_model=qwen2.5-72b-instruct
+[23:54:53.327] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[23:54:53.329] 2025-08-27 23:54:53,115 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:54:53.329] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"e8650791-d71e-9bda-82c8-f3a6cce2df76"}, traceId: 2150456317563532928251763e7f94'}
+[23:54:53.750] 2025-08-27 23:54:53,750 - api_client_manager - INFO - Created idealab client for model qwen2.5-72b-instruct
+[23:54:53.774] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:54:53.777] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:54:53.777] 2025-08-27 23:54:53,761 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[23:54:54.295] 2025-08-27 23:54:54,292 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:54:54.441] 2025-08-27 23:54:54,440 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:54:54.472] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"722b2656-f67e-9d6f-a8cc-19445f89a07c"}, traceId: 2150456317563532939531770e7f94'}
+[23:54:54.755] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:54:56.146] 2025-08-27 23:54:56,140 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:54:56.530] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:54:57.087] 2025-08-27 23:54:57,086 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:54:57.152] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"6eb0ae3a-5aea-9e15-899a-b6a9ec4e4811"}, traceId: 215042f817563532967644235e25ed'}
+[23:54:57.259] 2025-08-27 23:54:57,259 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:54:57.352]   [FORMAT_ISSUE] Turn 8: No tools executed after multiple turns
+[23:54:57.401] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:54:57.487] 2025-08-27 23:54:57,481 - mcp_embedding_manager - INFO - FAISS index loaded
+[23:54:57.490] 2025-08-27 23:54:57,490 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[23:54:57.490] 2025-08-27 23:54:57,490 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[23:54:57.578] [INFO] Operation semantic index initialized
+[23:54:57.634] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:54:58.710] 2025-08-27 23:54:58,680 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:54:58.798]   [FORMAT_ISSUE] Turn 9: No tools executed after multiple turns
+[23:54:58.801] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:54:59.112] 2025-08-27 23:54:59,112 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:54:59.140] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:54:59.569] 2025-08-27 23:54:59,553 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:54:59.650]   [FORMAT_ISSUE] Turn 9: No tools executed after multiple turns
+[23:54:59.656] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:00.156] 2025-08-27 23:55:00,131 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:55:00.394] 2025-08-27 23:55:00,328 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:55:00.404] 2025-08-27 23:55:00,404 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:55:00.467] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"fe098d59-0a08-9b69-96f8-400dae997537"}, traceId: 2150439017563532998642721e26b2'}
+[23:55:00.504]   [FORMAT_ISSUE] Turn 6: No tools executed after multiple turns
+[23:55:00.542]   [FORMAT_ISSUE] Turn 10: No tools executed after multiple turns
+[23:55:00.636] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:00.775] 2025-08-27 23:55:00,775 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:55:00.782] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"4d22af51-0366-9f24-9f1f-8f0b2bc01e04"}, traceId: 213e007b17563533004495938eef61'}
+[23:55:01.112] 2025-08-27 23:55:01,112 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:55:01.113] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"8542bd09-bab6-98db-b4d6-11d5e7f544d4"}, traceId: 215045ee17563533008354764e7796'}
+[23:55:03.484] [DEBUG] Got result for task: has_result=True, save_logs=True
+[23:55:03.610] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[23:55:03.985] [AI_DEBUG] 生成的txt_content长度: 27262
+[23:55:04.021] [AI_DEBUG] _ai_classify_with_txt_content called:
+[23:55:04.021]   - use_ai_classification=True
+[23:55:04.030]   - ai_classifier=True
+[23:55:04.041]   - txt_content_len=27262
+[23:55:04.041]   - task_model=qwen2.5-72b-instruct
+[23:55:04.064] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[23:55:04.313] 2025-08-27 23:55:04,217 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:55:04.868] 2025-08-27 23:55:04,868 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:55:04.961] 2025-08-27 23:55:04,961 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:55:04.967] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"75b728b0-7958-9719-8468-07761414cd82"}, traceId: 2150456617563533044108376e80b9'}
+[23:55:04.973] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"f22bed47-259e-944a-9ef5-04bcf3123442"}, traceId: 215044eb17563533044127939e8180'}
+[23:55:05.016]   [SEARCH] Query: data validation parser
+[23:55:05.492] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:06.752] 2025-08-27 23:55:06,747 - api_client_manager - INFO - Created idealab client for model qwen2.5-72b-instruct
+[23:55:06.770] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:55:06.770] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:55:06.770] 2025-08-27 23:55:06,770 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[23:55:07.118] 2025-08-27 23:55:07,118 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:55:07.134] 2025-08-27 23:55:07,119 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:55:07.169] [LLM_ERROR] Attempt 3/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"69c2b5c9-2e1e-90e4-b6e6-f1fc158c10e2"}, traceId: 2150436817563533068536178e1f8a'}
+[23:55:07.236]   [INFO] Tool info request: data_processing_validator
+[23:55:07.244] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:07.726] 2025-08-27 23:55:07,722 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[23:55:07.925] [AI_DEBUG] AI分类结果: category=other_errors, confidence=0.72
+[23:55:08.254] 2025-08-27 23:55:08,254 - mcp_embedding_manager - INFO - FAISS index loaded
+[23:55:08.254] 2025-08-27 23:55:08,254 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[23:55:08.254] 2025-08-27 23:55:08,254 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[23:55:08.280] [INFO] Operation semantic index initialized
+[23:55:08.314] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:08.420] 2025-08-27 23:55:08,420 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:55:08.436]   [FORMAT_ISSUE] Turn 10: No tools executed after multiple turns
+[23:55:08.571] 2025-08-27 23:55:08,571 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:55:08.581]   [INFO] Tool info request: data_processing_parser
+[23:55:08.585] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:09.069] 2025-08-27 23:55:09,069 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:55:09.131] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"ff01c0d6-cdd4-9fd5-a3d6-fd372515dce3"}, traceId: 213e007b17563533087755967eef61'}
+[23:55:11.293] 2025-08-27 23:55:11,233 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:55:11.535]   [SEARCH] Query: data processing validator
+[23:55:11.666] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:11.985] 2025-08-27 23:55:11,945 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:55:12.146] 2025-08-27 23:55:12,144 - api_client_manager - INFO - Created idealab client for model qwen2.5-72b-instruct
+[23:55:12.149] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:55:12.150] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:55:12.163] 2025-08-27 23:55:12,163 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[23:55:12.183] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"e3600be7-7884-9fa7-ae44-6462e68689bb"}, traceId: 213e007b17563533115565978eef61'}
+[23:55:12.323] 2025-08-27 23:55:12,321 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[23:55:12.560] 2025-08-27 23:55:12,356 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:55:12.624] [LLM_ERROR] Attempt 4/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"d38ddbdf-09a0-9f7c-9e0f-5a2409069a63"}, traceId: 2150459f17563533115218003e7fb2'}
+[23:55:12.644] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[23:55:12.890] [DEBUG] Got result for task: has_result=True, save_logs=True
+[23:55:12.917] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[23:55:12.922] [AI_DEBUG] 生成的txt_content长度: 27257
+[23:55:12.925] [AI_DEBUG] _ai_classify_with_txt_content called:
+[23:55:12.928]   - use_ai_classification=True
+[23:55:12.930]   - ai_classifier=True
+[23:55:12.930]   - txt_content_len=27257
+[23:55:12.930]   - task_model=qwen2.5-72b-instruct
+[23:55:12.931] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[23:55:13.465] 2025-08-27 23:55:13,403 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:55:14.011]   [INFO] Tool info request: data_processing_validator
+[23:55:14.042] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:15.594] 2025-08-27 23:55:15,519 - mcp_embedding_manager - INFO - FAISS index loaded
+[23:55:15.608] 2025-08-27 23:55:15,557 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:55:15.611] 2025-08-27 23:55:15,563 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[23:55:15.611] 2025-08-27 23:55:15,583 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[23:55:16.583] 2025-08-27 23:55:16,571 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:55:17.548] [LLM_ERROR] Attempt 3/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"0d2195fb-6d1f-9d13-b3b5-cd69a436b9a3"}, traceId: 213e007b17563533147065992eef61'}
+[23:55:17.574] [INFO] Operation semantic index initialized
+[23:55:17.589] 2025-08-27 23:55:17,572 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:55:17.644] [LLM_ERROR] Attempt 5/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"8d9731ea-8299-9613-a97d-bda281ed3c75"}, traceId: 2150456617563533167104691e7ff3'}
+[23:55:17.838] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:17.857] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:19.887] [DEBUG] Got result for task: has_result=True, save_logs=True
+[23:55:19.915] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[23:55:20.037] [AI_DEBUG] 生成的txt_content长度: 17541
+[23:55:20.038] [AI_DEBUG] _ai_classify_with_txt_content called:
+[23:55:20.050]   - use_ai_classification=True
+[23:55:20.051]   - ai_classifier=True
+[23:55:20.064]   - txt_content_len=17541
+[23:55:20.064]   - task_model=qwen2.5-72b-instruct
+[23:55:20.065] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[23:55:20.654] 2025-08-27 23:55:20,642 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:55:20.667] 2025-08-27 23:55:20,650 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[23:55:20.710] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"6391d0bf-fd0d-983c-b0ce-0f1bb89058c0"}, traceId: 215040cc17563533195731057ed5e6'}
+[23:55:20.733] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[23:55:20.874] 2025-08-27 23:55:20,874 - api_client_manager - INFO - Created idealab client for model qwen2.5-72b-instruct
+[23:55:20.899] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:55:20.899] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:55:20.899] 2025-08-27 23:55:20,875 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[23:55:21.260] 2025-08-27 23:55:21,257 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:55:21.291] [LLM_ERROR] Attempt 4/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"46fe0694-fe94-997d-bb31-493f251b6e7f"}, traceId: 213e007b17563533209106015eef61'}
+[23:55:21.330] 2025-08-27 23:55:21,329 - mcp_embedding_manager - INFO - FAISS index loaded
+[23:55:21.330] 2025-08-27 23:55:21,330 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[23:55:21.330] 2025-08-27 23:55:21,330 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[23:55:21.357] [INFO] Operation semantic index initialized
+[23:55:21.369] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:21.936] 2025-08-27 23:55:21,935 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:55:21.941] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"c963d15d-d154-9c92-a98e-68ac7c3e640b"}, traceId: 2150416a17563533216903255edf61'}
+[23:55:24.713] 2025-08-27 23:55:24,671 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:55:24.818]   [INFO] Tool info request: data_processing_parser
+[23:55:24.849] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:25.439] 2025-08-27 23:55:25,414 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:55:25.550] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:26.139] 2025-08-27 23:55:26,114 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:55:26.145] 2025-08-27 23:55:26,121 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:55:26.207] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"3ad00746-64d6-91b1-a542-2294d4e92572"}, traceId: 213e007b17563533257386029eef61'}
+[23:55:26.248] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:29.471] 2025-08-27 23:55:28,607 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:55:30.742]   [FORMAT_ISSUE] Turn 6: No tools executed after multiple turns
+[23:55:30.774] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:31.780] 2025-08-27 23:55:31,749 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:55:31.874] 2025-08-27 23:55:31,872 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:55:31.891]   [FORMAT_ISSUE] Turn 7: No tools executed after multiple turns
+[23:55:31.899] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:31.915] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:33.356] 2025-08-27 23:55:33,338 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:55:33.420]   [FORMAT_ISSUE] Turn 6: No tools executed after multiple turns
+[23:55:33.427] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:34.010] 2025-08-27 23:55:34,002 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:55:34.022] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"c9f7eb03-27b5-9ce5-bbf0-34628636d94a"}, traceId: 213e007b17563533336446063eef61'}
+[23:55:34.344] 2025-08-27 23:55:34,335 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:55:34.360]   [FORMAT_ISSUE] Turn 8: No tools executed after multiple turns
+[23:55:34.361] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:36.616] 2025-08-27 23:55:36,528 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:55:36.650] 2025-08-27 23:55:36,533 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:55:36.827]   [FORMAT_ISSUE] Turn 9: No tools executed after multiple turns
+[23:55:36.839]   [FORMAT_ISSUE] Turn 7: No tools executed after multiple turns
+[23:55:36.863] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:36.878] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:41.598] 2025-08-27 23:55:41,533 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:55:41.617] 2025-08-27 23:55:41,535 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:55:41.901]   [FORMAT_ISSUE] Turn 8: No tools executed after multiple turns  [FORMAT_ISSUE] Turn 10: No tools executed after multiple turns
+[23:55:41.907] 
+[23:55:42.066] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:42.823] 2025-08-27 23:55:42,820 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:55:42.923] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"7bfdcbdf-6f50-9f1c-b2b6-fb9ab6e7754b"}, traceId: 213e06a117563533418755323e899e'}
+[23:55:43.642] [DEBUG] Got result for task: has_result=True, save_logs=True
+[23:55:43.648] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[23:55:43.668] [AI_DEBUG] 生成的txt_content长度: 26890
+[23:55:43.668] [AI_DEBUG] _ai_classify_with_txt_content called:
+[23:55:43.668]   - use_ai_classification=True
+[23:55:43.668]   - ai_classifier=True
+[23:55:43.668]   - txt_content_len=26890
+[23:55:43.668]   - task_model=qwen2.5-72b-instruct
+[23:55:43.668] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[23:55:43.721] 2025-08-27 23:55:43,719 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:55:43.882]   [SEARCH] Query: data validation parser
+[23:55:44.631] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:44.671] 2025-08-27 23:55:44,639 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:55:44.769]   [FORMAT_ISSUE] Turn 9: No tools executed after multiple turns
+[23:55:44.771] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:45.404] 2025-08-27 23:55:45,385 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:55:45.423] 2025-08-27 23:55:45,386 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:55:45.510] 2025-08-27 23:55:45,508 - api_client_manager - INFO - Created idealab client for model qwen2.5-72b-instruct
+[23:55:45.512] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:55:45.512] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:55:45.518] 2025-08-27 23:55:45,516 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[23:55:45.576] 2025-08-27 23:55:45,573 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:55:45.587] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"6c0f9ed8-dbd1-9583-a1d9-4b78aec02e26"}, traceId: 213e03d917563533449092791e1f6d'}
+[23:55:45.595] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"73e202b8-2038-9161-a51a-d6ea5aa0b9b8"}, traceId: 213e007b17563533449336095eef61'}
+[23:55:45.793] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"7ff62b7e-b0ea-9f7a-aa52-41904e6649d7"}, traceId: 213e06a117563533447125330e899e'}
+[23:55:47.112] 2025-08-27 23:55:46,681 - openai._base_client - INFO - Retrying request to /chat/completions in 0.494126 seconds
+[23:55:49.825] 2025-08-27 23:55:49,821 - mcp_embedding_manager - INFO - FAISS index loaded
+[23:55:49.833] 2025-08-27 23:55:49,829 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[23:55:49.834] 2025-08-27 23:55:49,829 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[23:55:49.882] [INFO] Operation semantic index initialized
+[23:55:49.902] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:50.080] 2025-08-27 23:55:50,079 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:55:50.112]   [SEARCH] Query: data processing validator
+[23:55:50.119] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:50.216] 2025-08-27 23:55:50,216 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:55:50.237]   [FORMAT_ISSUE] Turn 10: No tools executed after multiple turns
+[23:55:50.422] 2025-08-27 23:55:50,422 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:55:50.425]   [INFO] Tool info request: data_processing_parser
+[23:55:50.428] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:50.632] 2025-08-27 23:55:50,632 - api_client_manager - INFO - Created idealab client for model qwen2.5-72b-instruct
+[23:55:50.632] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:55:50.632] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:55:50.634] 2025-08-27 23:55:50,634 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[23:55:50.902] 2025-08-27 23:55:50,901 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:55:50.979] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"8234a682-72a3-9b63-8f18-8293e1345b4e"}, traceId: 213e03d917563533505962831e1f6d'}
+[23:55:51.343] 2025-08-27 23:55:51,340 - mcp_embedding_manager - INFO - FAISS index loaded
+[23:55:51.355] 2025-08-27 23:55:51,355 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[23:55:51.355] 2025-08-27 23:55:51,355 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[23:55:51.477] [INFO] Operation semantic index initialized
+[23:55:51.568] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:51.637] 2025-08-27 23:55:51,637 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:55:51.695]   [INFO] Tool info request: data_processing_validator
+[23:55:51.696] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:52.856] 2025-08-27 23:55:52,849 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:55:53.105] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:54.167] 2025-08-27 23:55:54,115 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:55:54.201] 2025-08-27 23:55:54,170 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:55:54.207] 2025-08-27 23:55:54,206 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:55:54.431] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"3c88d00c-3bad-98fb-ae77-c6072c7edd10"}, traceId: 213e06a117563533533445361e899e'}
+[23:55:54.447]   [SEARCH] Query: data validation parser
+[23:55:54.511] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:54.541] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:55.157] 2025-08-27 23:55:55,139 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:55:55.264] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"84f3d44a-8bd6-926a-945a-5f48932ec3eb"}, traceId: 213e03d917563533548152859e1f6d'}
+[23:55:55.500] 2025-08-27 23:55:55,494 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:55:55.522]   [SEARCH] Query: data processing validator
+[23:55:55.534] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:55.598] 2025-08-27 23:55:55,597 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:55:55.603] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"272b8aab-e6a1-91e3-adfc-dc18ad0d94fe"}, traceId: 213e059617563533548293632e3cae'}
+[23:55:55.985] 2025-08-27 23:55:55,983 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:55:56.001] 2025-08-27 23:55:56,001 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:55:56.001] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"d9c77105-9f02-9ed7-a605-f1d984cac07d"}, traceId: 213e06a117563533556455368e899e'}
+[23:55:56.005] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"5a700f2e-5771-9294-b806-2571d1ba8993"}, traceId: 213e065117563533556975520e8067'}
+[23:55:57.675] 2025-08-27 23:55:57,671 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:55:57.928] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:58.352] 2025-08-27 23:55:57,924 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:55:58.354] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"bc16d057-8d42-9ec7-892e-a5d750eb6859"}, traceId: 213e065117563533576005533e8067'}
+[23:55:58.357] 2025-08-27 23:55:58,065 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:55:58.358] [LLM_ERROR] Attempt 3/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"783b4dcd-ab83-9b64-af54-5e2f89c1551a"}, traceId: 213e06a117563533577555370e899e'}
+[23:55:58.358] 2025-08-27 23:55:58,217 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:55:58.358] 2025-08-27 23:55:58,220 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:55:58.358] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"17a158a2-c31a-9f67-97e4-c0feb9890068"}, traceId: 213e03d917563533578932892e1f6d'}
+[23:55:58.360]   [INFO] Tool info request: data_processing_validator
+[23:55:58.363] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:55:59.358] 2025-08-27 23:55:59,336 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:55:59.441]   [INFO] Tool info request: data_processing_parser
+[23:55:59.449] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:56:00.184] 2025-08-27 23:56:00,155 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:56:00.195] 2025-08-27 23:56:00,154 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:56:00.276] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"548929ac-f94b-9fcc-a8c5-84d1f0e9b062"}, traceId: 213e006717563533597766014ee030'}
+[23:56:00.278] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"ada1ee53-d345-99e7-b765-92647faaadd3"}, traceId: 213e03d917563533597532909e1f6d'}
+[23:56:00.348] 2025-08-27 23:56:00,332 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[23:56:00.462] 2025-08-27 23:56:00,447 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:56:00.555] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.88
+[23:56:00.633] [LLM_ERROR] Attempt 3/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"c0536c7d-292c-9b23-989b-0d75f9a1c141"}, traceId: 213e065117563533600825550e8067'}
+[23:56:00.804] 2025-08-27 23:56:00,771 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[23:56:00.900] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[23:56:00.987] [DEBUG] Got result for task: has_result=True, save_logs=True
+[23:56:00.993] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[23:56:01.018] [AI_DEBUG] 生成的txt_content长度: 27977
+[23:56:01.018] [AI_DEBUG] _ai_classify_with_txt_content called:
+[23:56:01.018]   - use_ai_classification=True
+[23:56:01.018]   - ai_classifier=True
+[23:56:01.018]   - txt_content_len=27977
+[23:56:01.018]   - task_model=qwen2.5-72b-instruct
+[23:56:01.018] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[23:56:02.549] 2025-08-27 23:56:02,483 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:56:02.581] 2025-08-27 23:56:02,480 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:56:03.742] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"ea946c54-5d4b-96b5-b823-70dcb4547c84"}, traceId: 2150449a17563533617077804e7ff0'}[LLM_ERROR] Attempt 4/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"7766734d-ba29-9fba-872f-0b521cc2e465"}, traceId: 213e06a117563533616835379e899e'}
+[23:56:03.773] 
+[23:56:05.023] 2025-08-27 23:56:05,017 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:56:05.029] 2025-08-27 23:56:05,011 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:56:05.135]   [INFO] Tool info request: data_processing_validator
+[23:56:05.154] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:56:05.163] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:56:05.862] 2025-08-27 23:56:05,855 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:56:05.876] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"39e112bb-4476-98d0-b647-e082e63c9c8d"}, traceId: 213e065117563533655665570e8067'}
+[23:56:05.979] 2025-08-27 23:56:05,979 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:56:06.168] [LLM_ERROR] Attempt 3/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"0c2c13bc-7f16-9da2-a2a5-c7092a486f86"}, traceId: 213e059d17563533657381755e3709'}
+[23:56:06.639] 2025-08-27 23:56:06,620 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:56:07.964] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"218066be-92da-924f-8346-53bf2e88edec"}, traceId: 213e03d917563533655632957e1f6d'}
+[23:56:08.274] 2025-08-27 23:56:08,274 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:56:08.281] 2025-08-27 23:56:08,277 - httpx - INFO - HTTP Request: POST https://85409-me3ofvov-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-5-nano/chat/completions?api-version=2024-12-01-preview "HTTP/1.1 200 OK"
+[23:56:08.603] [AI_DEBUG] AI分类结果: category=tool_call_format_errors, confidence=0.85
+[23:56:08.658] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:56:09.089] 2025-08-27 23:56:09,089 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:56:09.090] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"8c8022f1-590e-9c12-9bd5-b876a3821d82"}, traceId: 213e065117563533688065615e8067'}
+[23:56:09.451] ❌ flawed_missing_step 失败: 
+[23:56:09.480] 2025-08-27 23:56:09,479 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:56:09.494]   [FORMAT_ISSUE] Turn 6: No tools executed after multiple turns
+[23:56:09.498] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:56:09.753] 2025-08-27 23:56:09,752 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:56:09.756] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:56:10.175] 2025-08-27 23:56:10,175 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:56:10.182] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"936a03d2-26fb-955e-ad67-2616b12fa6ee"}, traceId: 213e006017563533699264300ee10c'}
+[23:56:10.485] 2025-08-27 23:56:10,484 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:56:11.072] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"c48abc0b-9e2c-9eda-ad41-d2ae7a792720"}, traceId: 213e065117563533701755648e8067'}
+[23:56:11.073] 2025-08-27 23:56:10,770 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:56:11.073]   [FORMAT_ISSUE] Turn 7: No tools executed after multiple turns
+[23:56:11.073] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:56:11.238] 2025-08-27 23:56:11,237 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:56:11.249] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"2d7bec57-438d-9405-b7f4-e682b37fb916"}, traceId: 213e03d917563533709313017e1f6d'}
+[23:56:12.071] 2025-08-27 23:56:12,066 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:56:12.083] [LLM_ERROR] Attempt 3/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"ab3553e8-2bb4-9b42-8d57-eb0322612f83"}, traceId: 213e065117563533717455670e8067'}
+[23:56:12.087] 2025-08-27 23:56:12,085 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:56:12.117] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:56:12.857] 2025-08-27 23:56:12,849 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:56:12.876] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"e6209f7c-9d80-95a7-8483-7dca5ec6b8ad"}, traceId: 213e03d917563533724953026e1f6d'}
+[23:56:13.220] 2025-08-27 23:56:13,218 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:56:13.230]   [FORMAT_ISSUE] Turn 6: No tools executed after multiple turns
+[23:56:13.248] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:56:14.429] 2025-08-27 23:56:14,418 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:56:14.526]   [FORMAT_ISSUE] Turn 7: No tools executed after multiple turns
+[23:56:14.562] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:56:15.553] 2025-08-27 23:56:15,538 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:56:15.831] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:56:16.368] 2025-08-27 23:56:16,348 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:56:16.486]   [FORMAT_ISSUE] Turn 8: No tools executed after multiple turns
+[23:56:16.501] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:56:16.682] 2025-08-27 23:56:16,675 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:56:16.713]   [FORMAT_ISSUE] Turn 8: No tools executed after multiple turns
+[23:56:16.721] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:56:17.143] 2025-08-27 23:56:17,130 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:56:17.146] 2025-08-27 23:56:17,136 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:56:18.647] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"06769a99-6f11-9762-a5c9-5101607a3fd0"}, traceId: 213e03d917563533767413043e1f6d'}
+[23:56:18.771] 2025-08-27 23:56:18,753 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:56:19.068] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:56:19.530]   [FORMAT_ISSUE] Turn 9: No tools executed after multiple turns
+[23:56:19.531] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:56:20.035] 2025-08-27 23:56:20,024 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+[23:56:20.075] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"23cffd01-7b7a-90d6-8642-71bcb7491402"}, traceId: 213e06ba17563533796983914e8ac3'}
+[23:56:20.434] 2025-08-27 23:56:20,423 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:56:20.470]   [FORMAT_ISSUE] Turn 6: No tools executed after multiple turns
+[23:56:20.475] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:56:21.491] 2025-08-27 23:56:21,478 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:56:21.703] 2025-08-27 23:56:21,689 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:56:21.729] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"d2b5dd4c-5b8e-9ea6-af36-d1239e6777c6"}, traceId: 213e065117563533806655753e8067'}
+[23:56:21.839]   [FORMAT_ISSUE] Turn 9: No tools executed after multiple turns
+[23:56:21.853] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:56:22.079] 2025-08-27 23:56:22,075 - httpx - INFO - HTTP Request: POST http://39.96.211.155:8000/proxy/api/openai/v1/chat/completions "HTTP/1.1 200 OK"
+[23:56:22.097]   [FORMAT_ISSUE] Turn 10: No tools executed after multiple turns
+[23:56:22.581] 2025-08-27 23:56:22,566 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:56:23.032] [LLM_ERROR] Attempt 1/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"fb31748b-dce6-9799-a13e-dc28c1a8da6b"}, traceId: 213e03d917563533820843060e1f6d'}
+[23:56:23.071] [DEBUG] Got result for task: has_result=True, save_logs=True
+[23:56:23.075] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[23:56:23.092] [AI_DEBUG] 生成的txt_content长度: 27961
+[23:56:23.093] [AI_DEBUG] _ai_classify_with_txt_content called:
+[23:56:23.093]   - use_ai_classification=True
+[23:56:23.093]   - ai_classifier=True
+[23:56:23.093]   - txt_content_len=27961
+[23:56:23.093]   - task_model=qwen2.5-72b-instruct
+[23:56:23.093] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[23:56:23.244] 2025-08-27 23:56:23,228 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:56:23.820] [LLM_ERROR] Attempt 2/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"b44d1fa0-3e82-9f38-9f5e-0568728e4731"}, traceId: 213e065117563533828765756e8067'}
+[23:56:24.068] 2025-08-27 23:56:24,065 - api_client_manager - INFO - Created idealab client for model qwen2.5-72b-instruct
+[23:56:24.070] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:56:24.070] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:56:24.073] 2025-08-27 23:56:24,073 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[23:56:25.033] 2025-08-27 23:56:25,018 - mcp_embedding_manager - INFO - FAISS index loaded
+[23:56:25.037] 2025-08-27 23:56:25,029 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[23:56:25.037] 2025-08-27 23:56:25,033 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[23:56:25.235] [INFO] Operation semantic index initialized
+[23:56:25.253] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:56:25.390] 2025-08-27 23:56:25,383 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:56:25.423]   [FORMAT_ISSUE] Turn 10: No tools executed after multiple turns
+[23:56:26.043] 2025-08-27 23:56:26,034 - api_client_manager - INFO - Created idealab client for model qwen2.5-72b-instruct
+[23:56:26.049] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:56:26.049] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:56:26.049] 2025-08-27 23:56:26,048 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[23:56:26.247] 2025-08-27 23:56:26,225 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 400 "
+[23:56:26.290] [LLM_ERROR] Attempt 3/5: Error code: 400 - {'success': False, 'message': '模型提供方限流', 'data': None, 'code': 'MPE-429', 'detailMessage': '{"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later.","request_id":"9c6d1d52-c68e-9217-ab2f-1b5cefc408cb"}, traceId: 213e065117563533859165767e8067'}
+[23:56:27.029] 2025-08-27 23:56:27,023 - mcp_embedding_manager - INFO - FAISS index loaded
+[23:56:27.030] 2025-08-27 23:56:27,027 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[23:56:27.030] 2025-08-27 23:56:27,027 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[23:56:27.137] [INFO] Operation semantic index initialized
+[23:56:27.148] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:56:29.887] 2025-08-27 23:56:29,886 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:56:30.029]   [FORMAT_ISSUE] Turn 7: No tools executed after multiple turns
+[23:56:30.029] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:56:31.186] 2025-08-27 23:56:31,178 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:56:31.218]   [FORMAT_ISSUE] Turn 8: No tools executed after multiple turns
+[23:56:31.222] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:56:32.399] 2025-08-27 23:56:32,395 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:56:32.420]   [FORMAT_ISSUE] Turn 9: No tools executed after multiple turns
+[23:56:32.424] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct
+[23:56:33.840] 2025-08-27 23:56:33,827 - httpx - INFO - HTTP Request: POST https://idealab.alibaba-inc.com/api/openai/v1/chat/completions "HTTP/1.1 200 "
+[23:56:33.970]   [FORMAT_ISSUE] Turn 10: No tools executed after multiple turns
+[23:56:34.777] [DEBUG] Got result for task: has_result=True, save_logs=True
+[23:56:34.791] [AI_DEBUG] 测试非完全成功(failure)，准备调用AI分类
+[23:56:34.837] [AI_DEBUG] 生成的txt_content长度: 25392
+[23:56:34.841] [AI_DEBUG] _ai_classify_with_txt_content called:
+[23:56:34.842]   - use_ai_classification=True
+[23:56:34.842]   - ai_classifier=True
+[23:56:34.843]   - txt_content_len=25392
+[23:56:34.843]   - task_model=qwen2.5-72b-instruct
+[23:56:34.843] [AI_CLASSIFIER] 直接使用AI分析完整交互记录（跳过规则匹配）
+[23:56:43.277] 2025-08-27 23:56:43,271 - api_client_manager - INFO - Created idealab client for model qwen2.5-72b-instruct
+[23:56:43.282] [MCPEmbeddingManager] Reusing existing singleton instance (id: 140640604919008)
+[23:56:43.284] [MCPEmbeddingManager] Current cache size: 30 embeddings
+[23:56:43.289] 2025-08-27 23:56:43,288 - mcp_embedding_manager - INFO - Loading index from .mcp_embedding_cache/tool_index.pkl (size: 3723608 bytes)
+[23:56:44.345] 2025-08-27 23:56:44,336 - mcp_embedding_manager - INFO - FAISS index loaded
+[23:56:44.350] 2025-08-27 23:56:44,341 - mcp_embedding_manager - INFO - Updated dimension to 3072
+[23:56:44.350] 2025-08-27 23:56:44,346 - mcp_embedding_manager - INFO - Index loaded successfully: 30 tools
+[23:56:44.487] [INFO] Operation semantic index initialized
+[23:56:44.550] [LLM_CALL] Using model: qwen2.5-72b-instruct, API name: qwen2.5-72b-instruct

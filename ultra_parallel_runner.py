@@ -28,6 +28,95 @@ from queue import Queue, Empty
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# ============= Qwen队列调度器 =============
+class QwenQueueScheduler:
+    """Qwen模型队列调度器 - 确保同key串行，不同key并行
+    
+    适用于所有phases，自动管理API key资源
+    """
+    
+    _instance = None
+    _lock = threading.Lock()
+    
+    def __new__(cls):
+        """单例模式"""
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+        return cls._instance
+    
+    def __init__(self):
+        if not hasattr(self, 'initialized'):
+            self.initialized = True
+            self.num_keys = 3
+            self.key_queues = {i: Queue() for i in range(self.num_keys)}
+            self.key_workers = {}
+            self.key_busy = {i: False for i in range(self.num_keys)}
+            self.results = []
+            
+            # 启动worker线程
+            for key_idx in range(self.num_keys):
+                worker = threading.Thread(
+                    target=self._process_queue,
+                    args=(key_idx,),
+                    daemon=True,
+                    name=f"QwenKey{key_idx}Worker"
+                )
+                worker.start()
+                self.key_workers[key_idx] = worker
+    
+    def _process_queue(self, key_idx: int):
+        """处理单个key的任务队列"""
+        while True:
+            task = self.key_queues[key_idx].get()
+            if task is None:  # 退出信号
+                break
+            
+            self.key_busy[key_idx] = True
+            try:
+                logger.info(f"🔄 Key{key_idx}: 执行 {task['model']}-{task.get('difficulty', 'unknown')}")
+                result = task['func'](**task['kwargs'])
+                self.results.append((key_idx, task['model'], result))
+                logger.info(f"✅ Key{key_idx}: 完成 {task['model']}-{task.get('difficulty', 'unknown')}")
+            except Exception as e:
+                logger.error(f"❌ Key{key_idx}: 失败 - {e}")
+                self.results.append((key_idx, task['model'], False))
+            finally:
+                self.key_busy[key_idx] = False
+                self.key_queues[key_idx].task_done()
+    
+    def submit_task(self, model: str, key_idx: int, func, **kwargs):
+        """提交任务到指定key的队列"""
+        # 将model参数包含在kwargs中，确保func调用时能接收到所有参数
+        kwargs['model'] = model
+        task = {
+            'model': model,
+            'func': func,
+            'kwargs': kwargs,
+            'difficulty': kwargs.get('difficulty', 'unknown')
+        }
+        self.key_queues[key_idx].put(task)
+    
+    def wait_all(self):
+        """等待所有队列完成"""
+        for key_idx in range(self.num_keys):
+            self.key_queues[key_idx].join()
+    
+    def shutdown(self):
+        """关闭调度器"""
+        for key_idx in range(self.num_keys):
+            self.key_queues[key_idx].put(None)
+# =========================================
+
+# 可选导入新的ResultCollector
+try:
+    from result_collector import ResultCollector, ResultAggregator
+    RESULT_COLLECTOR_AVAILABLE = True
+except ImportError:
+    RESULT_COLLECTOR_AVAILABLE = False
+    logger.info("ResultCollector不可用，将使用传统模式")
+
 @dataclass
 class InstanceConfig:
     """Azure实例配置"""
@@ -54,12 +143,44 @@ class TaskShard:
 class UltraParallelRunner:
     """超高并行度测试执行器"""
     
-    def __init__(self):
+    def __init__(self, use_result_collector: bool = None):
+        """
+        初始化UltraParallelRunner
+        
+        Args:
+            use_result_collector: 是否使用新的ResultCollector模式
+                                 None=自动检测, True=强制启用, False=禁用
+        """
         self.instance_pool = self._initialize_instance_pool()
         self.active_tasks: Set[str] = set()
         self.task_queue = Queue()
         self.results_lock = threading.Lock()
         self.performance_stats = {}
+        
+        # 初始化Qwen调度器
+        self.qwen_scheduler = QwenQueueScheduler()
+        self._qwen_batch_mode = False  # 批量模式标记
+        
+        # 结果收集模式配置
+        if use_result_collector is None:
+            # 自动检测：从环境变量或配置决定
+            use_collector = os.environ.get('USE_RESULT_COLLECTOR', 'false').lower() == 'true'
+        else:
+            use_collector = use_result_collector
+            
+        if use_collector and RESULT_COLLECTOR_AVAILABLE:
+            self.result_collector = ResultCollector()
+            self.result_aggregator = ResultAggregator()
+            self.use_collector_mode = True
+            logger.info("🆕 启用ResultCollector模式，支持零冲突并发")
+        else:
+            self.result_collector = None
+            self.result_aggregator = None
+            self.use_collector_mode = False
+            if use_collector and not RESULT_COLLECTOR_AVAILABLE:
+                logger.warning("⚠️ ResultCollector不可用，使用传统模式")
+            else:
+                logger.info("📜 使用传统数据库写入模式")
         
     def _initialize_instance_pool(self) -> Dict[str, InstanceConfig]:
         """初始化Azure实例池"""
@@ -85,13 +206,12 @@ class UltraParallelRunner:
             "Llama-3.3-70B-Instruct-3"   # 统一大小写
         ]
         
-        # 3个IdealLab API Key对应的虚拟实例
-        # 为开源模型qwen创建3个虚拟实例，对应3个API keys
-        # 这样可以实现真正的并发
+        # 2个IdealLab API Key对应的虚拟实例
+        # 为开源模型qwen创建2个虚拟实例，对应2个可用的API keys
+        # 这样可以实现真正的并发（第3个key暂时不可用）
         ideallab_qwen_instances = [
             "qwen-key0",      # 对应API key 0 (baseline偏好)
-            "qwen-key1",      # 对应API key 1 (cot偏好)
-            "qwen-key2"       # 对应API key 2 (optimal偏好)
+            "qwen-key1"       # 对应API key 1 (cot+optimal偏好)
         ]
         
         # 注册所有实例
@@ -124,8 +244,8 @@ class UltraParallelRunner:
             instances[name] = InstanceConfig(
                 name=name,
                 model_family="qwen",
-                max_workers=5,   # IdealLab单key限制较低
-                max_qps=10.0     # 保守设置避免限流
+                max_workers=1,   # 限制为1避免限流问题
+                max_qps=5.0      # 更保守的QPS限制
             )
         
         # 添加闭源Azure模型实例 (只有一个deployment，但可以model level并发)
@@ -156,8 +276,8 @@ class UltraParallelRunner:
             instances[model] = InstanceConfig(
                 name=model,
                 model_family=f"ideallab-{model}",
-                max_workers=5,   # IdealLab限制，最多5并发
-                max_qps=10.0
+                max_workers=1,   # 限制为1避免限流问题
+                max_qps=5.0      # 更保守的QPS限制
             )
             
         logger.info(f"初始化实例池: {len(instances)}个实例 ({len([i for i in instances.values() if 'azure' in i.model_family])}个Azure + {len([i for i in instances.values() if 'ideallab' in i.model_family or i.model_family == 'qwen'])}个IdealLab)")
@@ -178,36 +298,95 @@ class UltraParallelRunner:
         
     def _create_qwen_smart_shards(self, model: str, prompt_types: str, difficulty: str,
                                   task_types: str, num_instances: int, tool_success_rate: float) -> List[TaskShard]:
-        """为qwen模型创建智能分片，充分利用3个API keys
+        """为qwen模型创建智能分片，使用API Key轮换避免冲突
         
-        统一策略：
-        - 不管是什么场景（5.1/5.2/5.3/5.4/5.5）
-        - 总是均匀分配任务到3个keys
-        - 简单直接，最大化并发
+        重要更新：实施API Key轮换策略，每个模型只使用一个固定的key
+        避免多个模型同时使用同一个key导致的限流问题
         """
         shards = []
         
-        # 统一策略：均匀分配到3个keys
-        instances_per_key = max(1, num_instances // 3)
-        remainder = num_instances % 3
+        # API Key轮换映射表 - 使用3个可用的keys (key0, key1, key2)
+        # 策略：根据模型大小固定分配key，确保负载均衡
+        KEY_ROTATION_MAP = {
+            "72b": 0,  # qwen2.5-72b → key0
+            "32b": 1,  # qwen2.5-32b → key1
+            "14b": 2,  # qwen2.5-14b → key2
+            "7b": 0,   # qwen2.5-7b → key0（与72b错开时间）
+            "3b": 1,   # qwen2.5-3b → key1（与32b错开时间）
+        }
         
-        for key_idx in range(3):
-            shard_instances = instances_per_key + (1 if key_idx < remainder else 0)
+        # 从模型名称提取规模标识
+        import re
+        match = re.search(r'(\d+b)', model.lower())
+        model_size = match.group(1) if match else None
+        
+        if model_size not in KEY_ROTATION_MAP:
+            logger.warning(f"未知的qwen模型规模: {model_size}，默认使用key0")
+            assigned_key = 0
+        else:
+            assigned_key = KEY_ROTATION_MAP[model_size]
+        
+        # 也可以从环境变量覆盖（用于测试或特殊情况）
+        env_key = os.environ.get(f'QWEN_{model_size.upper()}_KEY')
+        if env_key and env_key.isdigit():
+            assigned_key = int(env_key) % 3  # 确保在0-2范围内（3个keys）
+            logger.info(f"使用环境变量指定的key: QWEN_{model_size.upper()}_KEY={assigned_key}")
+        
+        # 检查是否是5.3的多prompt_types情况（仅处理flawed类型）
+        if "," in prompt_types and "flawed" in prompt_types:
+            # 5.3场景：保持原有逻辑，但使用assigned_key而非固定分配
+            if "sequence_disorder" in prompt_types:
+                group_name = "struct_defects"
+            elif "missing_step" in prompt_types:
+                group_name = "operation_defects"
+            elif "logical_inconsistency" in prompt_types:
+                group_name = "logic_defects"
+            else:
+                group_name = "unknown_defects"
             
-            if shard_instances > 0:
+            shard = TaskShard(
+                shard_id=f"{model}_{difficulty}_{group_name}_key{assigned_key}",
+                model=model,
+                prompt_types=prompt_types,  # 保持原始的多个prompt_types
+                difficulty=difficulty,
+                task_types=task_types,
+                num_instances=num_instances,
+                instance_name=f"qwen-key{assigned_key}",  # 使用分配的key
+                tool_success_rate=tool_success_rate
+            )
+            shards.append(shard)
+            logger.info(f"🔄 API Key轮换(5.3): {model}({model_size}) → key{assigned_key} (缺陷组: {group_name})")
+            return shards
+        
+        # 5.1/5.2/5.4/5.5场景：启用真正的多key并发！
+        # 重要修复：创建3个分片，分别使用key0、key1、key2实现并发
+        instances_per_key = max(1, num_instances // 3)  # 每个key分配的实例数
+        remaining_instances = num_instances % 3  # 余数实例
+        
+        for key_idx in range(3):  # 使用所有3个keys
+            # 分配实例数（余数分配给前几个key）
+            key_instances = instances_per_key + (1 if key_idx < remaining_instances else 0)
+            
+            if key_instances > 0:  # 只创建有实例分配的分片
                 shard = TaskShard(
-                    shard_id=f"{model}_{difficulty}_key{key_idx}",
-                    model=model.lower(),
-                    prompt_types=prompt_types,  # 保持原始prompt_types
+                    shard_id=f"{model}_{difficulty}_{prompt_types}_key{key_idx}",
+                    model=model,
+                    prompt_types=prompt_types,
                     difficulty=difficulty,
                     task_types=task_types,
-                    num_instances=shard_instances,
-                    instance_name=f"qwen-key{key_idx}",  # 使用虚拟实例名
+                    num_instances=key_instances,
+                    instance_name=f"qwen-key{key_idx}",
                     tool_success_rate=tool_success_rate
                 )
                 shards.append(shard)
         
-        logger.info(f"Qwen统一优化: 任务均匀分配到3个keys，每key约{instances_per_key}个实例")
+        logger.info(f"🔄 真正多Key并发策略:")
+        logger.info(f"   模型: {model} (规模: {model_size})")
+        logger.info(f"   使用Keys: key0, key1, key2")
+        logger.info(f"   总实例数: {num_instances}")
+        logger.info(f"   分片数: {len(shards)} (每个key独立分片)")
+        logger.info(f"   实例分配: {[shard.num_instances for shard in shards]}")
+        logger.info(f"   🚀 启用3倍API并发！")
         
         return shards
     
@@ -272,8 +451,16 @@ class UltraParallelRunner:
         elif model_family.startswith("azure-"):
             instances_to_use = 1  # Azure闭源模型使用单分片高并发策略
             logger.info(f"Azure闭源模型 {model} 使用单分片高并发策略（单deployment优化）")
+        elif model_family.startswith("deepseek"):
+            # DeepSeek模型暂时只使用第一个部署实例，避免多部署可能的并发问题
+            instances_to_use = 1
+            logger.info(f"DeepSeek模型 {model} 暂时使用单部署策略（避免多部署并发问题）")
+        elif model_family.startswith("llama"):
+            # Llama模型也暂时只使用第一个部署实例，避免多部署可能的并发问题
+            instances_to_use = 1
+            logger.info(f"Llama模型 {model} 暂时使用单部署策略（避免多部署并发问题）")
         else:
-            instances_to_use = min(len(available_instances), 3)  # 开源模型最多用3个实例
+            instances_to_use = min(len(available_instances), 3)  # 其他开源模型最多用3个实例
             
         instances_per_shard = max(1, num_instances // instances_to_use)
         
@@ -321,7 +508,7 @@ class UltraParallelRunner:
         # 保持原始的instance_name作为deployment
         deployment_name = shard.instance_name
         # 注意：不要在这里修改deployment_name！
-        # qwen-key0/1/2 虚拟实例名会在 batch_test_runner.py 中正确处理
+        # qwen-key0/1 虚拟实例名会在 batch_test_runner.py 中正确处理
         
         # 根据模型类型和rate_mode调整参数
         if shard.instance_name in self.instance_pool:
@@ -329,42 +516,51 @@ class UltraParallelRunner:
             
             # IdealLab开源模型（qwen系列）
             if instance.model_family == "qwen" or shard.instance_name.startswith("qwen-key"):
-                # qwen模型现在可以使用更高的并发（因为有3个keys分担负载）
+                # IdealLab API严格限制，必须使用低并发
+                # 无论用户设置什么（包括--max-workers），都强制限制为1个worker
+                max_workers = 1  # 强制限制：每个key只能1个worker（严格限流）
+                qps = 10  # QPS限制为10
+                logger.info(f"  IdealLab qwen模型限制: {shard.instance_name} 强制使用 max_workers={max_workers}, qps={qps}")
+                logger.info(f"    注意: IdealLab API并发限制严格，忽略--max-workers设置")
+            # Azure开源模型（DeepSeek, Llama等）
+            elif instance.model_family in ["deepseek-v3", "deepseek-r1", "llama-3.3"]:
                 # 如果用户指定了max_workers，优先使用
                 if max_workers is not None:
-                    qps = 10 if max_workers <= 10 else 20
+                    base_workers = max_workers
+                    max_workers = base_workers * prompt_count if prompt_count > 1 else base_workers
+                    qps = None  # 移除QPS限制
+                    logger.info(f"  Azure开源模型自定义: {prompt_count}个prompt × {base_workers} = {max_workers} workers")
                 elif rate_mode == "fixed":
-                    max_workers = 3  # 固定模式：每个key可以用3个workers
-                    qps = 10
+                    # 固定模式：每个prompt 50 workers
+                    base_workers = 50
+                    max_workers = base_workers * prompt_count if prompt_count > 1 else base_workers
+                    qps = None  # 移除QPS限制
+                    logger.info(f"  Azure开源模型固定模式: {prompt_count}个prompt × {base_workers} = {max_workers} workers")
                 else:
-                    max_workers = 1  # 自适应模式：每个key可以用1个workers
+                    # 自适应模式：每个prompt 100 workers
+                    base_workers = 100
+                    max_workers = base_workers * prompt_count if prompt_count > 1 else base_workers
                     qps = None  # adaptive不需要QPS
-                logger.info(f"  Qwen模型优化: {shard.instance_name} 使用 max_workers={max_workers}")
+                    logger.info(f"  Azure开源模型自适应模式: {prompt_count}个prompt × {base_workers} = {max_workers} workers")
             # IdealLab闭源模型（单API Key限制）
             elif instance.model_family.startswith("ideallab-"):
-                # 如果用户指定了max_workers，优先使用
-                if max_workers is not None:
-                    qps = 5 if max_workers <= 10 else 10
-                elif rate_mode == "fixed":
-                    max_workers = 1  # 固定模式：改为1个worker避免并发问题
-                    qps = 5
-                else:
-                    max_workers = 1  # 自适应模式：改为1个worker避免并发问题
-                    qps = None
-                logger.info(f"  IdealLab闭源模型: max_workers={max_workers} (单API Key限制)")
+                # IdealLab闭源模型严格限制为1个worker，不管有多少prompts
+                max_workers = 1  # 强制1个worker，忽略用户设置和prompt数量
+                qps = 10  # QPS限制为10
+                logger.info(f"  IdealLab闭源模型: max_workers={max_workers}, qps={qps} (严格限流，忽略prompt数量)")
             # Azure闭源模型（单deployment但支持高并发）
             elif instance.model_family.startswith("azure-"):
                 # 如果用户指定了max_workers，优先使用
                 if max_workers is not None:
                     base_workers = max_workers
                     max_workers = base_workers * prompt_count if prompt_count > 1 else base_workers
-                    qps = 50 if base_workers <= 30 else (100 if base_workers <= 50 else 200)
+                    qps = None  # 移除QPS限制
                     logger.info(f"  Azure闭源模型自定义: {prompt_count}个prompt × {base_workers} = {max_workers} workers")
                 elif rate_mode == "fixed":
                     # 闭源模型固定模式：单deployment高并发
                     base_workers = 100  # 更高的基础并发
                     max_workers = base_workers * prompt_count if prompt_count > 1 else base_workers
-                    qps = 200
+                    qps = None  # 移除QPS限制
                     logger.info(f"  Azure闭源模型固定模式: {prompt_count}个prompt × {base_workers} = {max_workers} workers")
                 else:
                     # 闭源模型自适应模式：单deployment超高并发
@@ -373,36 +569,31 @@ class UltraParallelRunner:
                     qps = None
                     logger.info(f"  Azure闭源模型自适应模式: {prompt_count}个prompt × {base_workers} = {max_workers} workers")
             else:
-                # Azure开源模型 - 支持prompt并发倍增
-                # 如果用户指定了max_workers，优先使用
+                # 其他未分类模型 - 使用保守配置
+                logger.warning(f"  未识别的模型族 {instance.model_family}，使用默认配置")
                 if max_workers is not None:
                     base_workers = max_workers
                     max_workers = base_workers * prompt_count if prompt_count > 1 else base_workers
-                    qps = 50 if base_workers <= 30 else (100 if base_workers <= 50 else 200)
-                    logger.info(f"  Azure开源模型自定义: {prompt_count}个prompt × {base_workers} = {max_workers} workers")
+                    qps = None  # 移除QPS限制
                 elif rate_mode == "fixed":
-                    # 固定模式：每个prompt 50 workers
-                    base_workers = 50
+                    base_workers = 30  # 保守的固定模式配置
                     max_workers = base_workers * prompt_count if prompt_count > 1 else base_workers
-                    qps = 100
-                    logger.info(f"  Azure固定模式: {prompt_count}个prompt × {base_workers} = {max_workers} workers")
+                    qps = None  # 移除QPS限制
                 else:
-                    # 自适应模式：每个prompt 100 workers
-                    base_workers = 100
+                    base_workers = 50  # 保守的自适应模式配置
                     max_workers = base_workers * prompt_count if prompt_count > 1 else base_workers
-                    qps = None  # adaptive不需要QPS
-                    logger.info(f"  Azure自适应模式: {prompt_count}个prompt × {base_workers} = {max_workers} workers")
+                    qps = None
         else:
             # 默认配置
             # 如果用户指定了max_workers，优先使用
             if max_workers is not None:
                 base_workers = max_workers
                 max_workers = base_workers * prompt_count if prompt_count > 1 else base_workers
-                qps = 50 if base_workers <= 30 else (100 if base_workers <= 50 else 200)
+                qps = None  # 移除QPS限制
             elif rate_mode == "fixed":
                 base_workers = 30
                 max_workers = base_workers * prompt_count if prompt_count > 1 else base_workers
-                qps = 50
+                qps = None  # 移除QPS限制
             else:
                 base_workers = 50
                 max_workers = base_workers * prompt_count if prompt_count > 1 else base_workers
@@ -430,6 +621,9 @@ class UltraParallelRunner:
             key_index = int(shard.instance_name[-1])  # 从 "qwen-key0" 提取 0
             cmd.extend(["--idealab-key-index", str(key_index)])
             logger.info(f"  使用IdealLab API Key {key_index}")
+        elif shard.instance_name == "qwen-serial":
+            # 串行模式：不指定key，让smart_batch_runner自己轮询使用
+            logger.info(f"  串行模式: 将在内部轮询使用多个API keys")
         
         # 添加静默模式参数（如果是调试进程则不静默）
         debug_process_num = int(os.environ.get('DEBUG_PROCESS_NUM', '1'))
@@ -441,7 +635,10 @@ class UltraParallelRunner:
         
         # 根据rate_mode添加参数
         if rate_mode == "fixed":
-            cmd.extend(["--no-adaptive", "--qps", str(qps)])
+            if qps is not None:
+                cmd.extend(["--no-adaptive", "--qps", str(qps)])
+            else:
+                cmd.append("--no-adaptive")  # 固定模式但无QPS限制
         else:
             cmd.append("--adaptive")
         
@@ -460,24 +657,36 @@ class UltraParallelRunner:
         # 确保传递环境变量
         env = os.environ.copy()
         
-        # 确保STORAGE_FORMAT环境变量被传递
-        # 即使父进程没有设置，我们也应该显式传递（使用json作为默认值）
-        if 'STORAGE_FORMAT' not in env or not env.get('STORAGE_FORMAT'):
-            # 从环境变量中获取，如果没有则使用'json'作为默认值
-            storage_format = os.environ.get('STORAGE_FORMAT', 'json')
-            env['STORAGE_FORMAT'] = storage_format
-            logger.info(f"   设置STORAGE_FORMAT={storage_format}给子进程")
-        else:
-            logger.info(f"   传递STORAGE_FORMAT={env['STORAGE_FORMAT']}给子进程")
+        # 确保所有关键内存优化环境变量被传递
+        critical_env_vars = {
+            'STORAGE_FORMAT': os.environ.get('STORAGE_FORMAT', 'json'),
+            'USE_PARTIAL_LOADING': os.environ.get('USE_PARTIAL_LOADING', 'true'),
+            'TASK_LOAD_COUNT': os.environ.get('TASK_LOAD_COUNT', '20'),
+            'SKIP_MODEL_LOADING': os.environ.get('SKIP_MODEL_LOADING', 'true'),
+            'USE_RESULT_COLLECTOR': os.environ.get('USE_RESULT_COLLECTOR', 'true'),
+            'KMP_DUPLICATE_LIB_OK': 'TRUE',
+            'PYTHONMALLOC': 'malloc'
+        }
         
-        # 将STORAGE_FORMAT添加到命令行环境前缀
-        # 这样可以确保子进程能够获取到环境变量
-        cmd_with_env = ['env', f'STORAGE_FORMAT={env["STORAGE_FORMAT"]}'] + cmd
+        # 更新环境变量
+        for key, value in critical_env_vars.items():
+            if key not in env or not env.get(key):
+                env[key] = value
+                logger.info(f"   设置{key}={value}给子进程")
+            else:
+                logger.info(f"   传递{key}={env[key]}给子进程")
+        
+        # 构建环境变量前缀命令（确保所有关键变量都传递）
+        env_prefix = []
+        for key, value in critical_env_vars.items():
+            env_prefix.append(f'{key}={env[key]}')
+        
+        cmd_with_env = ['env'] + env_prefix + cmd
         
         process = subprocess.Popen(
             cmd_with_env,
-            stdout=subprocess.DEVNULL,  # 不捕获标准输出
-            stderr=subprocess.PIPE,      # 捕获错误以便调试
+            stdout=None,  # 允许输出到终端 (不重定向)
+            stderr=subprocess.STDOUT,  # 将错误输出合并到标准输出
             text=True,
             env=env  # 显式传递环境变量
         )
@@ -490,7 +699,7 @@ class UltraParallelRunner:
                                rate_mode: str = "adaptive", result_suffix: str = "",
                                silent: bool = False, tool_success_rate: float = 0.8,
                                max_workers: int = None) -> bool:
-        """运行超高并行度测试
+        """运行超高并行度测试 - 自动检测qwen模型并使用队列调度
         
         Args:
             model: 模型名称
@@ -501,6 +710,47 @@ class UltraParallelRunner:
             rate_mode: 速率模式 - "adaptive" 或 "fixed"
         """
         
+        # 检测是否是qwen模型，如果是则使用队列调度
+        if "qwen" in model.lower() and not self._qwen_batch_mode:
+            logger.info(f"\n🎯 检测到Qwen模型，使用队列调度器")
+            
+            # 获取分配的key
+            import re
+            match = re.search(r'(\d+b)', model.lower())
+            if match:
+                model_size = match.group(1)
+                KEY_MAP = {"72b": 0, "32b": 1, "14b": 2, "7b": 0, "3b": 1}
+                key_idx = KEY_MAP.get(model_size, 0)
+            else:
+                key_idx = 0
+            
+            logger.info(f"   模型: {model} → Key{key_idx}")
+            logger.info(f"   Prompt类型: {prompt_types}")
+            logger.info(f"   难度: {difficulty}")
+            
+            # 提交到队列
+            self.qwen_scheduler.submit_task(
+                model=model,
+                key_idx=key_idx,
+                func=self._run_qwen_test_internal,
+                prompt_types=prompt_types,
+                difficulty=difficulty,
+                task_types=task_types,
+                num_instances=num_instances,
+                rate_mode=rate_mode,
+                result_suffix=result_suffix,
+                silent=silent,
+                tool_success_rate=tool_success_rate,
+                max_workers=max_workers
+            )
+            
+            # 如果不是批量模式，等待完成
+            if not self._qwen_batch_mode:
+                self.qwen_scheduler.wait_all()
+            
+            return True
+        
+        # 非qwen模型或批量模式中的qwen，使用原逻辑
         logger.info(f"\n🔥 启动超高并行测试")
         logger.info(f"   模型: {model}")
         logger.info(f"   Prompt类型: {prompt_types}") 
@@ -532,15 +782,15 @@ class UltraParallelRunner:
                 processes.append((shard, process))
                 logger.info(f"🚀 第一个分片 {shard.shard_id} 立即启动")
             elif i == 1:
-                # 第二个分片延迟30秒（让第一个分片完成大部分workflow生成）
-                logger.info(f"⏱️  延迟30秒后启动第二个分片...")
-                time.sleep(30)
+                # 第二个分片延迟5秒（现在使用预加载workflow，无需长延迟）
+                logger.info(f"⏱️  延迟5秒后启动第二个分片...")
+                time.sleep(5)
                 process = self.execute_shard_async(shard, rate_mode=rate_mode, result_suffix=result_suffix, silent=silent, max_workers=max_workers, shard_index=i+1)
                 processes.append((shard, process))
             else:
-                # 第三个及后续分片延迟20秒（workflow生成高峰已过）
-                logger.info(f"⏱️  延迟20秒后启动分片 {i+1}...")
-                time.sleep(20)
+                # 第三个及后续分片延迟5秒（预加载workflow，快速启动）
+                logger.info(f"⏱️  延迟5秒后启动分片 {i+1}...")
+                time.sleep(5)
                 process = self.execute_shard_async(shard, rate_mode=rate_mode, result_suffix=result_suffix, silent=silent, max_workers=max_workers, shard_index=i+1)
                 processes.append((shard, process))
             
@@ -605,8 +855,82 @@ class UltraParallelRunner:
         
         if failed_shards:
             logger.warning(f"   失败分片: {failed_shards}")
+        
+        # 新功能：收集和聚合所有结果（如果启用了collector模式）
+        if self.use_collector_mode and success_count > 0:
+            self._collect_and_aggregate_results(model)
             
         return len(failed_shards) == 0
+    
+    def _collect_and_aggregate_results(self, model: str):
+        """收集并聚合所有分片的结果（新功能）"""
+        logger.info("🔄 开始收集所有分片的测试结果...")
+        
+        try:
+            # 收集所有待处理的结果
+            all_results = self.result_collector.collect_all_results(cleanup=True)
+            
+            if not all_results:
+                logger.warning("⚠️ 未发现任何待处理的结果")
+                return
+            
+            # 聚合结果
+            logger.info("📊 开始聚合结果...")
+            aggregated_db = self.result_aggregator.aggregate_results(all_results)
+            
+            # 保存到数据库
+            self._save_aggregated_results(aggregated_db)
+            
+            logger.info("✅ 结果收集和聚合完成，数据已安全保存")
+            
+        except Exception as e:
+            logger.error(f"❌ 结果收集失败: {e}")
+            # 不抛出异常，让测试继续完成
+            
+    def _save_aggregated_results(self, aggregated_db: Dict):
+        """保存聚合后的结果到数据库"""
+        # 使用传统的数据库保存机制，但现在是单线程安全的
+        from pathlib import Path
+        import json
+        
+        db_file = Path("pilot_bench_cumulative_results/master_database.json")
+        db_file.parent.mkdir(exist_ok=True)
+        
+        # 如果已有数据库，需要合并
+        if db_file.exists():
+            try:
+                with open(db_file, 'r', encoding='utf-8') as f:
+                    existing_db = json.load(f)
+                    
+                # 合并数据库（这里现在是安全的，因为只有一个写入者）
+                merged_db = self._merge_databases(existing_db, aggregated_db)
+            except Exception as e:
+                logger.warning(f"读取现有数据库失败，将创建新数据库: {e}")
+                merged_db = aggregated_db
+        else:
+            merged_db = aggregated_db
+        
+        # 原子写入
+        temp_file = db_file.with_suffix('.tmp')
+        with open(temp_file, 'w', encoding='utf-8') as f:
+            json.dump(merged_db, f, indent=2, ensure_ascii=False)
+        
+        temp_file.replace(db_file)
+        logger.info(f"💾 数据库已保存到: {db_file}")
+        
+    def _merge_databases(self, existing: Dict, new: Dict) -> Dict:
+        """合并两个数据库（简化版本）"""
+        # 这里可以实现更复杂的合并逻辑
+        # 现在先做简单的模型级别合并
+        merged = existing.copy()
+        
+        if 'models' in new:
+            if 'models' not in merged:
+                merged['models'] = {}
+            merged['models'].update(new['models'])
+        
+        merged['last_updated'] = new.get('last_updated', existing.get('last_updated'))
+        return merged
         
     def _update_performance_score(self, instance_name: str, success: bool):
         """更新实例性能评分"""
@@ -622,6 +946,102 @@ class UltraParallelRunner:
         success_rate = stats['success'] / stats['total']
         self.instance_pool[instance_name].performance_score = success_rate
         
+    def _run_qwen_test_internal(self, model: str, prompt_types: str, difficulty: str,
+                               task_types: str, num_instances: int, rate_mode: str,
+                               result_suffix: str, silent: bool, tool_success_rate: float,
+                               max_workers: int) -> bool:
+        """内部方法：实际执行qwen测试（在队列中运行）
+        
+        现在支持多分片并发执行！
+        """
+        
+        # 创建任务分片（现在支持多个分片！）
+        shards = self.create_task_shards(model, prompt_types, difficulty,
+                                        task_types, num_instances, tool_success_rate)
+        
+        if not shards:
+            logger.error(f"无法创建任务分片: {model}")
+            return False
+        
+        logger.info(f"🚀 启动{len(shards)}个分片并发执行")
+        
+        # 并发执行所有分片
+        processes = []
+        for i, shard in enumerate(shards):
+            process = self.execute_shard_async(shard, rate_mode=rate_mode,
+                                              result_suffix=result_suffix,
+                                              silent=silent, max_workers=max_workers,
+                                              shard_index=i+1)
+            processes.append(process)
+            logger.info(f"   分片{i+1}: {shard.instance_name} ({shard.num_instances}个实例)")
+        
+        # 等待所有分片完成 - 现在有了根本修复，无需复杂的超时机制
+        success_count = 0
+        
+        for i, process in enumerate(processes):
+            process.wait()
+            if process.returncode == 0:
+                success_count += 1
+                logger.info(f"✅ 分片{i+1}完成")
+            else:
+                logger.error(f"❌ 分片{i+1}失败 (退出码: {process.returncode})")
+        
+        logger.info(f"📊 并发执行结果: {success_count}/{len(processes)} 分片成功")
+        
+        return success_count == len(processes)
+    
+    def run_batch_qwen_tests(self, models: List[str], prompt_types: str,
+                            difficulties: List[str], task_types: str = "all",
+                            num_instances: int = 20, rate_mode: str = "fixed",
+                            result_suffix: str = "", silent: bool = False,
+                            tool_success_rate: float = 0.8, max_workers: int = None) -> bool:
+        """批量运行qwen测试 - 专为Phase 5.2等场景设计
+        
+        使用队列调度器确保：
+        1. 同一key的任务串行执行
+        2. 不同key之间并行执行
+        3. 没有API key冲突
+        """
+        
+        logger.info(f"\n🚀 批量Qwen测试（队列调度模式）")
+        logger.info(f"   模型数: {len(models)}")
+        logger.info(f"   难度: {difficulties}")
+        logger.info(f"   总任务数: {len(models) * len(difficulties)}")
+        
+        # 设置批量模式
+        self._qwen_batch_mode = True
+        
+        # 提交所有任务
+        task_count = 0
+        for difficulty in difficulties:
+            for model in models:
+                if "qwen" in model.lower():
+                    task_count += 1
+                    self.run_ultra_parallel_test(
+                        model=model,
+                        prompt_types=prompt_types,
+                        difficulty=difficulty,
+                        task_types=task_types,
+                        num_instances=num_instances,
+                        rate_mode=rate_mode,
+                        result_suffix=result_suffix,
+                        silent=silent,
+                        tool_success_rate=tool_success_rate,
+                        max_workers=max_workers
+                    )
+        
+        logger.info(f"📋 已提交 {task_count} 个任务到队列")
+        
+        # 等待所有任务完成
+        logger.info(f"⏳ 等待所有队列任务完成...")
+        self.qwen_scheduler.wait_all()
+        
+        # 清除批量模式
+        self._qwen_batch_mode = False
+        
+        logger.info(f"✅ 批量Qwen测试完成")
+        return True
+    
     def get_resource_utilization(self) -> Dict:
         """获取资源利用率统计"""
         total_capacity = sum(inst.max_workers for inst in self.instance_pool.values())

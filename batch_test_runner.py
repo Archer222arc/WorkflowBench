@@ -1585,6 +1585,15 @@ class BatchTestRunner:
         self.logger.info(f"  - Log file: {self.log_filename}")
         self.logger.info("="*60)
         
+        # 🔧 关键修复：清理资源，停止后台线程，避免进程卡死
+        try:
+            if hasattr(self, 'storage_adapter') and self.storage_adapter:
+                self.logger.info("🧹 正在清理存储适配器资源...")
+                self.storage_adapter.close()
+                self.logger.info("✅ 存储适配器资源清理完成")
+        except Exception as e:
+            self.logger.warning(f"⚠️ 清理存储适配器时出现问题: {e}")
+        
         return results
     
     def _checkpoint_save(self, results, task_model=None, force=False):

@@ -1,0 +1,77 @@
+===== 分片 qwen2.5-3b-instruct_easy_key1 =====
+时间: 2025-08-27T20:44:42.915318
+模型: qwen2.5-3b-instruct
+实例: qwen-key1
+命令: python -u smart_batch_runner.py --model qwen2.5-3b-instruct --deployment qwen-key1 --prompt-types flawed_sequence_disorder,flawed_tool_misuse,flawed_parameter_error --difficulty easy --task-types all --num-instances 10 --max-workers 6 --tool-success-rate 0.8 --batch-commit --checkpoint-interval 20 --ai-classification --no-adaptive --qps 50 --prompt-parallel
+环境变量:
+  STORAGE_FORMAT=json
+  PYTHONFAULTHANDLER=1
+  PYTHONUNBUFFERED=1
+==================================================
+
+[20:44:46.411] 
+[20:44:46.412] A module that was compiled using NumPy 1.x cannot be run in
+[20:44:46.412] NumPy 2.2.6 as it may crash. To support both 1.x and 2.x
+[20:44:46.412] versions of NumPy, modules must be compiled with NumPy 2.0.
+[20:44:46.413] Some module may need to rebuild instead e.g. with 'pybind11>=2.12'.
+[20:44:46.413] 
+[20:44:46.413] If you are a user of the module, the easiest solution will be to
+[20:44:46.414] downgrade to 'numpy<2' or try to upgrade the affected module.
+[20:44:46.414] We expect that some modules will need time to support NumPy 2.
+[20:44:46.414] 
+[20:44:46.414] Traceback (most recent call last):  File "/Users/ruicheng/Documents/GitHub/WorkflowBench/smart_batch_runner.py", line 21, in <module>
+[20:44:46.414]     from batch_test_runner import BatchTestRunner, TestTask
+[20:44:46.414]   File "/Users/ruicheng/Documents/GitHub/WorkflowBench/batch_test_runner.py", line 26, in <module>
+[20:44:46.415]     from mdp_workflow_generator import MDPWorkflowGenerator
+[20:44:46.415]   File "/Users/ruicheng/Documents/GitHub/WorkflowBench/mdp_workflow_generator.py", line 17, in <module>
+[20:44:46.416]     import torch
+[20:44:46.416]   File "/Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/__init__.py", line 1477, in <module>
+[20:44:46.416]     from .functional import *  # noqa: F403
+[20:44:46.416]   File "/Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/functional.py", line 9, in <module>
+[20:44:46.416]     import torch.nn.functional as F
+[20:44:46.417]   File "/Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/nn/__init__.py", line 1, in <module>
+[20:44:46.417]     from .modules import *  # noqa: F403
+[20:44:46.417]   File "/Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/nn/modules/__init__.py", line 35, in <module>
+[20:44:46.417]     from .transformer import TransformerEncoder, TransformerDecoder, \
+[20:44:46.417]   File "/Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/nn/modules/transformer.py", line 20, in <module>
+[20:44:46.417]     device: torch.device = torch.device(torch._C._get_default_device()),  # torch.device('cpu'),
+[20:44:46.417] /Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/nn/modules/transformer.py:20: UserWarning: Failed to initialize NumPy: _ARRAY_API not found (Triggered internally at /Users/runner/work/pytorch/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:84.)
+[20:44:46.419]   device: torch.device = torch.device(torch._C._get_default_device()),  # torch.device('cpu'),
+[20:44:49.666] 2025-08-27 20:44:49,651 - faiss.loader - INFO - Loading faiss.
+[20:44:49.708] 2025-08-27 20:44:49,708 - faiss.loader - INFO - Successfully loaded faiss.
+[20:44:52.135] [INFO] 使用JSON存储格式
+[20:44:52.144] [INFO] 使用JSON存储格式
+[20:44:54.019] [INFO] 使用JSON存储格式
+[20:44:54.023] [INFO] 使用JSON存储格式
+[20:44:54.028] 
+[20:44:54.028] ============================================================
+[20:44:54.029] 智能批测试: qwen2.5-3b-instruct (idealab)
+[20:44:54.029] Prompt types: ['flawed_sequence_disorder', 'flawed_tool_misuse', 'flawed_parameter_error']
+[20:44:54.029] 难度: easy
+[20:44:54.029] 目标: 每种配置 10 个实例
+[20:44:54.029] 策略: 3个prompt types使用不同API keys并行
+[20:44:54.030] ============================================================
+[20:44:54.092] 
+[20:44:54.092] 总计: 150 个测试任务
+[20:44:54.092]   flawed_sequence_disorder: 50 个任务
+[20:44:54.093]   flawed_tool_misuse: 50 个任务
+[20:44:54.093]   flawed_parameter_error: 50 个任务
+[20:44:54.093] 
+[20:44:54.093] 📦 IdealLab并行策略：
+[20:44:54.093]   flawed_sequence_disorder → 轮询使用3个keys
+[20:44:54.093]   flawed_tool_misuse → 轮询使用3个keys
+[20:44:54.093]   flawed_parameter_error → 轮询使用3个keys
+[20:44:54.093] 
+[20:44:54.093] ⚡ 启动3个并行任务...
+[20:44:54.114] 2025-08-27 20:44:54,114 - smart_model_router - INFO - ✨ Using USER's Azure endpoint for gpt-5-nano
+[20:44:54.228] 2025-08-27 20:44:54,228 - txt_based_ai_classifier - INFO - TXT-based AI classifier initialized with gpt-5-nano (parameter-filtered)
+[20:44:54.229] [AI_DEBUG] AI分类器初始化成功: <txt_based_ai_classifier.TxtBasedAIClassifier object at 0x7f89be121610>
+[20:44:54.229] 2025-08-27 20:44:54,228 - batch_test_runner - INFO - 基于TXT文件的AI错误分类系统已启用 (使用gpt-5-nano)
+[20:44:54.229] [DEBUG] BatchTestRunner initialized with save_logs=True, enable_database_updates=True, use_ai_classification=True, checkpoint_interval=0
+[20:44:54.230] 2025-08-27 20:44:54,229 - txt_based_ai_classifier - INFO - TXT-based AI classifier initialized with gpt-5-nano (parameter-filtered)
+[20:44:54.230] [AI_DEBUG] AI分类器初始化成功: <txt_based_ai_classifier.TxtBasedAIClassifier object at 0x7f89bdf8a470>
+[20:44:54.230] 2025-08-27 20:44:54,229 - batch_test_runner - INFO - 基于TXT文件的AI错误分类系统已启用 (使用gpt-5-nano)
+[20:44:54.230] [DEBUG] BatchTestRunner initialized with save_logs=True, enable_database_updates=True, use_ai_classification=True, checkpoint_interval=0
+[20:44:54.240] 2025-08-27 20:44:54,239 - txt_based_ai_classifier - INFO - TXT-based AI classifier initialized with gpt-5-nano (parameter-filtered)
+[20:44:54.240] [AI_DEBUG] AI分类器初始化成功: <txt_based_ai_classifier.TxtBasedAIClassifier object at 0x7f89bd8cd090>
+[20:44:54.241] [DEBUG] BatchTestRunner initialized with save_logs=True, enable_database_updates=True, use_ai_classification=True, checkpoint_interval=0

@@ -76,12 +76,12 @@ class AdaptiveRateLimiter:
         """
         # 根据API提供商调整默认值
         self.api_provider = api_provider
-        if api_provider and 'idealab' in api_provider.lower():
-            # idealab API适度保守但不要太保守
+        if api_provider and 'ideallab' in api_provider.lower():
+            # ideallab API适度保守但不要太保守
             initial_workers = min(initial_workers, 5)  # 从2提高到5
-            initial_qps = min(initial_qps, 10)  # 从3提高到10
+            initial_qps = min(initial_qps, 10) if initial_qps is not None else 10  # 从3提高到10
             max_workers = min(max_workers, 15)  # 从5提高到15
-            max_qps = min(max_qps, 25)  # 从10提高到25
+            max_qps = min(max_qps, 25) if max_qps is not None else 25  # 从10提高到25
             backoff_factor = 0.5  # 温和降速
             recovery_factor = 1.5  # 适度提速
             stable_threshold = 10  # 适度稳定后提速
@@ -122,7 +122,9 @@ class AdaptiveRateLimiter:
         
         # 请求间隔控制
         self.last_request_time = 0
-        self.request_interval = 1.0 / self.current_qps if self.current_qps > 0 else 0
+        # 当qps为None时，设置为一个很大的值（相当于无限制）
+        effective_qps = self.current_qps if self.current_qps is not None else 1000
+        self.request_interval = 1.0 / effective_qps if effective_qps > 0 else 0
         
     def record_success(self):
         """记录成功请求"""

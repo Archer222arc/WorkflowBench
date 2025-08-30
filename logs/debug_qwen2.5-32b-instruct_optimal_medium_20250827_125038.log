@@ -1,0 +1,33 @@
+2025-08-27 12:50:38,900 - INFO - 初始化实例池: 17个实例 (2个Azure + 6个IdealLab)
+2025-08-27 12:50:38,900 - INFO - ResultCollector初始化，临时目录: temp_results
+2025-08-27 12:50:38,900 - INFO - ResultAggregator初始化
+2025-08-27 12:50:38,900 - INFO - 🆕 启用ResultCollector模式，支持零冲突并发
+2025-08-27 12:50:38,900 - INFO - 调试日志目录: logs/debug_ultra_20250827_125025
+2025-08-27 12:50:38,901 - INFO - [DEBUG] 开始调试模式运行
+2025-08-27 12:50:38,901 - INFO - [DEBUG] 参数: args=(), kwargs={'model': 'qwen2.5-32b-instruct', 'prompt_types': 'optimal', 'difficulty': 'medium', 'task_types': 'all', 'num_instances': 20, 'max_workers': 50, 'tool_success_rate': 0.8, 'rate_mode': 'fixed', 'silent': False}
+2025-08-27 12:50:38,901 - INFO - 
+🔥 启动超高并行测试
+2025-08-27 12:50:38,901 - INFO -    模型: qwen2.5-32b-instruct
+2025-08-27 12:50:38,901 - INFO -    Prompt类型: optimal
+2025-08-27 12:50:38,901 - INFO -    难度: medium
+2025-08-27 12:50:38,901 - INFO -    实例数: 20
+2025-08-27 12:50:38,901 - INFO -    速率模式: fixed
+2025-08-27 12:50:38,901 - INFO - 🎯 使用qwen智能分片策略: qwen2.5-32b-instruct
+2025-08-27 12:50:38,901 - INFO - Qwen统一优化: 任务均匀分配到3个keys，每key约10个实例
+2025-08-27 12:50:38,901 - INFO - 📊 创建了 2 个并行分片
+2025-08-27 12:50:38,901 - INFO - [DEBUG] 启动分片 qwen2.5-32b-instruct_medium_key0，包含模型: qwen2.5-32b-instruct
+2025-08-27 12:50:38,901 - INFO -    传递STORAGE_FORMAT=json给子进程
+2025-08-27 12:50:38,909 - INFO - [DEBUG] 分片 qwen2.5-32b-instruct_medium_key0 日志: logs/debug_ultra_20250827_125025/qwen2_5_32b_instruct_f408_125038_901_p99397_010_qwen2_5_32b_instruct_medium_key0.log
+2025-08-27 12:50:38,910 - INFO - [DEBUG] 运行命令: python -u smart_batch_runner.py --model qwen2.5-32b-instruct --deployment qwen-key0 --prompt-types optimal --difficulty medium --task-types all --num-instances 10 --max-workers 50 --tool-success-rate 0.8 --batch-commit --checkpoint-interval 20 --ai-classification --no-adaptive --qps 50
+2025-08-27 12:50:38,944 - INFO - 🚀 第一个分片 qwen2.5-32b-instruct_medium_key0 立即启动
+2025-08-27 12:50:38,944 - INFO - ⏱️  延迟5秒后启动第二个分片...
+[分片qwen2.5-32b-instruct_medium_key0] /Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/nn/modules/transformer.py:20: UserWarning: Failed to initialize NumPy: _ARRAY_API not found (Triggered internally at /Users/runner/work/pytorch/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:84.)
+2025-08-27 12:50:43,951 - INFO - [DEBUG] 启动分片 qwen2.5-32b-instruct_medium_key1，包含模型: qwen2.5-32b-instruct
+2025-08-27 12:50:43,967 - INFO -    传递STORAGE_FORMAT=json给子进程
+2025-08-27 12:50:43,985 - INFO - [DEBUG] 分片 qwen2.5-32b-instruct_medium_key1 日志: logs/debug_ultra_20250827_125025/qwen2_5_32b_instruct_f408_125043_974_p99397_011_qwen2_5_32b_instruct_medium_key1.log
+2025-08-27 12:50:43,986 - INFO - [DEBUG] 运行命令: python -u smart_batch_runner.py --model qwen2.5-32b-instruct --deployment qwen-key1 --prompt-types optimal --difficulty medium --task-types all --num-instances 10 --max-workers 50 --tool-success-rate 0.8 --batch-commit --checkpoint-interval 20 --ai-classification --no-adaptive --qps 50
+2025-08-27 12:50:44,142 - INFO - ⏳ 并发等待 2 个分片完成...
+[分片qwen2.5-32b-instruct_medium_key1] /Users/ruicheng/miniconda3/lib/python3.10/site-packages/torch/nn/modules/transformer.py:20: UserWarning: Failed to initialize NumPy: _ARRAY_API not found (Triggered internally at /Users/runner/work/pytorch/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:84.)
+[分片qwen2.5-32b-instruct_medium_key0] ⚠️  检测到idealab API，调整并发: workers=2, qps=None
+[分片qwen2.5-32b-instruct_medium_key0] [AI_DEBUG] AI分类器初始化成功: <txt_based_ai_classifier.TxtBasedAIClassifier object at 0x7fe2bed7fc60>
+./run_systematic_test_final.sh: line 3675: 99397 Terminated: 15          USE_RESULT_COLLECTOR='true' STORAGE_FORMAT='json' KMP_DUPLICATE_LIB_OK=TRUE python -u ultra_parallel_runner_debug.py --model qwen2.5-32b-instruct --prompt-types optimal --difficulty medium --task-types all --num-instances 20 --rate-mode fixed --max-workers 50 --debug-log-dir logs/debug_ultra_20250827_125025

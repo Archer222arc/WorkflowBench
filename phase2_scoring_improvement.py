@@ -59,13 +59,34 @@ class StableScorer:
             execution_result, evaluation_context
         )
         
-        # 3. 使用几何平均数组合，避免极端值
+        # 3. 使用几何平均数组合，避免极端值（添加安全检查）
         # 这比算术平均更稳定，因为它惩罚任何一个维度的低分
-        final_score = np.power(
-            np.power(task_achievement, self.config.task_achievement_weight) * 
-            np.power(execution_quality, self.config.execution_quality_weight),
-            1.0 / (self.config.task_achievement_weight + self.config.execution_quality_weight)
-        )
+        try:
+            # 确保输入值在有效范围内
+            task_achievement = max(0.0, min(1.0, task_achievement or 0.0))
+            execution_quality = max(0.0, min(1.0, execution_quality or 0.0))
+            
+            # 防止权重和为零
+            weight_sum = self.config.task_achievement_weight + self.config.execution_quality_weight
+            if weight_sum <= 0:
+                weight_sum = 1.0
+                
+            final_score = np.power(
+                np.power(task_achievement, self.config.task_achievement_weight) * 
+                np.power(execution_quality, self.config.execution_quality_weight),
+                1.0 / weight_sum
+            )
+            
+            # 检查结果是否有效
+            if not np.isfinite(final_score):
+                logger.warning(f"无效的final_score: {final_score}, 使用默认值0.0")
+                final_score = 0.0
+            else:
+                final_score = float(final_score)  # 确保返回Python float而不是numpy类型
+                
+        except Exception as e:
+            logger.error(f"计算final_score时出错: {e}, 使用默认值0.0")
+            final_score = 0.0
         
         # 4. 构建详细的分数分解
         score_breakdown = {
