@@ -980,33 +980,60 @@ class UltraParallelRunner:
         
         for i, process in enumerate(processes):
             try:
-                # 🔧 添加进程等待超时保护（30分钟）
-                import signal
-                def timeout_handler(signum, frame):
-                    logger.warning(f"⏰ 分片{i+1}执行超时30分钟，强制终止")
-                    process.terminate()
-                    process.wait(timeout=10)  # 等待10秒让进程正常结束
-                    if process.poll() is None:
-                        process.kill()  # 如果还没结束就强制杀死
+                # 🔧 修复：使用更可靠的超时机制（基于poll而不是signal）
+                import time
+                timeout_minutes = 10  # 缩短超时时间到10分钟
+                timeout_seconds = timeout_minutes * 60
+                start_time = time.time()
                 
-                # 设置30分钟超时
-                old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-                signal.alarm(30 * 60)  # 30分钟
+                logger.info(f"等待分片{i+1}完成（最多等待{timeout_minutes}分钟）...")
                 
-                process.wait()
-                
-                # 取消超时
-                signal.alarm(0)
-                signal.signal(signal.SIGALRM, old_handler)
-                
-                if process.returncode == 0:
-                    success_count += 1
-                    logger.info(f"✅ 分片{i+1}完成")
-                else:
-                    logger.error(f"❌ 分片{i+1}失败 (退出码: {process.returncode})")
+                # 轮询等待，避免无限阻塞
+                while True:
+                    # 检查进程是否结束
+                    return_code = process.poll()
+                    if return_code is not None:
+                        # 进程已结束
+                        if return_code == 0:
+                            success_count += 1
+                            logger.info(f"✅ 分片{i+1}完成")
+                        else:
+                            logger.error(f"❌ 分片{i+1}失败 (退出码: {return_code})")
+                        break
+                    
+                    # 检查是否超时
+                    elapsed = time.time() - start_time
+                    if elapsed > timeout_seconds:
+                        logger.warning(f"⏰ 分片{i+1}执行超时{timeout_minutes}分钟，强制终止")
+                        # 先尝试优雅终止
+                        process.terminate()
+                        # 等待3秒让进程有机会清理
+                        for _ in range(30):  # 3秒
+                            if process.poll() is not None:
+                                break
+                            time.sleep(0.1)
+                        
+                        # 如果还没结束就强制杀死
+                        if process.poll() is None:
+                            logger.warning(f"分片{i+1}未响应SIGTERM，使用SIGKILL强制结束")
+                            process.kill()
+                            process.wait()  # 确保进程完全结束
+                        
+                        logger.error(f"❌ 分片{i+1}超时终止")
+                        break
+                    
+                    # 短暂休眠避免CPU占用过高
+                    time.sleep(1)
                     
             except Exception as e:
                 logger.error(f"❌ 分片{i+1}等待过程中出现异常: {e}")
+                # 确保异常情况下也尝试清理进程
+                try:
+                    if process.poll() is None:
+                        process.kill()
+                        process.wait()
+                except:
+                    pass
         
         logger.info(f"📊 并发执行结果: {success_count}/{len(processes)} 分片成功")
         
