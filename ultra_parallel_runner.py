@@ -982,11 +982,25 @@ class UltraParallelRunner:
             try:
                 # 🔧 修复：使用更可靠的超时机制（基于poll而不是signal）
                 import time
-                timeout_minutes = 10  # 缩短超时时间到10分钟
+                
+                # 🎯 动态计算超时时间，基于测试规模
+                base_timeout = 30  # 基础30分钟
+                
+                # 获取测试规模参数
+                num_instances = int(os.environ.get('NUM_INSTANCES', '20'))
+                max_workers = int(os.environ.get('CUSTOM_WORKERS', '50'))
+                
+                # 根据实例数量调整：每个实例平均1分钟
+                instance_timeout = num_instances * 1  
+                # 根据worker数量调整：worker少则需要更多时间
+                worker_factor = max(1.0, 50.0 / max_workers)  
+                
+                timeout_minutes = int(base_timeout + instance_timeout * worker_factor)
+                timeout_minutes = max(30, min(timeout_minutes, 120))  # 限制在30-120分钟之间
                 timeout_seconds = timeout_minutes * 60
                 start_time = time.time()
                 
-                logger.info(f"等待分片{i+1}完成（最多等待{timeout_minutes}分钟）...")
+                logger.info(f"等待分片{i+1}完成（{num_instances}实例×{max_workers}workers，最多等待{timeout_minutes}分钟）...")
                 
                 # 轮询等待，避免无限阻塞
                 while True:
