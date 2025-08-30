@@ -94,15 +94,20 @@ class ResultMerger:
         
         if self.merge_thread:
             logger.info("等待合并线程结束...")
-            self.merge_thread.join(timeout=5)
+            # 🔧 修复：缩短join超时时间，避免长时间等待
+            self.merge_thread.join(timeout=2)
             if self.merge_thread.is_alive():
-                logger.warning("合并线程在5秒内未能正常结束")
+                logger.info("⚠️ 合并线程仍在运行，但由于使用daemon线程，主程序退出时会自动清理")
             else:
                 logger.info("✅ 合并线程已正常结束")
         
         # 释放合并器锁
-        lock = get_merger_lock()
-        lock.release()
+        try:
+            lock = get_merger_lock()
+            lock.release()
+            logger.info("🔓 合并器锁已释放")
+        except Exception as e:
+            logger.warning(f"⚠️ 释放合并器锁时出现问题: {e}")
         
         logger.info("🏁 ResultMerger已完全停止")
     

@@ -975,16 +975,38 @@ class UltraParallelRunner:
             processes.append(process)
             logger.info(f"   分片{i+1}: {shard.instance_name} ({shard.num_instances}个实例)")
         
-        # 等待所有分片完成 - 现在有了根本修复，无需复杂的超时机制
+        # 等待所有分片完成 - 添加超时保护防止无限等待
         success_count = 0
         
         for i, process in enumerate(processes):
-            process.wait()
-            if process.returncode == 0:
-                success_count += 1
-                logger.info(f"✅ 分片{i+1}完成")
-            else:
-                logger.error(f"❌ 分片{i+1}失败 (退出码: {process.returncode})")
+            try:
+                # 🔧 添加进程等待超时保护（30分钟）
+                import signal
+                def timeout_handler(signum, frame):
+                    logger.warning(f"⏰ 分片{i+1}执行超时30分钟，强制终止")
+                    process.terminate()
+                    process.wait(timeout=10)  # 等待10秒让进程正常结束
+                    if process.poll() is None:
+                        process.kill()  # 如果还没结束就强制杀死
+                
+                # 设置30分钟超时
+                old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+                signal.alarm(30 * 60)  # 30分钟
+                
+                process.wait()
+                
+                # 取消超时
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, old_handler)
+                
+                if process.returncode == 0:
+                    success_count += 1
+                    logger.info(f"✅ 分片{i+1}完成")
+                else:
+                    logger.error(f"❌ 分片{i+1}失败 (退出码: {process.returncode})")
+                    
+            except Exception as e:
+                logger.error(f"❌ 分片{i+1}等待过程中出现异常: {e}")
         
         logger.info(f"📊 并发执行结果: {success_count}/{len(processes)} 分片成功")
         

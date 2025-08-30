@@ -132,11 +132,23 @@ class SimpleStorage:
         if self.use_safe_mode and self.merger:
             try:
                 from result_merger import stop_auto_merge, force_merge
+                import time
+                
+                print("[INFO] 正在停止ResultMerger...")
+                start_time = time.time()
                 stop_auto_merge()
+                
+                # 检查停止操作是否超时
+                if time.time() - start_time > 3:
+                    print("[WARNING] ResultMerger停止操作耗时过长，跳过最终合并")
+                    return
+                
+                print("[INFO] 执行最终合并...")
                 count = force_merge()
                 print(f"[INFO] 最终合并完成: {count} 个文件")
-            except:
-                pass
+            except Exception as e:
+                print(f"[WARNING] 关闭存储时出现问题: {e}")
+                # 不抛出异常，确保程序能够正常退出
     
     def _get_model_name(self, record) -> str:
         """获取模型名"""
