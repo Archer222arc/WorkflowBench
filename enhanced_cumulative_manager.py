@@ -334,6 +334,9 @@ class EnhancedCumulativeManager(CumulativeTestManager):
                 success = self._get_record_attr(record, 'success', False) or self._get_record_attr(record, 'partial_success', False)
                 prompt_stats.add_assisted_test(success, format_error_count)
             
+            # 🔧 修复：直接更新V3层次结构，防止数据覆盖
+            self._update_v3_structure_immediate(record, normalized_model, effective_prompt)
+            
             # Add to buffer
             self.update_buffer.append(record)
             
@@ -357,6 +360,106 @@ class EnhancedCumulativeManager(CumulativeTestManager):
         
         return True
     
+    def _update_v3_structure_immediate(self, record: TestRecord, model: str, effective_prompt: str):
+        """
+        立即更新V3层次结构，防止数据被覆盖
+        确保flawed和optimal测试使用不同的存储路径
+        """
+        try:
+            # 确保数据库中有该模型
+            if model not in self.database["models"]:
+                self.database["models"][model] = {
+                    "model_name": model,
+                    "first_test_time": datetime.now().isoformat(),
+                    "last_test_time": datetime.now().isoformat(),
+                    "total_tests": 0,
+                    "overall_stats": {},
+                    "by_prompt_type": {}
+                }
+                print(f"[V3_UPDATE] 创建新模型结构: {model}")
+            
+            model_data = self.database["models"][model]
+            
+            # 确保by_prompt_type存在
+            if "by_prompt_type" not in model_data:
+                model_data["by_prompt_type"] = {}
+            
+            # 🔧 关键修复：使用effective_prompt确保flawed和optimal分开存储
+            if effective_prompt not in model_data["by_prompt_type"]:
+                model_data["by_prompt_type"][effective_prompt] = {
+                    "by_tool_success_rate": {},
+                    "summary": {}
+                }
+                print(f"[V3_UPDATE] 创建新prompt类型结构: {model} -> {effective_prompt}")
+            
+            # 获取工具成功率
+            tool_success_rate = self._get_record_attr(record, 'tool_success_rate', 0.8)
+            tool_rate_key = str(round(tool_success_rate, 4))
+            
+            # 确保tool_success_rate层级存在
+            prompt_data = model_data["by_prompt_type"][effective_prompt]
+            if tool_rate_key not in prompt_data["by_tool_success_rate"]:
+                prompt_data["by_tool_success_rate"][tool_rate_key] = {
+                    "by_difficulty": {}
+                }
+                print(f"[V3_UPDATE] 创建新工具成功率结构: {model} -> {effective_prompt} -> {tool_rate_key}")
+            
+            # 获取难度
+            difficulty = self._get_record_attr(record, 'difficulty', 'easy')
+            
+            # 确保difficulty层级存在
+            rate_data = prompt_data["by_tool_success_rate"][tool_rate_key]
+            if difficulty not in rate_data["by_difficulty"]:
+                rate_data["by_difficulty"][difficulty] = {
+                    "by_task_type": {}
+                }
+                print(f"[V3_UPDATE] 创建新难度结构: {model} -> {effective_prompt} -> {tool_rate_key} -> {difficulty}")
+            
+            # 获取任务类型
+            task_type = self._get_record_attr(record, 'task_type', 'unknown')
+            
+            # 确保task_type层级存在并更新统计
+            diff_data = rate_data["by_difficulty"][difficulty]
+            if task_type not in diff_data["by_task_type"]:
+                diff_data["by_task_type"][task_type] = {
+                    "total": 0,
+                    "successful": 0,
+                    "partial": 0,
+                    "failed": 0,
+                    "success_rate": 0.0,
+                    "partial_rate": 0.0,
+                    "failure_rate": 0.0
+                }
+                print(f"[V3_UPDATE] 创建新任务类型结构: {model} -> {effective_prompt} -> {tool_rate_key} -> {difficulty} -> {task_type}")
+            
+            # 更新统计数据
+            task_stats = diff_data["by_task_type"][task_type]
+            task_stats["total"] += 1
+            
+            success = self._get_record_attr(record, 'success', False)
+            partial_success = self._get_record_attr(record, 'partial_success', False)
+            
+            if success:
+                task_stats["successful"] += 1
+            elif partial_success:
+                task_stats["partial"] += 1
+            else:
+                task_stats["failed"] += 1
+            
+            # 重新计算比率
+            total = task_stats["total"]
+            if total > 0:
+                task_stats["success_rate"] = task_stats["successful"] / total
+                task_stats["partial_rate"] = task_stats["partial"] / total
+                task_stats["failure_rate"] = task_stats["failed"] / total
+            
+            print(f"[V3_UPDATE] 更新统计完成: {model} -> {effective_prompt} -> {task_type} (total: {total})")
+            
+        except Exception as e:
+            print(f"[V3_UPDATE_ERROR] 更新V3结构时出错: {e}")
+            import traceback
+            traceback.print_exc()
+    
     def append_test_result(self, record: TestRecord) -> bool:
         """
         别名方法，为了兼容性
@@ -378,8 +481,9 @@ class EnhancedCumulativeManager(CumulativeTestManager):
                     # Use V2 model processing
                     self._add_test_result_v2(record)
                 else:
-                    # Call parent method to update basic statistics
-                    super().add_test_result(record)
+                    # 🔧 修复：不再调用父类方法，避免数据覆盖
+                    # V3结构已经在_update_v3_structure_immediate中更新了
+                    print(f"[INFO] Skipping parent add_test_result to prevent data overwrite (record already processed in V3 structure)")
                 
                 # 每处理5条记录打印一次进度
                 if (i + 1) % 5 == 0:
