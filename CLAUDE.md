@@ -912,6 +912,13 @@ python view_test_progress.py
 # 更新统计总数
 python update_summary_totals.py
 
+# 🆕 数据提取和表格生成（重要脚本）
+python extract_experiment_results.py         # 提取所有实验数据
+python extract_experiment_results.py 5.1     # 仅提取5.1基准测试数据
+python extract_experiment_results.py 5.2     # 仅提取5.2规模效应数据
+python extract_experiment_results.py 5.3     # 仅提取5.3缺陷工作流数据
+python extract_experiment_results.py generate # 生成markdown表格文件
+
 # 查看日志
 tail -f logs/batch_test_*.log
 ```
@@ -938,6 +945,27 @@ tail -f logs/batch_test_*.log
 ---
 
 ## 📝 最新维护记录
+
+### 2025-08-30 16:30 - 数据提取核心工具脚本创建 ⭐
+- ✅ **创建extract_experiment_results.py重要脚本**
+  - 功能：从master_database.json标准化提取5.1/5.2/5.3实验数据
+  - 特点：自动排除timeout失败，确保数据科学性和准确性
+  - 用途：生成论文和报告用的标准化实验表格
+  - 重要性：★★★★★ (核心数据处理脚本)
+- ✅ **实现timeout失败排除机制**
+  - 逻辑：timeout_failures = min(timeout_errors, failed)
+  - 计算：effective_total = original_total - timeout_failures
+  - 效果：排除71个timeout失败，提升数据质量
+- ✅ **支持多种使用方式**
+  - `python extract_experiment_results.py 5.1` - 提取5.1基准测试
+  - `python extract_experiment_results.py 5.2` - 提取5.2规模效应
+  - `python extract_experiment_results.py 5.3` - 提取5.3缺陷工作流
+  - `python extract_experiment_results.py generate` - 生成markdown表格
+- ✅ **修正实验表格数据结构理解**
+  - 正确理解：success = full_success + partial_success
+  - 修正计算：full_success_rate = (success - partial) / total * 100%
+  - 影响：DeepSeek-R1-0528成功率从47.5%提升到63.9%
+- 📊 当前版本：v3.8.1
 
 ### 2025-08-17 13:20 - 批处理返回值缺失修复 🔴
 - ✅ **修复_run_single_test_safe缺少return语句**

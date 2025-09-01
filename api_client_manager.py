@@ -3,6 +3,7 @@
 API Client Manager
 ==================
 统一的多模型API客户端管理器，支持OpenAI、Azure OpenAI、idealab等多个提供商
+支持智能部署管理和429错误处理
 """
 
 import os
@@ -12,6 +13,24 @@ from pathlib import Path
 from typing import Optional, Dict, Any, Union, List
 from openai import OpenAI, AzureOpenAI
 import httpx
+
+# 导入智能部署管理器
+try:
+    from smart_deployment_manager import SmartDeploymentManager, get_deployment_manager
+except ImportError:
+    # 如果导入失败，定义空的占位符类
+    class SmartDeploymentManager:
+        def __init__(self, *args, **kwargs):
+            pass
+        def get_best_deployment(self, model_name):
+            return model_name
+        def mark_deployment_failed(self, *args, **kwargs):
+            pass
+        def mark_deployment_success(self, *args, **kwargs):
+            pass
+    
+    def get_deployment_manager():
+        return SmartDeploymentManager()
 
 logger = logging.getLogger(__name__)
 
@@ -188,6 +207,7 @@ class APIClientManager:
         }
         
         # Prompt类型到API Key的映射策略（现在有3个keys）
+        # 注意：闭源模型会在_get_ideallab_client中强制使用key 0
         self._prompt_key_strategy = {
             'baseline': 0,  # 使用第1个key
             'cot': 1,       # 使用第2个key  
@@ -319,6 +339,9 @@ class APIClientManager:
             key_index: Optional explicit key index (0-2)
         """
         # 智能选择API Key和对应的BASE_URL
+        # 闭源模型强制使用key 0
+        if any(keyword in model.lower() for keyword in ["claude", "o3", "gemini", "kimi"]):
+            key_index = 0  # 强制使用key 0
         api_key, actual_index = self._select_idealab_key_with_index(prompt_type, key_index)
         
         # 使用对应的BASE_URL
@@ -429,32 +452,126 @@ class APIClientManager:
             return self._idealab_keys[self._key_usage_count['general'] % len(self._idealab_keys)]
     
     def _get_user_azure_client(self, model: str) -> AzureOpenAI:
-        """Get user-provided Azure client"""
+        """Get user-provided Azure client with smart deployment management"""
+        
+        # 使用智能部署管理器获取最佳部署
+        deployment_manager = get_deployment_manager()
+        best_deployment = deployment_manager.get_best_deployment(model)
+        
+        if not best_deployment:
+            # 如果智能管理器返回None，回退到原始模型名
+            best_deployment = model
+            logger.warning(f"Smart deployment manager returned None for {model}, using original name")
+        
         # 从配置中获取模型特定的配置
-        model_config = self._config.get('model_configs', {}).get(model, {})
+        model_config = self._config.get('model_configs', {}).get(best_deployment, {})
+        
+        if not model_config:
+            # 如果没找到最佳部署的配置，尝试使用原始模型的配置
+            model_config = self._config.get('model_configs', {}).get(model, {})
         
         if model_config.get('provider') == 'user_azure':
             azure_endpoint = model_config.get('azure_endpoint')
             api_version = model_config.get('api_version', '2024-12-01-preview')
-            deployment_name = model_config.get('deployment_name', model)
+            deployment_name = model_config.get('deployment_name', best_deployment)
             
-            # 使用用户的Azure API key (假设存储在环境变量中)
+            # 使用用户的Azure API key
             api_key = os.getenv('USER_AZURE_API_KEY') or self._config.get('user_azure_api_key')
             
             if not all([api_key, azure_endpoint]):
-                raise ValueError(f"User Azure configuration incomplete for {model}")
+                raise ValueError(f"User Azure configuration incomplete for {best_deployment}")
             
             client = AzureOpenAI(
                 api_key=api_key,
                 api_version=api_version,
                 azure_endpoint=azure_endpoint,
-                timeout=150,     # 150秒超时
+                timeout=httpx.Timeout(150.0, read=150.0, write=30.0, connect=30.0),     # 150秒超时
                 max_retries=0    # 禁用自动重试
             )
+            # 为客户端添加部署信息，用于错误处理
             client.deployment_name = deployment_name
+            client.original_model = model  # 保存原始模型名
+            client.current_deployment = best_deployment  # 保存当前部署名
+            
             return client
         else:
-            raise ValueError(f"Model {model} is not configured for user_azure")
+            raise ValueError(f"Model {best_deployment} is not configured for user_azure")
+    
+    def create_smart_completion(self, model: str, messages: List[Dict], **kwargs):
+        """创建智能完成请求，包含429错误处理和故障转移"""
+        deployment_manager = get_deployment_manager()
+        
+        # 获取该模型的所有部署
+        parallel_deployments = self._config.get("azure_parallel_deployments", {})
+        available_deployments = parallel_deployments.get(model, [model])
+        
+        last_exception = None
+        
+        for deployment in available_deployments:
+            try:
+                # 获取该部署的客户端
+                client = self._get_user_azure_client_for_deployment(deployment)
+                
+                # 尝试API调用
+                response = client.chat.completions.create(
+                    model=client.deployment_name,
+                    messages=messages,
+                    **kwargs
+                )
+                
+                # 成功，标记部署健康
+                deployment_manager.mark_deployment_success(deployment)
+                return response
+                
+            except Exception as e:
+                last_exception = e
+                error_str = str(e).lower()
+                
+                if "429" in error_str or "too many requests" in error_str:
+                    logger.warning(f"429 error with deployment {deployment}, trying next deployment...")
+                    deployment_manager.mark_deployment_failed(deployment, "429")
+                    continue
+                elif "timeout" in error_str:
+                    logger.warning(f"Timeout with deployment {deployment}, trying next deployment...")
+                    deployment_manager.mark_deployment_failed(deployment, "timeout")
+                    continue
+                else:
+                    # 其他错误，也尝试下一个部署
+                    logger.warning(f"Error with deployment {deployment}: {e}")
+                    deployment_manager.mark_deployment_failed(deployment, "other")
+                    continue
+        
+        # 所有部署都失败了
+        raise Exception(f"All deployments failed for model {model}. Last error: {last_exception}")
+    
+    def _get_user_azure_client_for_deployment(self, deployment_name: str) -> AzureOpenAI:
+        """为特定部署创建Azure客户端"""
+        model_config = self._config.get('model_configs', {}).get(deployment_name, {})
+        
+        if not model_config or model_config.get('provider') != 'user_azure':
+            raise ValueError(f"No user_azure configuration found for deployment: {deployment_name}")
+        
+        azure_endpoint = model_config.get('azure_endpoint')
+        api_version = model_config.get('api_version', '2024-02-15-preview')
+        deployment_name_config = model_config.get('deployment_name', deployment_name)
+        
+        api_key = os.getenv('USER_AZURE_API_KEY') or self._config.get('user_azure_api_key')
+        
+        if not all([api_key, azure_endpoint]):
+            raise ValueError(f"User Azure configuration incomplete for {deployment_name}")
+        
+        client = AzureOpenAI(
+            api_key=api_key,
+            api_version=api_version,
+            azure_endpoint=azure_endpoint,
+            timeout=httpx.Timeout(150.0, read=150.0, write=30.0, connect=30.0),
+            max_retries=0    # 禁用自动重试，由我们手动控制
+        )
+        
+        client.deployment_name = deployment_name_config
+        client.current_deployment = deployment_name
+        
+        return client
     
     def get_embedding_model(self) -> str:
         """Get appropriate embedding model name"""
@@ -567,6 +684,50 @@ class MultiModelAPIManager:
             # 用户提供的Azure endpoint
             # 注意：每个模型需要独立的客户端实例，因为deployment_name不同
             
+            # 检查是否有多部署配置，如果有则使用智能部署管理器
+            parallel_deployments = self.config.get('azure_parallel_deployments', {})
+            
+            if model_name in parallel_deployments:
+                # 使用智能部署管理器处理多部署场景
+                logger.info(f"Using smart deployment manager for {model_name} (has {len(parallel_deployments[model_name])} deployments)")
+                
+                # 导入并使用智能部署管理器
+                from smart_deployment_manager import get_deployment_manager
+                deployment_manager = get_deployment_manager()
+                best_deployment = deployment_manager.get_best_deployment(model_name)
+                
+                if not best_deployment:
+                    # 如果智能管理器返回None，回退到原始模型名
+                    best_deployment = model_name
+                    logger.warning(f"Smart deployment manager returned None for {model_name}, using original name")
+                
+                # 使用最佳部署创建客户端
+                model_config = self.config.get('model_configs', {}).get(best_deployment, {})
+                if not model_config:
+                    # 如果没找到最佳部署的配置，尝试使用原始模型的配置
+                    model_config = self.config.get('model_configs', {}).get(model_name, {})
+                
+                if model_config.get('provider') == 'user_azure':
+                    azure_endpoint = model_config.get('azure_endpoint', "https://85409-me3ofvov-eastus2.services.ai.azure.com")
+                    api_version = model_config.get('api_version', '2024-02-15-preview')
+                    deployment_name = model_config.get('deployment_name', best_deployment)
+                    
+                    client = AzureOpenAI(
+                        api_key="6Qc2Oxuf0oVtGutYCTSHOGbm1Dmn4kESwrDYeytkJsHWv3xqrnEMJQQJ99BHACHYHv6XJ3w3AAAAACOGXWza",
+                        api_version=api_version,
+                        azure_endpoint=azure_endpoint,
+                        timeout=httpx.Timeout(150.0, read=150.0, write=30.0, connect=30.0),
+                        max_retries=0    # 禁用自动重试，由智能部署管理器控制
+                    )
+                    
+                    client.deployment_name = deployment_name
+                    client.current_deployment = best_deployment  # 记录当前使用的部署
+                    logger.info(f"Created smart Azure client for {model_name} using deployment: {best_deployment}")
+                    return client
+                else:
+                    logger.warning(f"Model config for {best_deployment} is not user_azure, falling back to standard handling")
+            
+            # 标准处理（非多部署场景或fallback）
             # 特殊处理DeepSeek和Grok模型 - 使用标准Azure端口
             if "deepseek" in model_name.lower() or "DeepSeek" in model_name or "grok" in model_name.lower():
                 client = AzureOpenAI(

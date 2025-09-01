@@ -104,6 +104,7 @@ class InteractiveExecutor:
             from api_client_manager import get_client_for_model, get_api_model_name
             self.model = model or "gpt-4o-mini"
             self.prompt_type = prompt_type  # 保存prompt_type
+            self.idealab_key_index = idealab_key_index  # 保存idealab_key_index用于部署切换
             self.llm_client = get_client_for_model(self.model, prompt_type, idealab_key_index)
             if not self.silent:
                 print(f"[InteractiveExecutor] Initialized client with model: {self.model}")
@@ -113,6 +114,8 @@ class InteractiveExecutor:
         else:
             # 保持向后兼容
             self.llm_client = llm_client
+            self.prompt_type = prompt_type  # 保存prompt_type
+            self.idealab_key_index = idealab_key_index  # 保存idealab_key_index用于部署切换
             if model is None:
                 # 尝试从客户端获取模型名称
                 from api_client_manager import APIClientManager
@@ -1364,12 +1367,50 @@ class InteractiveExecutor:
                     state.timeout_occurred = True  # 标记超时发生
                     return None  # 直接返回失败，不重试
                 
-                # 检查是否是可重试的错误（不包括超时）
-                is_rate_limit = "限流" in error_msg or "rate limit" in error_msg.lower() or "PL-002" in error_msg
+                # 检查是否是429错误（需要切换部署）
+                is_429_error = "429" in error_msg or "Too Many Requests" in error_msg or "too many requests" in error_msg.lower()
+                
+                if is_429_error:
+                    print(f"[429_ERROR] 429 Too Many Requests detected, attempting deployment switch...")
+                    
+                    # 尝试切换部署
+                    if hasattr(self.llm_client, 'current_deployment'):
+                        current_deployment = self.llm_client.current_deployment
+                        print(f"[429_ERROR] Current deployment: {current_deployment}")
+                        
+                        # 标记当前部署失败
+                        try:
+                            from smart_deployment_manager import get_deployment_manager
+                            deployment_manager = get_deployment_manager()
+                            deployment_manager.mark_deployment_failed(current_deployment, "429")
+                            print(f"[429_ERROR] Marked {current_deployment} as failed due to 429 error")
+                            
+                            # 获取新的最佳部署
+                            new_deployment = deployment_manager.get_best_deployment(self.model)
+                            if new_deployment and new_deployment != current_deployment:
+                                print(f"[429_ERROR] Switching from {current_deployment} to {new_deployment}")
+                                
+                                # 重新创建客户端
+                                from api_client_manager import get_client_for_model
+                                idealab_key_index = getattr(self, 'idealab_key_index', None)
+                                self.llm_client = get_client_for_model(self.model, self.prompt_type, idealab_key_index)
+                                print(f"[429_ERROR] Successfully switched to new deployment: {getattr(self.llm_client, 'current_deployment', 'N/A')}")
+                                
+                                # 重试当前请求（不计入重试次数）
+                                continue
+                            else:
+                                print(f"[429_ERROR] No alternative deployment available for {self.model}")
+                        except Exception as switch_error:
+                            print(f"[429_ERROR] Failed to switch deployment: {switch_error}")
+                    else:
+                        print(f"[429_ERROR] Client does not support deployment switching")
+                
+                # 检查是否是可重试的错误（不包括超时和429）
+                is_rate_limit = ("限流" in error_msg or "rate limit" in error_msg.lower() or "PL-002" in error_msg) and not is_429_error
                 is_400_error = "400" in error_msg or "Bad Request" in error_msg
                 is_connection_error = ("Connection" in error_msg and "timeout" not in error_msg.lower())
                 
-                if is_rate_limit or is_400_error or is_connection_error:
+                if is_rate_limit or is_400_error or is_connection_error or is_429_error:
                     if attempt < max_retries - 1:
                         # 减少重试间隔：0.5-1.5秒基础时间，指数退避更温和
                         base_wait = random.uniform(0.5, 1.5)
